@@ -4,6 +4,13 @@ import time
 import datetime
 import pytz
 
+#from urllib.request import urlopen
+#import ssl
+
+#url="https://igrins2-hk-default-rtdb.firebaseio.com"
+#ssl.create_default_https_context = ssl._create_unverified_context
+#url_addr = urlopen(url, context=context)
+
 HKLogPath = "/IGRINS/TEST/Log/Web/tempweb.dat"
 #HKLogPath = "/IGRINS/Log/Web/tempweb.dat"
 # FieldNames = ['da','ti','va','t1','h1','t2','h2','t3','h3','t4','h4','t5','h5','t6','t7','t8']
@@ -36,9 +43,8 @@ def read_item_to_upload():
 
     return HK_dict
 
-
 import pyrebase
-
+#import credentials
 
 def get_firebase():
     config = {
@@ -49,6 +55,7 @@ def get_firebase():
         "serviceAccount": "igrins2-hk-firebase-adminsdk-qtt3q-073f6caf5b.json"
         }
 
+    #cred = credentials.Certificate(config)
     firebase = pyrebase.initialize_app(config)
 
     return firebase
@@ -95,7 +102,7 @@ def main():
 
         try:
             while True:
-                sleep_time = 20 #60
+                sleep_time = 60
                 r = next(fb)
                 if r == "Same":
                     print("Skipping, same as the last entry.")

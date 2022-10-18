@@ -7,7 +7,7 @@ Modified on May 9, 2022
 @author: hilee
 """
 
-#from curses import baudrate
+from curses import baudrate
 import os
 import Libs.SetConfig as sc
 #import asyncio
@@ -192,7 +192,8 @@ class HK() :
                 self.logwrite(BOTH, self.comList[nCom] + " is connected")
             else:
                 self.logwrite(CMDLINE, CLASS_NAME + " connection success (" + self.comList[nCom] + ")")
-                
+            
+            '''    
             if self.gui and self.cur_err[nCom]:
                 self.cur_err[nCom] = False
                 
@@ -206,6 +207,7 @@ class HK() :
                 except:
                     log = "recv %s <<< fail: reading from buffer" % (self.comList[nCom])
                 self.logwrite(LOGGING, log)
+            '''
             
         except:
             self.comSocket[nCom] = None

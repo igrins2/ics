@@ -11,8 +11,7 @@ Modified on May 3, 2022
 from asyncio import as_completed
 import sys
 import os
-from HKP.HK_def import TMC3
-from astropy.io.ascii.tests.test_ecsv import tm
+
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
 from PySide6.QtCore import *
@@ -108,7 +107,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
         #for test
         self.timer_sendsts = QTimer(self)
         self.timer_sendsts.setInterval(3600*1000)
-        #self.timer_sendsts.setInterval(60*1000)
         self.timer_sendsts.timeout.connect(self.SendSts)
             
         self.iter_color = cycle(["white", "black"]) 
@@ -406,17 +404,18 @@ class MainWindow(Ui_Dialog, QMainWindow):
         to = self.hk.alert_email
         title = "[IG2] Dewar status"
         
-        label = ["pressure", "bench", "bench heat",
-                 "coldhead01", "coldhead02", 
-                 "charcoalBox"]
-        temp = [self.dpvalue, self.dtvalue_from_label["bench"], self.heatlabel["tmc1-a"], 
-                self.dtvalue_from_label["coldhead01"], self.dtvalue_from_label["coldhead02"],
-                self.dtvalue_from_label["charcoalBox"]]
+        #label = ["pressure", "bench", "bench heat", "coldhead01", "coldhead02", "charcoalBox"]
+
+        #temp = [self.dpvalue, self.dtvalue_from_label["bench"], self.heatlabel["tmc1-a"], 
+        #        self.dtvalue_from_label["coldhead01"], self.dtvalue_from_label["coldhead02"],
+        #        self.dtvalue_from_label["charcoalBox"]]
+        label = ["grating", "grating - tc"]
+        temp = [self.dtvalue_from_label["grating"], self.heatlabel["tmc1-b"]]
         
         msg = ""
         if option == 0:
             msg += "monitoring start...\n"
-        for i in range(6):
+        for i in range(2):
 
             msg += "%s: %s\n" % (label[i], temp[i])
         if option == 2:
@@ -424,7 +423,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
         
         self.send_gmail(to, title, msg)
-        self.hk.logwrite(BOTH, "email was sent to", to)
+        self.hk.logwrite(BOTH, "email was sent to")
         
         
             
@@ -906,7 +905,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.hk.logwrite(BOTH, "sending alerts")
 
         self.send_gmail(to, title, msg)
-        self.hk.logwrite(BOTH, "email was sent to", to)
+        self.hk.logwrite(BOTH, "email was sent to")
 
         self.hk.logwrite(BOTH, "slacker message was sent")
         
@@ -925,7 +924,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     
         smtp = smtplib.SMTP('smtp.gmail.com', 587)
         smtp.starttls()
-        smtp.login("gemini.igrins2@gmail.com", "kasi2023!")   #temp!!!!
+        smtp.login("gemini.igrins2@gmail.com", "ketnbccnjnkrbdrn")   #temp!!!!
         smtp.sendmail(email_from, email_to, msg.as_string())
 
         smtp.quit()
