@@ -12,19 +12,24 @@ import os
 from SC_def import *
 import time
 from time import localtime, strftime
+
 import Libs.SetConfig as sc
-from Libs.rabbitmq_server import *
+import Libs.hk_field_definition as test
+import Libs.ics_server as serv
 class SC():
     def __init__(self, gui=False):
         
         self.gui = gui
-        self.logwrite(BOTH, "start SCP!!!")
-        
+                
         #--------------------------------------------
         # load ini file
         cfg = sc.LoadConfig("/home/ics/IGRINS/Config/IGRINS.ini")
         
         # ICS
+        self.mainlogpath = cfg.get(MAIN, "main-log-location")
+        
+        self.logwrite(BOTH, "start SCP!!!")
+        
         self.ics_ip_addr = cfg.get(MAIN, 'ip_addr')
         self.ics_id = cfg.get(MAIN, 'id')
         self.ics_pwd = cfg.get(MAIN, 'pwd')
@@ -33,7 +38,6 @@ class SC():
         self.ics_ex = cfg.get(TITLE, 'ics_exchange')
         self.ics_q = cfg.get(TITLE, 'ics_routing_key')
 
-        self.dcs_ip_addr = cfg.get(TITLE, 'ip_addr')
         self.dcs_ex = cfg.get(TITLE, 'dcss_exchange')
         self.dcs_q = cfg.get(TITLE, 'dcss_routing_key')
         

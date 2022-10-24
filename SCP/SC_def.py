@@ -15,7 +15,7 @@ CLASS_NAME = "[Slit Camera Package]"
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
-MAIN = "DEFAULT"
+MAIN = "MAIN"
 TITLE = "SC"
 TARGET = "DCSS"
 

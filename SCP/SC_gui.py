@@ -15,8 +15,8 @@ from PySide6.QtCore import *
 from PySide6.QtGui import *
 from PySide6.QtWidgets import *
 
-from Libs.rabbitmq_server import *
 from SC_core import *
+#from Libs.ics_server import *
 
 import time as ti
 import threading

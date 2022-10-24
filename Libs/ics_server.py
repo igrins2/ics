@@ -13,6 +13,10 @@ import pika
 # ics -> dcs gui consumer
 # ics <- dcs core producer
 
+def test():
+    print("test")
+    
+'''
 class ICS_SERVER():
     def __init__(self, ip_addr, id, pwd, ics_exchange, ics_routing_key, type, dcs_exchange, dcs_routing_key):
         self.ip_addr = ip_addr
@@ -81,6 +85,6 @@ class ICS_SERVER():
         channel.basic_publish(exchange=self.ics_exchange, routing_key=self.ics_routing_key, body=message.encode())
         msg = '[%s->%s] %s' % (producers, consumers, message)
         print(msg)
-            
+'''        
 
         
