@@ -18,7 +18,7 @@ setup(
     packages=find_packages(),
     entry_points={
         "console_scripts": [
-	    "hkp = HKP.HK_cli:CliCommand"#,
+	    "hkp = HKP.HK_cli:CliCommand"
 	    #"CalBox = DTP.CalBoxTest.CalBoxTest_cli:CliCommand"
         ]
     },

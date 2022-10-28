@@ -16,7 +16,7 @@ from PySide6.QtGui import *
 from PySide6.QtWidgets import *
 
 from SC_core import *
-#from Libs.ics_server import *
+#import Libs.ics_server as serv
 
 import time as ti
 import threading
@@ -28,7 +28,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.setupUi(self)
         self.setWindowTitle("Slit Camera Package 0.1")
         
-        
         self.sc = SC()
         
         self.init_events()
@@ -36,6 +35,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.label_dcss_sts.setText("Disconnected")
         self.dcss_sts = False
         
+        self.e_boxsize.setText("64")
+        self.label_cur_cursor.setText("( 1024 , 1024 )")
+        self.label_ROI_center.setText(" (1024 , 1024 )")
         self.e_exptime.setText("1.63")
         self.e_FS_number.setText("1")
         self.e_repeat_number.setText("1")
@@ -44,7 +46,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.label_prog_time.setText("---")
         self.label_prog_elapsed.setText("0.0 sec")
         
-        today = ti.strftime("/%04Y%02m%02d", ti.localtime())
+        today = ti.strftime("%04Y%02m%02d", ti.localtime())
         self.e_savepath.setText(self.sc.fits_path + today)
         self.cur_frame = 0
         filename = "sc_%04d.fits" % self.cur_frame
@@ -54,15 +56,20 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.e_mscale_min.setText("1000")
         self.e_mscale_max.setText("5000")
         
-        self.connect_to_server()
-        
-        self.init_detector()
+        self.timer_alive = QTimer(self)
+        self.timer_alive.setInterval(self.sc.alive_chk_interval * 1000) 
+        self.timer_alive.timeout.connect(self.alive_check)
         
         self.fowler_exp = 0.0       # need to cal
+    
+        
+        self.sc.initialize2()     
         
         
         
     def closeEvent(self, *args, **kwargs):
+        self.timer_alive.stop()
+        
         print("Closing %s : " % sys.argv[0])
         
         for th in threading.enumerate():
@@ -76,6 +83,16 @@ class MainWindow(Ui_Dialog, QMainWindow):
     
     
     def init_events(self):
+        self.e_boxsize.setEnabled(False)
+        self.bt_ROI_SET.setEnabled(False)
+        
+        self.e_exptime.setEnabled(False)
+        self.e_FS_number.setEnabled(False)
+        
+        self.bt_acquisition.setEnabled(False)
+        self.bt_stop.setEnabled(False)
+        self.e_repeat_number.setEnabled(False)
+        
         self.bt_acquisition.clicked.connect(self.single_exposure)   
         self.bt_stop.clicked.connect(self.stop_acquisition)
         
@@ -87,19 +104,20 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     
     def connect_to_server(self):
-        # RabbitMQ connect
-        self.serv = ICS_SERVER(self.sc.ics_ip_addr, self.sc.ics_id, self.sc.ics_pwd, self.sc.ics_ex, self.sc.ics_q, "direct", self.sc.dcs_ex, self.sc.dcs_q)
-        self.connection, self.channel = self.serv.connect_to_server(TITLE)
+        # RabbitMQ connect        
+        self.connection, self.channel = serv.connect_to_server(TITLE, self.sc.ics_ip_addr, self.sc.ics_id, self.sc.ics_pwd)
 
         if self.connection:
             # RabbitMQ: define consumer
-            self.queue = self.serv.define_consumer(self.channel, TITLE)
+            self.queue = serv.define_consumer(TITLE, self.channel, self.sc.dcs_ex, "direct", self.sc.dcs_q)
     
             th = threading.Thread(target=self.consumer)
             th.start()
             #th.join()
-
-            self.show_alarm()
+            
+            self.timer_alive.start()
+            
+            
             
     
     # RabbitMQ communication    
@@ -112,35 +130,38 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 self.sc.logwrite(BOTH, "The communication of server was disconnected!")
 
 
+    def alive_check(self):
+        self.sc.alive_check()
+        
+        self.dcss_sts = False
+        timer = QTimer(self)
+        timer.singleShot(self.sc.alive_check_interval*1000/2, self.show_alarm)
+        
+
     def callback(self, ch, method, properties, body):
         cmd = body.decode()
         msg = "receive: %s" % cmd
-        print(msg)
+        print(msg)     
 
-        if cmd == "alive?":
-            self.dcss_sts = True
-            self.sc.send_message("alive")  
+        '''    
+        elif cmd == CMD_SETFSMODE + " OK":            
+            self.e_exptime.setEnabled(True)
+            self.e_FS_number.setEnabled(True)
         
-        elif cmd == CMD_INITIALIZE2 + " OK":
-            self.sc.send_message(CMD_DOWNLOAD)
-            
-        elif cmd == CMD_DOWNLOAD + " OK":
-            self.sc.send_message(CMD_SETDETECTOR)
-            
-        elif cmd == CMD_SETDETECTOR + " OK":
-            self.sc.send_message(CMD_SETFSMODE + " 1")
-            
-        elif cmd == CMD_SETFSMODE + " OK":
-            print(CMD_SETFSMODE, "OK") # for test
+            self.bt_acquisition.setEnabled(True)
+            self.bt_stop.setEnabled(False)
+            self.e_repeat_number.setEnabled(True)
             
         elif cmd == CMD_SETFSPARAM + " OK":
-            self.sc.send_message(CMD_ACQUIRERAMP)
+            self.sc.acquireramp()
             
         elif cmd == CMD_ACQUIRERAMP + " OK":
             print(CMD_ACQUIRERAMP, "OK") # for test
+            #show image!!!
         
         elif cmd == CMD_STOPACQUISITION + " OK":
             print(CMD_STOPACQUISITION, "OK") # for test
+        '''
             
             
             
@@ -148,26 +169,34 @@ class MainWindow(Ui_Dialog, QMainWindow):
         textcolor = "black"
         if self.dcss_sts == True:
             textcolor = "green"
+            self.label_dcss_sts.setText("Connected")
         else:
             textcolor = "red"
+            self.label_dcss_sts.setText("Disconnected")
         
         label = "QLabel {color:%s}" % textcolor
         self.label_dcss_sts.setStyleSheet(label)
-
-        self.dcss_sts = False
-        timer = QTimer(self)
-        timer.singleShot(180*1000, self.show_alarm)  #after 180sec
+    
      
-        
+    def init_detector(self):
+        self.sc.initialize2()    
         
     #---------------------------------
     # buttons
     def single_exposure(self):
-        param = " 1 1 1 %f 1" % self.fowler_exp
-        self.sc.send_message(CMD_SETFSPARAM + param)        
+        #calculate!!!! self.fowler_exp from self.e_exptime
+        self.sc.set_fs_param(1, 1, 1, self.e_exptime, 1)
+        
+        self.bt_acquisition.setEnabled(False)
+        self.bt_stop.setEnabled(True)    
+    
     
     def stop_acquisition(self):
-        self.sc.send_message(CMD_STOPACQUISITION)
+        self.sc.send_message(self.simulation_mode, CMD_STOPACQUISITION)
+        
+        self.bt_acquisition.setEnabled(True)
+        self.bt_stop.setEnabled(False)
+        
     
     def save_fits(self, filename):
         pass
@@ -183,8 +212,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     
     #---------------------------------
         
-    def init_detector(self):
-        self.sc.initialize2()
+    
     
     
     
@@ -207,4 +235,4 @@ if __name__ == "__main__":
     sc = MainWindow()
     sc.show()
         
-    app.exec_()
+    app.exec()

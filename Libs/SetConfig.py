@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Modified from SetConfig.py from IGRINS on Oct 25, 2021
+Modified from SetConfig.py of IGRINS on Oct 25, 2021
 
 @author: hilee
 
