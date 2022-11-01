@@ -18,9 +18,6 @@ from time import localtime, strftime
 
 from HKP.HK_def import *
 
-import serial
-
-
 dtvalue_key_list = ["tmc1-temp-a",
                     "tmc1-temp-b",
                     "tmc2-temp-a",

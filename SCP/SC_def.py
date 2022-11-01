@@ -15,21 +15,32 @@ CLASS_NAME = "[Slit Camera Package]"
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
+import os
+dir = os.getcwd().split("/")
+WORKING_DIR = "/" + dir[1] + "/" + dir[2] + "/"
+        
 MAIN = "MAIN"
-TITLE = "SC"
+IAM = "SC"
 TARGET = "DCSS"
 
 # ---------------------------
 # LOG option
-LOGGING = 1
-CMDLINE = 2
-BOTH = 3
+DEBUG = 0
+INFO = 1
+WARNING = 2
+ERROR = 3
 
 # ---------------------------
 #  button
 #NOT_PRESSED = 0
 #PRESSED = 1
 
+MUX_TYPE = 2
+
+FRAME_X = 2048
+FRAME_Y = 2048
+
+CMD_SIMULATION = "Simulation"
 CMD_INITIALIZE1 = "Initialize1"
 CMD_INITIALIZE2 = "Initialize2"
 CMD_DOWNLOAD = "DownloadMCD"

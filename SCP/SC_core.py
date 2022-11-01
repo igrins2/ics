@@ -8,101 +8,145 @@ Modified on Jun 28, 2022
 @author: hilee
 """
 
-import os
+import os, sys
 from SC_def import *
 import time
 from time import localtime, strftime
 
+sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+
 import Libs.SetConfig as sc
-import Libs.hk_field_definition as test
-import Libs.ics_server as serv
+import Libs.rabbitmq_server as serv
+from Libs.logger import *
+
+import threading
+
 class SC():
-    def __init__(self, gui=False):
+    def __init__(self):
+    
+        self.log = LOG(WORKING_DIR + "IGRINS")
         
-        self.gui = gui
-                
+        self.iam = "CORE"
+        #self.target = "GUI"
+
+        self.logwrite(INFO, "start DCS core!!!")
+                        
         #--------------------------------------------
         # load ini file
-        cfg = sc.LoadConfig("/home/ics/IGRINS/Config/IGRINS.ini")
+        cfg = sc.LoadConfig(WORKING_DIR + "/IGRINS/Config/IGRINS.ini")
         
         # ICS
-        self.mainlogpath = cfg.get(MAIN, "main-log-location")
-        
-        self.logwrite(BOTH, "start SCP!!!")
-        
+        #self.mainlogpath = cfg.get(MAIN, "main-log-location")
+                
         self.ics_ip_addr = cfg.get(MAIN, 'ip_addr')
         self.ics_id = cfg.get(MAIN, 'id')
         self.ics_pwd = cfg.get(MAIN, 'pwd')
+        
+        self.main_sc_ex = cfg.get(MAIN, 'main_sc_exchange')     
+        self.main_sc_q = cfg.get(MAIN, 'main_sc_routing_key')
+        self.sc_main_ex = cfg.get(MAIN, 'sc_main_exchange')
+        self.sc_main_q = cfg.get(MAIN, 'sc_main_routing_key')
 
         # exchange - queue
-        self.ics_ex = cfg.get(TITLE, 'ics_exchange')
-        self.ics_q = cfg.get(TITLE, 'ics_routing_key')
+        self.ics_ex = cfg.get(IAM, 'scp_exchange')
+        self.ics_q = cfg.get(IAM, 'scp_routing_key')
 
-        self.dcs_ex = cfg.get(TITLE, 'dcss_exchange')
-        self.dcs_q = cfg.get(TITLE, 'dcss_routing_key')
+        self.dcs_ex = cfg.get(IAM, 'dcss_exchange')
+        self.dcs_q = cfg.get(IAM, 'dcss_routing_key')
         
-        self.fits_path = cfg.get(TITLE, 'fits_path')
+        self.fits_path = cfg.get(IAM, 'fits_path')
+        self.alive_chk_interval = int(cfg.get(IAM, 'alive-check-interval'))
         #--------------------------------------------
         
-        self.connect_to_server()
+        self.ROI_mode = False
+        self.output_channel = 32
+        self.x_start, self.x_stop, self.y_start, self.y_stop = 0, FRAME_X-1, 0, FRAME_Y
         
         
-    def connect_to_server(self):
-        # RabbitMQ connect
-        self.serv = ICS_SERVER(self.ics_ip_addr, self.ics_id, self.ics_pwd, self.ics_ex, self.ics_q, "direct", self.dcs_ex, self.dcs_q)
-        self.connection, self.channel = self.serv.connect_to_server(TITLE)
-        
-        # RabbitMQ: define producer
-        self.serv.define_producer(self.channel, TITLE)
         
         
-    def send_message(self, message):
-        self.serv.send_message(self.channel, TITLE, TARGET, message)
+    def __del__(self):
+        self.logwrite(INFO, "SCP core closing...")
+
+        for th in threading.enumerate():
+            self.logwrite(INFO, th.name + " exit.")
+
+        if self.queue_ics:
+            self.channel_ics_q.stop_consuming()
+            self.connection_ics_q.close()
+
+        self.logwrite(INFO, "SCP core closed!")
         
         
-    def initialize2(self):
-        self.send_message(CMD_INITIALIZE2)
-    
-    def downloadMCD(self):
-        pass
-    
-    def set_detector(self):
-        pass
-    
-    def set_fsmode(self, mode):
-        pass
-    
-    def set_win_param(self, x1, x2, y1, y2):
-        pass
-    
-    def set_fs_param(self, p1, p2, p3, fowler_time, p5):
-        pass
-    
+    def logwrite(self, level, message):
+        level_name = ""
+        if level == DEBUG:
+            level_name = "DEBUG"
+        elif level == INFO:
+            level_name = "INFO"
+        elif level == WARNING:
+            level_name = "WARNING"
+        elif level == ERROR:
+            level_name = "ERROR"
         
-    def logwrite(self, option, event):
-        '''
-        Function that write to file for Logging
-        event : Logging Sentence
-        option :  LOGGING(1) - Write to File
-                  CMDLINE(2) - Write to Command Line
-                  BOTH(3) - Wrte to File and Command Line
-        '''
-        if option == CMDLINE:
-            print(event)
-        else:
-            fname = strftime("%Y%m%d", localtime())+".log"
-            f_p_name = self.mainlogpath+fname
-            if os.path.isfile(f_p_name):
-                file=open(f_p_name,'a+')
-            else:
-                file=open(f_p_name,'w')
+        msg = "[%s:%s] %s" % (self.iam, level_name, message)
+        self.log.send(level, msg)
+        
+        
+    def connect_to_server_ics_ex(self):
+        # RabbitMQ connect        
+        self.connection_ics_ex, self.channel_ics_ex = serv.connect_to_server(IAM, self.ics_ip_addr, self.ics_id, self.ics_pwd)
+
+        if self.connection_ics_ex:
+            # RabbitMQ: define producer
+            serv.define_producer(IAM, self.channel_ics_ex, "direct", self.ics_ex)
+        
+        
+    def send_message_to_ics(self, simul_mode, message):
+            param = "%d %s" % (simul_mode, message)
+            serv.send_message(IAM, TARGET, self.channel_ics_ex, self.ics_ex, self.ics_q, message)
             
-            if option == LOGGING:
-                file.write(strftime("[%Y-%m-%d %H:%M:%S]", localtime()) + ": " + event + "\n")
-                file.close()
+
+    #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         
-            elif option == BOTH:
-                file.write(strftime("[%Y-%m-%d %H:%M:%S]", localtime()) + ": " + event + "\n")
-                file.close()
-                print(event)
+        
+    def initialize2(self, slmul_mode):
+        self.send_message_to_ics(slmul_mode, CMD_INITIALIZE2)
+        
+        
+    def downloadMCD(self, simul_mode):
+        self.send_message_to_ics(simul_mode, CMD_DOWNLOAD)
+        
+    
+    def set_detector(self, slmul_mode, type, channel):
+        msg = "%s %d %d" % (CMD_SETDETECTOR, MUX_TYPE, channel)
+        self.sc.send_message_to_ics(slmul_mode, msg)
+    
+        
+    def set_win_param(self, slmul_mode, x1, x2, y1, y2):
+        param = "%s %d %d %d %d" % (CMD_SETWINPARAM, x1, x2, y1, y2)
+        self.send_message_to_ics(slmul_mode, param)
+        
+        
+    def set_fs_param(self, slmul_mode, exptime):
+        #fsmode
+        self.send_message_to_ics(slmul_mode, CMD_SETFSMODE + " 1")    
+        
+        #setparam
+        param = " 1 1 1 %f 1" % exptime
+        self.send_message_to_ics(slmul_mode, CMD_SETFSPARAM + param)
+    
+    
+    def acquireramp(self, slmul_mode, ROI_mode):
+        msg = "%s %d" % (CMD_ACQUIRERAMP, self.ROI_mode)
+        self.send_message_to_ics(slmul_mode, msg)
+        
+          
+    def alive_check(self, slmul_mode):
+        self.send_message_to_ics(slmul_mode, "alive?")
+        
+        
+    def stop_acquistion(self, slmul_mode):        
+        self.send_message_to_ics(slmul_mode, CMD_STOPACQUISITION)
+        
         
