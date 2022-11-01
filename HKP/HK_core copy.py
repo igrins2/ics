@@ -151,10 +151,36 @@ class HK() :
         #self.logwrite(CMDLINE, CMCWTIME)
         #self.logwrite(CMDLINE, CMCREBUFSIZE)
         
-
+        #----------------------------
+        #for testing stable com... 20220621
+        self.se_device = -1 #TMC3 
+        self.se_port = "/dev/ttyS1"    
+        self.comSerial = None
+        
     # --------------------------------------------------
     # CLI
     def connect_to_component(self, nCom):
+        
+        #-------------------------------
+        #without reconnect!!! 20220621
+        if nCom == self.se_device:
+            while True:
+                try:
+                    self.comSerial = serial.Serial(port=self.se_port, 
+                                                   baudrate=9600, 
+                                                   parity=serial.PARITY_ODD, 
+                                                   stopbits=serial.STOPBITS_ONE, 
+                                                   bytesize=serial.SEVENBITS)
+                except (OSError, serial.SerialException):
+                    continue
+                
+                else:
+                    #print("connect", self.comSerial)
+                    self.logwrite(BOTH, "[COM1] " + self.comList[nCom] + " is connected")
+                    self.comStatus[nCom] = True
+                    break
+            return
+        #-------------------------------
             
         try:            
             self.comSocket[nCom] = socket(AF_INET, SOCK_STREAM)
@@ -207,7 +233,15 @@ class HK() :
            
     # CLI
     def close_component(self, nCom):
-        self.comSocket[nCom].close()
+        
+        #-------------------------
+        #20220621
+        if nCom == self.se_device:
+            self.comSerial.close()
+            self.logwrite(BOTH, "[COM1] " + self.comList[nCom] + " closed")
+        else:  
+        #-------------------------
+            self.comSocket[nCom].close()
         self.comStatus[nCom] = False
         
         
@@ -261,7 +295,15 @@ class HK() :
     # Socket function
     def socket_send_recv(self, nCom, port, cmd):
         try:         
-            self.comSocket[nCom].send(cmd.encode())
+            #-------------------------
+            #20220621
+            log = ""
+            if nCom == self.se_device:
+                self.comSerial.write(cmd.encode())
+                log = "[COM1] "
+            else:
+            #-------------------------
+                self.comSocket[nCom].send(cmd.encode())
             
             if port == "A" or port == "B":
                 log += "send: %s %s >>> %s" % (self.comList[nCom], port, cmd)
@@ -274,7 +316,16 @@ class HK() :
                 print("set:",str(float(d2)))
                 return None
             
-            res0 = self.comSocket[nCom].recv(REBUFSIZE)
+            #-------------------------
+            #20220621
+            res0 = ""
+            log = ""
+            if nCom == self.se_device:
+                res0 = self.comSerial.readline()
+                log = "[COM1] "
+            else:
+            #-------------------------
+                res0 = self.comSocket[nCom].recv(REBUFSIZE)
             info = res0.decode()
                         
             if port == "A" or port == "B":
@@ -296,7 +347,16 @@ class HK() :
                         
                     info_rest = ""
                     if info.find('\r\n') < 0:
-                        res0 = self.comSocket[nCom].recv(REBUFSIZE)
+                        #-------------------------
+                        #20220621
+                        log = ""
+                        res0 = ""
+                        if nCom == self.se_device:
+                            res0 = self.comSerial.readline()
+                            log = "[COM1] "
+                        else:
+                        #-------------------------
+                            res0 = self.comSocket[nCom].recv(REBUFSIZE)
                         info_rest = res0.decode()
                         
                         log += "recv %s %d <<< %s" % (self.comList[nCom], port, info_rest)
