@@ -82,7 +82,8 @@ class HK() :
         self.pow_flag = ["OFF" for _ in range(PDU_IDX)]
 
         # load ini file
-        self.config_dir = "/IGRINS/TEST/Config"
+        '''
+        config_dir = "/home/ics/IGRINS/Config"
         os.environ["IGRINS_CONFIG"] = ",".join([os.path.join(self.config_dir,
                                                          "IGRINS.ini"),
                                             os.path.join(self.config_dir,
@@ -91,6 +92,9 @@ class HK() :
             env_name="IGRINS_CONFIG", default_file=""
         )
         #self.logwrite(CMDLINE, ini_file)
+        self.cfg = sc.LoadConfig(self.ini_file)
+        '''
+        self.ini_file = "/home/ics/IGRINS/Config/IGRINS.ini"
         self.cfg = sc.LoadConfig(self.ini_file)
 
         self.key_to_label = {}
@@ -661,7 +665,7 @@ class HK() :
         UT_POS[nPosNum] = res
         utpos = UT_POS[0]+","+UT_POS[1]
         self.cfg.set("HK", "ut-pos", utpos )
-        sc.SaveConfig(self.cfg, self.ini_file[0])
+        sc.SaveConfig(self.cfg, self.ini_file)
         if not self.gui:
             self.logwrite(CMDLINE, CLASS_NAME + " saved (" + utpos + ")")
         
@@ -680,7 +684,7 @@ class HK() :
             ltpos += LT_POS[i]
             ltpos += ","
         self.cfg.set("HK", "lt-pos", ltpos)
-        sc.SaveConfig(self.cfg, self.ini_file[0])
+        sc.SaveConfig(self.cfg, self.ini_file)
         if not self.gui:
             self.logwrite(CMDLINE, CLASS_NAME + " saved (" + ltpos + ")")
         
@@ -692,7 +696,7 @@ class HK() :
         
         self.logwrite(CMDLINE, self.cfg)
         self.logwrite(CMDLINE, self.ini_file)
-        sc.SaveConfig(self.cfg, self.ini_file[0])   #IGRINS.ini
+        sc.SaveConfig(self.cfg, self.ini_file)   #IGRINS.ini
 
 
     def logwrite(self, option, event):

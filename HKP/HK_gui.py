@@ -91,7 +91,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
         self.VMonitor()
         self.TMonitor()    
-        self.Buttons()   
+        self.init_events()   
         self.Status()
         
         self.start_time = time.time()
@@ -246,7 +246,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
                
     
-    def Buttons(self):
+    def init_events(self):
         #self.tb_Monitor.cellChanged.connect(self.checkBoxState)
         
         self.bt_pause.clicked.connect(self.Periodic)
