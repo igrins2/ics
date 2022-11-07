@@ -28,7 +28,7 @@ import math
 
 import numpy as np
 import astropy.io.fits as fits 
-import qimage2ndarray
+import zscale as zs
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
