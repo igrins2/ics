@@ -17,6 +17,14 @@ TM_CNT = 8
 PDU_IDX = 8
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
+import os
+dir = os.getcwd().split("/")
+WORKING_DIR = "/" + dir[1] + "/" + dir[2] + "/"
+        
+MAIN = "MAIN"
+IAM = "SC"
+TARGET = "DCSS"
+
 #RETRY_CNT = 5
 # ---------------------------
 # components

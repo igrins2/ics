@@ -18,6 +18,7 @@ from time import localtime, strftime
 
 from HKP.HK_def import *
 
+
 dtvalue_key_list = ["tmc1-temp-a",
                     "tmc1-temp-b",
                     "tmc2-temp-a",
@@ -91,7 +92,7 @@ class HK() :
         #self.logwrite(CMDLINE, ini_file)
         self.cfg = sc.LoadConfig(self.ini_file)
         '''
-        self.ini_file = "/home/ics/IGRINS/Config/IGRINS.ini"
+        self.ini_file = WORKING_DIR + "IGRINS/Config/IGRINS.ini"
         self.cfg = sc.LoadConfig(self.ini_file)
 
         self.key_to_label = {}
@@ -137,7 +138,7 @@ class HK() :
         #self.logwrite(CMDLINE, LT_POS)
         #self.logwrite(CMDLINE, UT_POS)
         
-        self.mainlogpath=self.cfg.get('MAIN','main-log-location')
+        self.mainlogpath=self.cfg.get("MAIN",'main-log-location')
 
         self.logpath=self.cfg.get('HK','hk-log-location')
         self.webpath=self.cfg.get('HK','hk-web-location')

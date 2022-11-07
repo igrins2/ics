@@ -9,11 +9,11 @@ Modified on Jun 28, 2022
 """
 
 import os, sys
+#sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+
 from SC_def import *
 import time
 from time import localtime, strftime
-
-sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
 import Libs.SetConfig as sc
 import Libs.rabbitmq_server as serv
@@ -24,16 +24,13 @@ import threading
 class SC():
     def __init__(self):
     
-        self.log = LOG(WORKING_DIR + "IGRINS")
-        
+        self.log = LOG(WORKING_DIR + "IGRINS", IAM)        
         self.iam = "CORE"
-        #self.target = "GUI"
-
         self.logwrite(INFO, "start DCS core!!!")
                         
         #--------------------------------------------
         # load ini file
-        cfg = sc.LoadConfig(WORKING_DIR + "/IGRINS/Config/IGRINS.ini")
+        cfg = sc.LoadConfig(WORKING_DIR + "IGRINS/Config/IGRINS.ini")
         
         # ICS
         #self.mainlogpath = cfg.get(MAIN, "main-log-location")

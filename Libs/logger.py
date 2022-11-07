@@ -19,12 +19,12 @@ ERROR = 3
 
 class LOG():
 
-    def __init__(self, work_dir):
+    def __init__(self, work_dir, iam):
         
         #self.work_dir = work_dir
 
         thatday = ti.strftime("%04Y%02m%02d.log", ti.localtime())
-        path = "%s/Log/" % work_dir
+        path = "%s/Log/%s" % (work_dir, iam)
         self.createFolder(path)
 
         self.logger = logging.getLogger("postprocessor")  
