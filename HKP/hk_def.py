@@ -22,7 +22,7 @@ dir = os.getcwd().split("/")
 WORKING_DIR = "/" + dir[1] + "/" + dir[2] + "/"
         
 MAIN = "MAIN"
-IAM = "HW"
+IAM = "Subsystem"
 TARGET = "HK"
 
 #RETRY_CNT = 5
@@ -81,3 +81,7 @@ BOTH = 3
 NOT_PRESSED = 0
 PRESSED = 1
 
+HK_REQ_GETSETPOINT = "GetSetPoint"
+HK_REQ_GETHEATINGPOWER = "GetHeatingPower"
+HK_REQ_GETVALUE = "GetValue"
+HK_REQ_EXIT = "Exit"

@@ -216,7 +216,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         
     def send_message_to_main(self, message):
-        serv.send_message(IAM, MAIN, self.channel_et_ex, self.dt.dt_main_ex, self.dt.dt_main_q, message)
+        serv.send_message(IAM, MAIN, self.channel_to_main_ex, self.dt.dt_main_ex, self.dt.dt_main_q, message)
         
         
     #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

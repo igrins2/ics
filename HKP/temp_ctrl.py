@@ -33,16 +33,21 @@ class temp_ctrl():
         self.logwrite(INFO, "start subsystem: temp ctrl!!!")
         
         # load ini file
-        self.ini_file = WORKING_DIR + "/IGRINS/Config/IGRINS.ini"
-        self.cfg = sc.LoadConfig(self.ini_file)
+        ini_file = WORKING_DIR + "/IGRINS/Config/IGRINS.ini"
+        cfg = sc.LoadConfig(ini_file)
         
         global TOUT, REBUFSIZE
-        TOUT = int(self.cfg.get("HK", "tout"))
-        REBUFSIZE = int(self.cfg.get("HK", "rebufsize")) 
+        TOUT = int(cfg.get("HK", "tout"))
+        REBUFSIZE = int(cfg.get("HK", "rebufsize")) 
         
-        self.ics_ip_addr = self.cfg.get(MAIN, 'ip_addr')
-        self.ics_id = self.cfg.get(MAIN, 'id')
-        self.ics_pwd = self.cfg.get(MAIN, 'pwd')
+        self.ics_ip_addr = cfg.get(MAIN, 'ip_addr')
+        self.ics_id = cfg.get(MAIN, 'id')
+        self.ics_pwd = cfg.get(MAIN, 'pwd')
+        
+        self.hk_sub_ex = cfg.get(MAIN, 'hk_sub_exchange')     
+        self.hk_sub_q = cfg.get(MAIN, 'hk_sub_routing_key')
+        self.sub_hk_ex = cfg.get(MAIN, 'sub_hk_exchange')
+        self.sub_hk_q = cfg.get(MAIN, 'sub_hk_routing_key')
         
         self.ip = ip
         self.port = port
@@ -55,6 +60,12 @@ class temp_ctrl():
         recv_th = threading.Thread(target=self.socket_recv)
         recv_th.daemon = True
         recv_th.start()
+        
+        #self.connect_to_server_hk_ex()
+        #self.connect_to_server_hk_q()
+        
+        
+        
         
         
     def __del__(self):
@@ -204,6 +215,9 @@ class temp_ctrl():
                     self.recv_msg = info
                 else:
                     self.recv_msg = info[:-2]
+                
+                msg = "%s %s" % (self.send_msg, self.recv_msg)    
+                self.send_message_to_hk(msg)
                         
                 self.send_msg = ""
                 
@@ -213,34 +227,61 @@ class temp_ctrl():
                 #self.re_connect_to_component()   
                 
                 print("disconnected!")
-                break         
-            
-            
-            
-    def save_setpoint(self, setp):
-        for i, v in enumerate(setp):
-            key = "setp%d" % (i+1)
-            self.cfg.set("HK", key, v)
+                break                
         
-        self.logwrite(INFO, self.cfg)
-        self.logwrite(INFO, self.ini_file)
-        sc.SaveConfig(self.cfg, self.ini_file)   #IGRINS.ini
-        
-        
-        
-    def connect_to_server_ics_ex(self):
+    #-------------------------------
+    # sub -> hk    
+    def connect_to_server_hk_ex(self):
         # RabbitMQ connect        
-        self.connection_ics_ex, self.channel_ics_ex = serv.connect_to_server(IAM, self.ics_ip_addr, self.ics_id, self.ics_pwd)
+        self.connection_hk_ex, self.channel_hk_ex = serv.connect_to_server(IAM, self.ics_ip_addr, self.ics_id, self.ics_pwd)
 
-        if self.connection_ics_ex:
+        if self.connection_hk_ex:
             # RabbitMQ: define producer
-            serv.define_producer(IAM, self.channel_ics_ex, "direct", self.ics_ex)
+            serv.define_producer(IAM, self.channel_hk_ex, "direct", self.sub_hk_ex)
         
         
-    def send_message_to_ics(self, simul_mode, message):
-            param = "%d %s" % (simul_mode, message)
-            serv.send_message(IAM, TARGET, self.channel_ics_ex, self.ics_ex, self.ics_q, message)
+    def send_message_to_hk(self, message):
+        serv.send_message(IAM, TARGET, self.channel_hk_ex, self.sub_hk_ex, self.sub_hk_q, message)
+            
+            
+    #-------------------------------
+    def connect_to_server_hk_q(self):
+        # RabbitMQ connect
+        self.connection_hk_q, self.channel_hk_q = serv.connect_to_server(IAM, self.ics_ip_addr, self.ics_id, self.ics_pwd)
 
+        if self.connection_hk_q:
+            # RabbitMQ: define consumer
+            self.queue_hk = serv.define_consumer(IAM, self.connection_hk_q, "direct", self.hk_sub_ex, self.hk_sub_q)
+
+            th = threading.Thread(target=self.consumer_hk)
+            th.start()
+            
+            
+    # RabbitMQ communication    
+    def consumer_hk(self):
+        try:
+            self.connection_hk_q.basic_consume(queue=self.queue_hk, on_message_callback=self.callback_hk, auto_ack=True)
+            self.connection_hk_q.start_consuming()
+        except Exception as e:
+            if self.connection_hk_q:
+                self.logwrite(ERROR, "The communication of server was disconnected!")
+                
+    
+    def callback_hk(self, ch, method, properties, body):
+        cmd = body.decode()
+        msg = "receive: %s" % cmd
+        self.logwrite(INFO, msg)
+
+        param = cmd.split()
+
+        if param[0] == HK_REQ_GETSETPOINT:
+            self.get_setpoint(int(param[1]))
+        elif param[0] == HK_REQ_GETHEATINGPOWER:
+            self.get_heating_power(int(param[1]))
+        elif param[0] == HK_REQ_GETVALUE:
+            self.get_value(param[1])      
+        elif param[0] == HK_REQ_EXIT:
+            self.exit()
 
 
 
@@ -249,8 +290,8 @@ if __name__ == "__main__":
     if len(sys.argv) < 1:
         print("Please add ip and port")
 
-    #proc = temp_ctrl("temp_ctrl.py", "127.0.0.1", "10001")
-    proc = temp_ctrl(sys.argv[0], sys.argv[1], sys.argv[2])
+    proc = temp_ctrl("temp_ctrl.py", "127.0.0.1", "10001")
+    #proc = temp_ctrl(sys.argv[0], sys.argv[1], sys.argv[2])
     
     '''
     #st = ti.time()

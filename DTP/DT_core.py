@@ -105,7 +105,7 @@ class DT():
         
     def send_message_to_ics(self, dc_idx, simul_mode, message):
             param = "%d %s" % (simul_mode, message)
-            serv.send_message(IAM, TARGET[dc_idx], self.channel_ics_ex[dc_idx], self.ics_ex[dc_idx], self.ics_q[dc_idx], message)
+            serv.send_message(IAM, TARGET[dc_idx], self.channel_ics_ex[dc_idx], self.ics_ex[dc_idx], self.ics_q[dc_idx], param)
 
 
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
