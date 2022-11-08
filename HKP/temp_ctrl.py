@@ -17,18 +17,18 @@ sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
 from hk_def import *
 import Libs.SetConfig as sc
-import Libs.rabbitmq_server as serv
+#import Libs.rabbitmq_server as serv
 from Libs.logger import *
 
 
 class temp_ctrl():
     
-    def __init__(self, iam, ip, port):
+    def __init__(self, ip, port):
         
-        self.log = LOG(WORKING_DIR + "IGRINS")
+        self.log = LOG(WORKING_DIR + "IGRINS", IAM)
         
-        self.iam = iam
-        print(iam)
+        #self.iam = iam
+        #print(iam)
         
         self.logwrite(INFO, "start subsystem: temp ctrl!!!")
         
@@ -73,7 +73,7 @@ class temp_ctrl():
             
             
     def exit(self):
-        print("Closing %s : " % sys.argv[0])
+        print("Closing %s : " % IAM)
         
         for th in threading.enumerate():
             print(th.name + " exit.")
@@ -90,7 +90,7 @@ class temp_ctrl():
         elif level == ERROR:
             level_name = "ERROR"
         
-        msg = "[%s:%s] %s" % (self.iam, level_name, message)
+        msg = "[%s:%s] %s" % (IAM, level_name, message)
         self.log.send(level, msg)
         
         
@@ -217,7 +217,7 @@ class temp_ctrl():
                     self.recv_msg = info[:-2]
                 
                 msg = "%s %s" % (self.send_msg, self.recv_msg)    
-                self.send_message_to_hk(msg)
+                #self.send_message_to_hk(msg)
                         
                 self.send_msg = ""
                 
@@ -290,31 +290,32 @@ if __name__ == "__main__":
     if len(sys.argv) < 1:
         print("Please add ip and port")
 
-    proc = temp_ctrl("temp_ctrl.py", "127.0.0.1", "10001")
-    #proc = temp_ctrl(sys.argv[0], sys.argv[1], sys.argv[2])
+    print(sys.argv)
+
+    proc = temp_ctrl("192.168.1.20", "10001")
+    #proc = temp_ctrl(sys.argv[1], sys.argv[2])
     
-    '''
+    
     #st = ti.time()
     
-    for i in range(1):
+    delay = 5
+    #for i in range(1):
+    while True:
         proc.get_setpoint(1)
-        ti.sleep(1)
+        ti.sleep(delay)
         proc.get_setpoint(2)
-        ti.sleep(1)
-        
-        proc.get_heating_power(1)
-        ti.sleep(1)
+        ti.sleep(delay)
         proc.get_heating_power(2)
-        ti.sleep(1)
+        ti.sleep(delay)
         
         proc.get_value("A")
-        ti.sleep(1)
+        ti.sleep(delay)
         proc.get_value("B")
-        ti.sleep(1)
+        ti.sleep(delay)
     
     #duration = ti.time() - st
     #print(duration)
     
-    del proc
-    '''
+    #del proc
+    
         
