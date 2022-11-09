@@ -299,26 +299,14 @@ class HK() :
                         
                     #info_rest = ""
                     info_return = ""
-                    if info.find("\r\n") < 0:
-                        if nCom == TMC1:
-                            log = " missing %s %d" % (self.comList[nCom], port)
-                            self.logwrite(LOGGING, log)
-                            info_return = info
-                            
+                    if info.find("\r\n") < 0:                            
                         res0 = self.comSocket[nCom].recv(REBUFSIZE)
                         info_rest = res0.decode()
                         
                         log = "(again) recv %s %d <<< %s" % (self.comList[nCom], port, info_rest)
                         self.logwrite(LOGGING, log)      
                         info += info_rest
-                        info_return = info[:-2]
-                        
-                    else:
-                        info_return = info[:-2]
-                        print("[test] error:", info)
-
-                    return info_return
-                    #return info[:-2]
+                    return info[:-2]
             else:
                 if nCom == VMC:
                     message = "%s received: %.2e (%s)" % (CLASS_NAME, float(info[7:-3]), self.comList[nCom])

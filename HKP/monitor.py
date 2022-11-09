@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Created on Nov 8, 2022
+Created on Nov 9, 2022
 
-Modified on Nov 8, 2022
+Created on Nov 9, 2022
 
 @author: hilee
 """
@@ -20,13 +20,21 @@ import Libs.rabbitmq_server as serv
 from Libs.logger import *
 
 
-class temp_ctrl():
+
+
+class monitor() :
     
-    def __init__(self, port):
+    def __init__(self, monit, port):
         
         self.log = LOG(WORKING_DIR + "IGRINS", TARGET)
         
-        self.iam = "temp.ctrl %s" % port        
+        self.port = port
+        self.monit = monit
+        
+        if self.monit == "temp":
+            self.iam = "temp.monitor %s" % self.port        
+        elif self.monit == "vm":
+            self.iam = "v.monitor %s" % self.port 
         self.logwrite(INFO, "start " + self.iam)
         
         # load ini file
@@ -37,17 +45,16 @@ class temp_ctrl():
         TOUT = int(cfg.get("HK", "tout"))
         REBUFSIZE = int(cfg.get("HK", "rebufsize")) 
         
-        self.ics_ip_addr = cfg.get(MAIN, "ip_addr")
-        self.ics_id = cfg.get(MAIN, "id")
-        self.ics_pwd = cfg.get(MAIN, "pwd")
+        self.ics_ip_addr = cfg.get(MAIN, 'ip_addr')
+        self.ics_id = cfg.get(MAIN, 'id')
+        self.ics_pwd = cfg.get(MAIN, 'pwd')
         
-        self.hk_sub_ex = cfg.get(MAIN, "hk_sub_exchange")     
-        self.hk_sub_q = cfg.get(MAIN, "hk_sub_routing_key")
-        self.sub_hk_ex = cfg.get(MAIN, "sub_hk_exchange")
-        self.sub_hk_q = cfg.get(MAIN, "sub_hk_routing_key")
+        self.hk_sub_ex = cfg.get(MAIN, 'hk_sub_exchange')     
+        self.hk_sub_q = cfg.get(MAIN, 'hk_sub_routing_key')
+        self.sub_hk_ex = cfg.get(MAIN, 'sub_hk_exchange')
+        self.sub_hk_q = cfg.get(MAIN, 'sub_hk_routing_key')
         
         self.ip = cfg.get("HK", "device-server-ip")
-        self.port = port
         self.comSocket = None
         self.send_msg = ""
         self.recv_msg = ""
@@ -60,9 +67,8 @@ class temp_ctrl():
         
         self.connect_to_server_hk_ex()
         self.connect_to_server_hk_q()
+        
     
-        
-        
     def __del__(self):
         self.exit()
             
@@ -74,7 +80,7 @@ class temp_ctrl():
             print(th.name + " exit.")
             
         self.close_component()
-               
+            
         
     def logwrite(self, level, message):
         level_name = ""
@@ -90,7 +96,7 @@ class temp_ctrl():
         msg = "[%s:%s] %s" % (self.iam, level_name, message)
         self.log.send(level, msg)
         
-        
+
     def connect_to_component(self):
             
         try:            
@@ -109,8 +115,8 @@ class temp_ctrl():
             msg = "disconnected"
             self.logwrite(ERROR, msg)
             
-            self.re_connect_to_component()
-              
+            self.re_connect_to_component()         
+                 
     
     def re_connect_to_component(self):
         msg = "trying to connect again"
@@ -118,55 +124,35 @@ class temp_ctrl():
             
         if self.comSocket != None:
             self.close_component()
-        self.connect_to_component()
+        self.connect_to_component()        
 
            
     def close_component(self):
         self.comSocket.close()
         self.comStatus = False
         
+
+    # CLI, TM-Monitorig
+    def get_value(self, port=0):
         
-    # CLI, TMC-Get SetPoint
-    def get_setpoint(self, nPort):
-        self.send_msg = "SETP? %d" % nPort
+        if self.monit == "temp":
+            self.send_msg = "KRDG? %d" % port
+            
+        elif self.monit == "vm":
+            #PR1 - MicroPirani, PR2/PR5 - Cold Cathode, PR3 - both (3 digits), PR4 - both (4 digits)
+            self.send_msg = "@253PR3?;FF"
+
         cmd = self.send_msg + "\r\n"
         self.socket_send(cmd)
-
-
-    # CLI, TMC-Heating Value
-    def get_heating_power(self, nPort):
-        self.send_msg = "HTR? %d" % nPort
-        cmd = self.send_msg + "\r\n"
-        self.socket_send(cmd)
+            
     
     
-    # CLI, TMC-Heating(Manual) Get Value
-    def get_heating_power_manual(self, nPort):
-        self.send_msg = "MOUT? %d" % nPort
-        cmd = self.send_msg + "\r\n"
-        self.socket_send(cmd) 
-    
-    
-    # CLI, TMC-Heating(Manual) Set Value
-    def SetHeatingValue_manual(self, nPort, value):
-        self.send_msg = "MOUT %d,%f" % (nPort, value)
-        cmd = self.send_msg + "\r\n"
-        self.socket_send(cmd)
-    
-
-    # CLI, TMC-Monitorig
-    def get_value(self, sPort):  
-        self.send_msg = "KRDG? " + sPort
-        cmd = self.send_msg + "\r\n"
-        self.socket_send(cmd)
-
-
     def socket_send(self, cmd):
         send_th = threading.Thread(target=self.handle_send, args=(cmd,))
         send_th.daemon = True
         send_th.start()
         
-
+        
     # Socket function        
     def handle_send(self, cmd):
         try:         
@@ -175,18 +161,12 @@ class temp_ctrl():
 
             log = "send >>> %s" % cmd
             self.logwrite(INFO, log)
-        
-            if cmd.find("MOUT ") == 0:
-                d1, d2 = cmd.split(',')
-                print("set:",str(float(d2)))
-                log = "set:",str(float(d2))
-                self.logwrite(INFO, log)
                     
         except:
             self.comStatus = False
             self.logwrite(ERROR, "sending error") 
             self.re_connect_to_component()
-            
+
 
     # Socket function
     def socket_recv(self):
@@ -204,23 +184,27 @@ class temp_ctrl():
                         
                 log = "recv <<< %s: %s" % (self.send_msg, info)
                 self.logwrite(INFO, log)   
-                
-                if info.find('\r\n') < 0:
-                    for i in range(30*10):
-                        ti.sleep(0.1)
-                        try:
-                            res0 = self.comSocket.recv(REBUFSIZE)
-                            info += res0.decode()
+                                
+                if self.monit =="vm":
+                    self.recv_msg = info[7:-3]
+                    
+                else:
+                    if info.find('\r\n') < 0:
+                        for i in range(30*10):
+                            ti.sleep(0.1)
+                            try:
+                                res0 = self.comSocket.recv(REBUFSIZE)
+                                info += res0.decode()
 
-                            log = "recv <<< %s: %s (again)" % (self.send_msg, info)
-                            self.logwrite(INFO, log)
+                                log = "recv <<< %s: %s (again)" % (self.send_msg, info)
+                                self.logwrite(INFO, log)
 
-                            if info.find('\r\n') >= 0:
-                                break
-                        except:
-                            continue
+                                if info.find('\r\n') >= 0:
+                                    break
+                            except:
+                                continue
 
-                self.recv_msg = info[:-2]
+                    self.recv_msg = info[:-2]
                 
                 msg = "%s %s" % (self.send_msg, self.recv_msg)    
                 self.send_message_to_hk(msg)
@@ -233,8 +217,8 @@ class temp_ctrl():
                 self.re_connect_to_component()   
                 
                 print("disconnected!")
-                break                
-        
+                break 
+    
     #-------------------------------
     # sub -> hk    
     def connect_to_server_hk_ex(self):
@@ -247,9 +231,9 @@ class temp_ctrl():
         
         
     def send_message_to_hk(self, message):
-        serv.send_message(self.iam, TARGET, self.channel_hk_ex, self.sub_hk_ex, self.sub_hk_q, message)
-            
-            
+        serv.send_message(self.iam, TARGET, self.channel_hk_ex, self.sub_hk_ex, self.sub_hk_q, message)    
+
+    
     #-------------------------------
     def connect_to_server_hk_q(self):
         # RabbitMQ connect
@@ -280,17 +264,12 @@ class temp_ctrl():
 
         param = cmd.split()
 
-        if param[0] == HK_REQ_GETSETPOINT:
-            self.get_setpoint(int(param[1]))
-        elif param[0] == HK_REQ_GETHEATINGPOWER:
-            self.get_heating_power(int(param[1]))
-        elif param[0] == HK_REQ_GETVALUE:
-            self.get_value(param[1])      
+        if param[0] == HK_REQ_GETVALUE:
+            self.get_value(int(param[1])) 
         elif param[0] == HK_REQ_EXIT:
             self.exit()
-
-
-
+            
+            
 if __name__ == "__main__":
     
     if len(sys.argv) < 1:
@@ -298,31 +277,19 @@ if __name__ == "__main__":
 
     #print(sys.argv)
 
-    proc = temp_ctrl("10001")
-    #proc = temp_ctrl(sys.argv[1])
+    proc = monitor("temp", "10004")
+    #proc = monitor("vm", "10005")
+    #proc = temp_ctrl(sys.argv[1], sys.argv[2])
     
     st = ti.time()
     
     delay = 0.1
     for i in range(1):
     #while True:
-        proc.get_setpoint(1)
-        ti.sleep(delay)
-        proc.get_setpoint(2)
-        ti.sleep(delay)
-        proc.get_heating_power(1)
-        ti.sleep(delay)
-        proc.get_heating_power(2)
-        ti.sleep(delay)
-        
-        proc.get_value("A")
-        ti.sleep(delay)
-        proc.get_value("B")
+        proc.get_value(0)
         ti.sleep(delay)
     
     duration = ti.time() - st
     print(duration)
     
     #del proc
-    
-        

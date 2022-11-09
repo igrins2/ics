@@ -24,7 +24,7 @@ class LOG():
         #self.work_dir = work_dir
 
         thatday = ti.strftime("%04Y%02m%02d.log", ti.localtime())
-        path = "%s/Log/%s" % (work_dir, iam)
+        path = "%s/Log/%s/" % (work_dir, iam)
         self.createFolder(path)
 
         self.logger = logging.getLogger("postprocessor")  

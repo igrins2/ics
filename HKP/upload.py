@@ -1,19 +1,23 @@
-import sys
-import os
-import time
+from email.utils import localtime
+import os, sys
+import time as ti
 import datetime
 import pytz
 
-#from urllib.request import urlopen
-#import ssl
+import pyrebase
+import firebase_admin
+from firebase_admin import credentials
 
-#url="https://igrins2-hk-default-rtdb.firebaseio.com"
-#ssl.create_default_https_context = ssl._create_unverified_context
-#url_addr = urlopen(url, context=context)
+import threading
 
-HKLogPath = "/IGRINS/TEST/Log/Web/tempweb.dat"
-#HKLogPath = "/IGRINS/Log/Web/tempweb.dat"
-# FieldNames = ['da','ti','va','t1','h1','t2','h2','t3','h3','t4','h4','t5','h5','t6','t7','t8']
+sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+
+from hk_def import *
+import Libs.SetConfig as sc
+import Libs.rabbitmq_server as serv
+from Libs.logger import *
+
+HKLogPath = WORKING_DIR + "/IGRINS/Log/Web/tempweb.dat"
 
 FieldNames = [('date', str), ('time', str),
               ('pressure', float),
@@ -29,102 +33,165 @@ FieldNames = [('date', str), ('time', str),
               ('shieldtop', float), ('air', float), 
               ('alert_status', str)]
 
+class uploader():
+    
+    def __init__(self):
+        
+        self.log = LOG(WORKING_DIR + "IGRINS", TARGET)
+        
+        self.iam = "uplader"
+        self.logwrite(INFO, "start " + self.iam)
+        
+        # load ini file
+        self.ini_file = WORKING_DIR + "/IGRINS/Config/"
+        cfg = sc.LoadConfig(self.ini_file + "IGRINS.ini")
+        
+        self.ics_ip_addr = cfg.get(MAIN, "ip_addr")
+        self.ics_id = cfg.get(MAIN, "id")
+        self.ics_pwd = cfg.get(MAIN, "pwd")
+        
+        self.hk_sub_ex = cfg.get(MAIN, "hk_sub_exchange")     
+        self.hk_sub_q = cfg.get(MAIN, "hk_sub_routing_key")
+        self.sub_hk_ex = cfg.get(MAIN, "sub_hk_exchange")
+        self.sub_hk_q = cfg.get(MAIN, "sub_hk_routing_key")
+        
+        firebase = self.get_firebase()
+        self.db = firebase.database()
+        
+        #-------
+        #for test
+        self.start_upload_to_firebase(self.db)
+        self.logwrite(INFO, "Uploaded " + ti.strftime("%Y-%m-%d %H:%M:%S"))
+        #-------
+        
+        self.connect_to_server_hk_q()
+        
+    
+    def __del__(self):
+        self.exit()
+        
+        
+    def exit(self):
+        print("Closing %s" % self.iam)
+        
+        for th in threading.enumerate():
+            print(th.name + " exit.")
+            
+            
+    def logwrite(self, level, message):
+        level_name = ""
+        if level == DEBUG:
+            level_name = "DEBUG"
+        elif level == INFO:
+            level_name = "INFO"
+        elif level == WARNING:
+            level_name = "WARNING"
+        elif level == ERROR:
+            level_name = "ERROR"
+        
+        msg = "[%s:%s] %s" % (self.iam, level_name, message)
+        self.log.send(level, msg)
+            
 
-def read_item_to_upload():
-    HK_list = open(HKLogPath).read().split()
-    # print(len(HK_list), len(FieldNames))
-
-    if len(HK_list) != len(FieldNames):
-        return None
-
-    HK_dict = dict((k, t(v)) for (k, t), v in zip(FieldNames, HK_list))
-
-    HK_dict["datetime"] = HK_dict["date"] + "T" + HK_dict["time"] + "+00:00"
-
-    return HK_dict
-
-import pyrebase
-#import credentials
-
-def get_firebase():
-    config = {
-        "apiKey": "AIzaSyCDUZO9ejB8LzKPtGB0_5xciByJvYI4IzY",
-        "authDomain": "igrins2-hk.firebaseapp.com",
-        "databaseURL": "https://igrins2-hk-default-rtdb.firebaseio.com",
-        "storageBucket": "igrins2-hk.appspot.com",
-        "serviceAccount": "igrins2-hk-firebase-adminsdk-qtt3q-073f6caf5b.json"
+    def get_firebase(self):
+        '''
+        config = {
+            "apiKey": "AIzaSyCDUZO9ejB8LzKPtGB0_5xciByJvYI4IzY",
+            "authDomain": "igrins2-hk.firebaseapp.com",
+            "databaseURL": "https://igrins2-hk-default-rtdb.firebaseio.com",
+            "storageBucket": "igrins2-hk.appspot.com",
+            "serviceAccount": "igrins2-hk-firebase-adminsdk-qtt3q-073f6caf5b.json"
+            }
+        '''
+        
+        config={
+            "apiKey": "AIzaSyDSt_O0KmvB5MjrDXuGJCABAOVNp8Q3ZB8",
+            "authDomain": "hkp-db-37e0f.firebaseapp.com",
+            "databaseURL": "https://hkp-db-37e0f-default-rtdb.firebaseio.com",
+            "storageBucket": "hkp-db-37e0f.appspot.com",
+            "serviceAccount": "hkp-db-37e0f-firebase-adminsdk-9r23k-ce5a33794f.json"
         }
 
-    #cred = credentials.Certificate(config)
-    firebase = pyrebase.initialize_app(config)
+        #cred = credentials.Certificate(self.ini_file+"hkp-db-37e0f-firebase-adminsdk-9r23k-ce5a33794f.json")
+        #firebase_admin.initialize_app(cred)
+        firebase = pyrebase.initialize_app(config)
 
-    return firebase
+        return firebase
+    
 
+    def start_upload_to_firebase(self, db):
 
-def push_hk_entry(db, entry):
-    db.child("BasicHK").push(entry)
-
-def start_upload_to_firebase(db):
-
-    while True:
-        #result = firebase.get('/BasicHK', None)
-        HK_dict = read_item_to_upload()
+        HK_dict = self.read_item_to_upload()
         if HK_dict is None:
-            yield "Error" 
+            self.logwrite(WARNING, "No data ")
 
         else:
-
-            HK_dict["utc_upload"] = datetime.datetime.now(pytz.utc).isoformat()
-            #HK_dict["tel_name"] = telescope_name
-            #firebase.put('/BasicHK', "upload", HK_dict)
-            # fb.post('/BasicHK', HK_dict)
-
-            if 1:
-                push_hk_entry(db, HK_dict)
-
-                last_entry = HK_dict
-
-            yield HK_dict
+            HK_dict["utc_upload"] = datetime.datetime.now(pytz.utc).isoformat()                
+            self.push_hk_entry(db, HK_dict)
+            self.logwrite(INFO, HK_dict)
 
 
-def main():
-    print('================================================\n'
-           'IGRINS House Keeping Status Updater for Firebase\n'
-           '                                Ctrl + C to exit\n'
-           '================================================\n')
+    def read_item_to_upload(self):
+        HK_list = open(HKLogPath).read().split()
+        # print(len(HK_list), len(FieldNames))
 
+        if len(HK_list) != len(FieldNames):
+            return None
 
-    while True:
-        firebase = get_firebase()
-        db = firebase.database()
+        HK_dict = dict((k, t(v)) for (k, t), v in zip(FieldNames, HK_list))
 
-        fb = start_upload_to_firebase(db)
+        HK_dict["datetime"] = HK_dict["date"] + "T" + HK_dict["time"] + "+00:00"
 
+        return HK_dict
+    
+    
+    def push_hk_entry(self, db, entry):
+        db.child("BasicHK").push(entry)
+                  
+            
+    #-------------------------------
+    def connect_to_server_hk_q(self):
+        # RabbitMQ connect
+        self.connection_hk_q, self.channel_hk_q = serv.connect_to_server(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd)
+
+        if self.connection_hk_q:
+            # RabbitMQ: define consumer
+            self.queue_hk = serv.define_consumer(self.iam, self.connection_hk_q, "direct", self.hk_sub_ex, self.hk_sub_q)
+
+            th = threading.Thread(target=self.consumer_hk)
+            th.start()
+            
+            
+    # RabbitMQ communication    
+    def consumer_hk(self):
         try:
-            while True:
-                sleep_time = 60
-                r = next(fb)
-                if r == "Same":
-                    print("Skipping, same as the last entry.")
-                elif r == "Error":
-                    print("Error reading the file, retrying in 10s.")
-                    sleep_time = 10
-                else:
-                    print("Uploaded", r["date"], r["time"])
+            self.connection_hk_q.basic_consume(queue=self.queue_hk, on_message_callback=self.callback_hk, auto_ack=True)
+            self.connection_hk_q.start_consuming()
+        except Exception as e:
+            if self.connection_hk_q:
+                self.logwrite(ERROR, "The communication of server was disconnected!")
+                
+    
+    def callback_hk(self, ch, method, properties, body):
+        cmd = body.decode()
+        msg = "receive: %s" % cmd
+        self.logwrite(INFO, msg)
 
-                time.sleep(sleep_time)
+        param = cmd.split()
 
-        except KeyboardInterrupt:
-            print("Quit.")
-            try:
-                sys.exit(0)
-            except SystemExit:
-                os._exit(0)
-        except:
-            import traceback
-            traceback.print_exc()
+        if param[0] == HK_REQ_UPLOAD_DB:
+            self.start_upload_to_firebase(self.db)
+            tm = ti.localtime()
+            self.logwrite(INFO, "Uploaded " + ti.strftime("%Y-%m-%d %H:%M:%S"))
+            
+        elif param[0] == HK_REQ_EXIT:
+            self.exit()
 
 
 if __name__ == "__main__":
-    main()
+    
+    fb = uploader()
+    
+    
+    
     

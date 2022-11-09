@@ -22,7 +22,7 @@ dir = os.getcwd().split("/")
 WORKING_DIR = "/" + dir[1] + "/" + dir[2] + "/"
         
 MAIN = "MAIN"
-IAM = "Subsystem"
+IAM = "HK"
 TARGET = "HK"
 
 #RETRY_CNT = 5
@@ -32,7 +32,7 @@ TMC1 = 0
 TMC2 = 1
 TMC3 = 2
 TM = 3
-VMC = 4
+VM = 4
 LT = 5
 UT = 6
 PDU = 7
@@ -84,4 +84,6 @@ PRESSED = 1
 HK_REQ_GETSETPOINT = "GetSetPoint"
 HK_REQ_GETHEATINGPOWER = "GetHeatingPower"
 HK_REQ_GETVALUE = "GetValue"
+HK_REQ_PWR_ONOFF = "PowerOnOff"
+HK_REQ_UPLOAD_DB = "UploadDB"
 HK_REQ_EXIT = "Exit"
