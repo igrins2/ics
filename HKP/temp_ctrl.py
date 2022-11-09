@@ -212,9 +212,21 @@ class temp_ctrl():
                 #print(count)
                 
                 if info.find('\r\n') < 0:
-                    self.recv_msg = info
-                else:
-                    self.recv_msg = info[:-2]
+                    for i in range(30):
+                        ti.sleep(1)
+                        try:
+                            res0 = self.comSocket.recv(REBUFSIZE)
+                            info += res0.decode()
+
+                            log = "recv %s <<< %s: %s (again)" % (self.port,  self.send_msg, info)
+                            self.logwrite(INFO, log)
+
+                            if info.find('\r\n') >= 0:
+                                break
+                        except:
+                            continue
+
+                self.recv_msg = info[:-2]
                 
                 msg = "%s %s" % (self.send_msg, self.recv_msg)    
                 #self.send_message_to_hk(msg)
@@ -304,6 +316,8 @@ if __name__ == "__main__":
         proc.get_setpoint(1)
         ti.sleep(delay)
         proc.get_setpoint(2)
+        ti.sleep(delay)
+        proc.get_heating_power(1)
         ti.sleep(delay)
         proc.get_heating_power(2)
         ti.sleep(delay)

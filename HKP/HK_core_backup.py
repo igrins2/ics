@@ -18,6 +18,7 @@ from time import localtime, strftime
 
 from HKP.HK_def import *
 
+
 dtvalue_key_list = ["tmc1-temp-a",
                     "tmc1-temp-b",
                     "tmc2-temp-a",
@@ -79,9 +80,8 @@ class HK() :
         self.pow_flag = ["OFF" for _ in range(PDU_IDX)]
 
         # load ini file
-        
         '''
-        #self.config_dir = "/IGRINS/TEST/Config"
+        config_dir = "/home/ics/IGRINS/Config"
         os.environ["IGRINS_CONFIG"] = ",".join([os.path.join(self.config_dir,
                                                          "IGRINS.ini"),
                                             os.path.join(self.config_dir,
@@ -90,10 +90,11 @@ class HK() :
             env_name="IGRINS_CONFIG", default_file=""
         )
         #self.logwrite(CMDLINE, ini_file)
-        '''
-        self.ini_file = WORKING_DIR + "/IGRINS/Config/IGRINS.ini"
         self.cfg = sc.LoadConfig(self.ini_file)
-        
+        '''
+        self.ini_file = WORKING_DIR + "IGRINS/Config/IGRINS.ini"
+        self.cfg = sc.LoadConfig(self.ini_file)
+
         self.key_to_label = {}
         for k in dtvalue_key_list:
             v = self.cfg.get('HK', k)
@@ -137,7 +138,7 @@ class HK() :
         #self.logwrite(CMDLINE, LT_POS)
         #self.logwrite(CMDLINE, UT_POS)
         
-        self.mainlogpath=self.cfg.get('MAIN','main-log-location')
+        self.mainlogpath=self.cfg.get("MAIN",'main-log-location')
 
         self.logpath=self.cfg.get('HK','hk-log-location')
         self.webpath=self.cfg.get('HK','hk-web-location')
@@ -167,8 +168,8 @@ class HK() :
                 self.logwrite(BOTH, self.comList[nCom] + " is connected")
             else:
                 self.logwrite(CMDLINE, CLASS_NAME + " connection success (" + self.comList[nCom] + ")")
-
-            ''' 
+            
+            '''    
             if self.gui and self.cur_err[nCom]:
                 self.cur_err[nCom] = False
                 
@@ -262,7 +263,6 @@ class HK() :
     # Socket function
     def socket_send_recv(self, nCom, port, cmd):
         try:         
-            log = ""
             self.comSocket[nCom].send(cmd.encode())
             
             if port == "A" or port == "B":
@@ -276,7 +276,6 @@ class HK() :
                 print("set:",str(float(d2)))
                 return None
             
-            log = ""
             res0 = self.comSocket[nCom].recv(REBUFSIZE)
             info = res0.decode()
                         
@@ -297,28 +296,15 @@ class HK() :
                     #if info.find('\r\n') >= 0:
                     #    res = info[:-2]
                         
-                    #info_rest = ""
-                    info_return = ""
-                    if info.find("\r\n") < 0:
-                        if nCom == TMC1:
-                            log = " missing %s %d" % (self.comList[nCom], port)
-                            self.logwrite(LOGGING, log)
-                            info_return = info
-                            
+                    info_rest = ""
+                    if info.find('\r\n') < 0:
                         res0 = self.comSocket[nCom].recv(REBUFSIZE)
                         info_rest = res0.decode()
                         
-                        log = "(again) recv %s %d <<< %s" % (self.comList[nCom], port, info_rest)
+                        log += "recv %s %d <<< %s" % (self.comList[nCom], port, info_rest)
                         self.logwrite(LOGGING, log)      
                         info += info_rest
-                        info_return = info[:-2]
-                        
-                    else:
-                        info_return = info[:-2]
-                        print("[test] error:", info)
-
-                    return info_return
-                    #return info[:-2]
+                    return info[:-2]
             else:
                 if nCom == VMC:
                     message = "%s received: %.2e (%s)" % (CLASS_NAME, float(info[7:-3]), self.comList[nCom])
