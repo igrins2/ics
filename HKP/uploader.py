@@ -5,9 +5,6 @@ import datetime
 import pytz
 
 import pyrebase
-import firebase_admin
-from firebase_admin import credentials
-
 import threading
 
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
@@ -108,8 +105,11 @@ class uploader():
             "apiKey": "AIzaSyDSt_O0KmvB5MjrDXuGJCABAOVNp8Q3ZB8",
             "authDomain": "hkp-db-37e0f.firebaseapp.com",
             "databaseURL": "https://hkp-db-37e0f-default-rtdb.firebaseio.com",
+            "projectId": "hkp-db-37e0f",
             "storageBucket": "hkp-db-37e0f.appspot.com",
-            "serviceAccount": "hkp-db-37e0f-firebase-adminsdk-9r23k-ce5a33794f.json"
+            "messagingSenderId": "1059665885507",
+            "appId": "1:1059665885507:web:c4d5dbd322c1c0ff4e17f6",
+            "measurementId": "G-450KS9WJF1"
         }
 
         #cred = credentials.Certificate(self.ini_file+"hkp-db-37e0f-firebase-adminsdk-9r23k-ce5a33794f.json")
