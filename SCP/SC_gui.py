@@ -3,7 +3,7 @@
 """
 Created on Jan 27, 2022
 
-Modified on Jun 28, 2022
+Modified on Nov 10, 2022
 
 @author: hilee
 """
@@ -224,13 +224,13 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.connection_main_q.start_consuming()
         except Exception as e:
             if self.connection_main_q:
-                self.sc.logwrite(ERROR, "The communication of server was disconnected!")
+                self.sc.log.logwrite("gui", ERROR, "The communication of server was disconnected!")
                 
     
     def callback_main(self, ch, method, properties, body):
         cmd = body.decode()
         msg = "receive: %s" % cmd
-        self.sc.logwrite(INFO, msg)
+        self.sc.log.logwrite("gui", INFO, msg)
 
         param = cmd.split()
 
@@ -276,7 +276,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.channel_ics_q.start_consuming()
         except Exception as e:
             if self.channel_ics_q:
-                self.sc.logwrite(ERROR, "The communication of server was disconnected!")
+                self.sc.log.logwrite("gui", ERROR, "The communication of server was disconnected!")
 
 
     def alive_check(self):
@@ -290,7 +290,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     def callback_ics(self, ch, method, properties, body):
         cmd = body.decode()
         msg = "receive: %s" % cmd
-        self.sc.logwrite(INFO, msg)
+        self.sc.log.logwrite("gui", INFO, msg)
 
         param = cmd.split()
 

@@ -56,6 +56,21 @@ class LOG():
             self.logger.critical(message)
         else:
             self.logger.warning(message)
+            
+            
+    def logwrite(self, iam, level, message):
+        level_name = ""
+        if level == DEBUG:
+            level_name = "DEBUG"
+        elif level == INFO:
+            level_name = "INFO"
+        elif level == WARNING:
+            level_name = "WARNING"
+        elif level == ERROR:
+            level_name = "ERROR"
+        
+        msg = "[%s:%s] %s" % (iam, level_name, message)
+        self.send(level, msg)
                       
             
 

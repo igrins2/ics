@@ -3,7 +3,7 @@
 """
 Created on Jan 27, 2022
 
-Modified on Nov 4, 2022
+Modified on Nov 10, 2022
 
 @author: hilee
 """
@@ -25,8 +25,8 @@ class SC():
     def __init__(self):
     
         self.log = LOG(WORKING_DIR + "IGRINS", IAM)        
-        self.iam = "CORE"
-        self.logwrite(INFO, "start DCS core!!!")
+        self.iam = "core"
+        self.log.logwrite(self.iam, INFO, "start")
                         
         #--------------------------------------------
         # load ini file
@@ -63,31 +63,17 @@ class SC():
         
         
     def __del__(self):
-        self.logwrite(INFO, "SCP core closing...")
+        self.log.logwrite(self.iam, INFO, "core closing...")
 
         for th in threading.enumerate():
-            self.logwrite(INFO, th.name + " exit.")
+            self.log.logwrite(self.iam, INFO, th.name + " exit.")
 
         if self.queue_ics:
             self.channel_ics_q.stop_consuming()
             self.connection_ics_q.close()
 
-        self.logwrite(INFO, "SCP core closed!")
+        self.log.logwrite(self.iam, INFO, "core closed!")
         
-        
-    def logwrite(self, level, message):
-        level_name = ""
-        if level == DEBUG:
-            level_name = "DEBUG"
-        elif level == INFO:
-            level_name = "INFO"
-        elif level == WARNING:
-            level_name = "WARNING"
-        elif level == ERROR:
-            level_name = "ERROR"
-        
-        msg = "[%s:%s] %s" % (self.iam, level_name, message)
-        self.log.send(level, msg)
         
         
     def connect_to_server_ics_ex(self):

@@ -11,9 +11,6 @@ Modified on Jun 28, 2022
 
 # -----------------------------------------------------------
 # definition: constant
-CLASS_NAME = "[Slit Camera Package]"
-
-CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 import os
 dir = os.getcwd().split("/")

@@ -14,7 +14,7 @@ import time as ti
 
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
-from hk_def import *
+from HKP.HK_def import *
 import Libs.SetConfig as sc
 import Libs.rabbitmq_server as serv
 from Libs.logger import *
@@ -24,18 +24,19 @@ from Libs.logger import *
 
 class monitor() :
     
-    def __init__(self, monit, port):
+    def __init__(self, monit, port, gui=False):
         
         self.log = LOG(WORKING_DIR + "IGRINS", TARGET)
         
         self.port = port
         self.monit = monit
         
+        self.iam = ""
         if self.monit == "temp":
-            self.iam = "temp.monitor %s" % self.port        
+            self.iam = "temp.monitor(%d)" % (int(self.port)-10000)
         elif self.monit == "vm":
-            self.iam = "v.monitor %s" % self.port 
-        self.logwrite(INFO, "start " + self.iam)
+            self.iam = "v.monitor(%d)" % (int(self.port)-10000)
+        self.log.logwrite(self.iam, INFO, "start")
         
         # load ini file
         ini_file = WORKING_DIR + "/IGRINS/Config/IGRINS.ini"
@@ -56,17 +57,9 @@ class monitor() :
         
         self.ip = cfg.get("HK", "device-server-ip")
         self.comSocket = None
-        self.send_msg = ""
-        self.recv_msg = ""
         
-        self.connect_to_component()
+        self.gui = gui
         
-        recv_th = threading.Thread(target=self.socket_recv)
-        recv_th.daemon = True
-        recv_th.start()
-        
-        self.connect_to_server_hk_ex()
-        self.connect_to_server_hk_q()
         
     
     def __del__(self):
@@ -80,21 +73,6 @@ class monitor() :
             print(th.name + " exit.")
             
         self.close_component()
-            
-        
-    def logwrite(self, level, message):
-        level_name = ""
-        if level == DEBUG:
-            level_name = "DEBUG"
-        elif level == INFO:
-            level_name = "INFO"
-        elif level == WARNING:
-            level_name = "WARNING"
-        elif level == ERROR:
-            level_name = "ERROR"
-        
-        msg = "[%s:%s] %s" % (self.iam, level_name, message)
-        self.log.send(level, msg)
         
 
     def connect_to_component(self):
@@ -106,21 +84,21 @@ class monitor() :
             self.comStatus = True
             
             msg = "connected"
-            self.logwrite(INFO, msg)
+            self.log.logwrite(self.iam, INFO, msg)
             
         except:
             self.comSocket = None
             self.comStatus = False
             
             msg = "disconnected"
-            self.logwrite(ERROR, msg)
+            self.log.logwrite(self.iam, ERROR, msg)
             
             self.re_connect_to_component()         
                  
     
     def re_connect_to_component(self):
         msg = "trying to connect again"
-        self.logwrite(WARNING, msg)
+        self.log.logwrite(self.iam, WARNING, msg)
             
         if self.comSocket != None:
             self.close_component()
@@ -135,89 +113,71 @@ class monitor() :
     # CLI, TM-Monitorig
     def get_value(self, port=0):
         
+        cmd = ""
         if self.monit == "temp":
-            self.send_msg = "KRDG? %d" % port
+            cmd = "KRDG? %d" % port
             
         elif self.monit == "vm":
             #PR1 - MicroPirani, PR2/PR5 - Cold Cathode, PR3 - both (3 digits), PR4 - both (4 digits)
-            self.send_msg = "@253PR3?;FF"
+            cmd = "@253PR3?;FF"
 
-        cmd = self.send_msg + "\r\n"
+        cmd += "\r\n"
         self.socket_send(cmd)
             
     
     
     def socket_send(self, cmd):
-        send_th = threading.Thread(target=self.handle_send, args=(cmd,))
+        send_th = threading.Thread(target=self.handle_com, args=(cmd,))
         send_th.daemon = True
         send_th.start()
         
         
     # Socket function        
-    def handle_send(self, cmd):
+    def handle_com(self, cmd):
         try:         
+            
+            #send
             self.comSocket.send(cmd.encode())
             #self.comSocket.sendall(cmd.encode())
 
             log = "send >>> %s" % cmd
-            self.logwrite(INFO, log)
+            self.log.logwrite(self.iam, INFO, log)
+            
+            #rev
+            res0 = self.comSocket.recv(REBUFSIZE)
+            info = res0.decode()
+                    
+            log = "recv <<< %s" % info[:-2]
+            self.log.logwrite(self.iam, INFO, log)   
+                            
+            if self.monit =="vm":
+                self.recv_msg = info[7:-3]
+                
+            else:
+                if info.find('\r\n') < 0:
+                    for i in range(30*10):
+                        ti.sleep(0.1)
+                        try:
+                            res0 = self.comSocket.recv(REBUFSIZE)
+                            info += res0.decode()
+
+                            log = "recv <<< %s (again)" % info[:-2]
+                            self.log.logwrite(self.iam, INFO, log)
+
+                            if info.find('\r\n') >= 0:
+                                break
+                        except:
+                            continue
+            
+            msg = "%s" % info[:-2]   
+            if self.gui: 
+                self.send_message_to_hk(msg)
                     
         except:
             self.comStatus = False
-            self.logwrite(ERROR, "sending error") 
+            self.log.logwrite(self.iam, ERROR, "sending error") 
             self.re_connect_to_component()
 
-
-    # Socket function
-    def socket_recv(self):
-        
-        #count = 0
-        print("receving start!")
-        while True:
-            
-            if self.send_msg == "":
-                continue
-            
-            try:                     
-                res0 = self.comSocket.recv(REBUFSIZE)
-                info = res0.decode()
-                        
-                log = "recv <<< %s: %s" % (self.send_msg, info)
-                self.logwrite(INFO, log)   
-                                
-                if self.monit =="vm":
-                    self.recv_msg = info[7:-3]
-                    
-                else:
-                    if info.find('\r\n') < 0:
-                        for i in range(30*10):
-                            ti.sleep(0.1)
-                            try:
-                                res0 = self.comSocket.recv(REBUFSIZE)
-                                info += res0.decode()
-
-                                log = "recv <<< %s: %s (again)" % (self.send_msg, info)
-                                self.logwrite(INFO, log)
-
-                                if info.find('\r\n') >= 0:
-                                    break
-                            except:
-                                continue
-
-                    self.recv_msg = info[:-2]
-                
-                msg = "%s %s" % (self.send_msg, self.recv_msg)    
-                self.send_message_to_hk(msg)
-                        
-                self.send_msg = ""
-                
-            except:
-                self.comStatus = False
-                #self.logwrite(ERROR, "receiving error") 
-                self.re_connect_to_component()   
-                
-                print("disconnected!")
-                break 
     
     #-------------------------------
     # sub -> hk    
@@ -254,18 +214,19 @@ class monitor() :
             self.connection_hk_q.start_consuming()
         except Exception as e:
             if self.connection_hk_q:
-                self.logwrite(ERROR, "The communication of server was disconnected!")
+                self.log.logwrite(self.iam, ERROR, "The communication of server was disconnected!")
                 
     
     def callback_hk(self, ch, method, properties, body):
         cmd = body.decode()
         msg = "receive: %s" % cmd
-        self.logwrite(INFO, msg)
+        self.log.logwrite(self.iam, INFO, msg)
 
         param = cmd.split()
 
-        if param[0] == HK_REQ_GETVALUE:
-            self.get_value(int(param[1])) 
+        if param[0] == HK_REQ_GETVALUE and param[1] == self.monit:
+            self.get_value(int(param[2])) 
+                
         elif param[0] == HK_REQ_EXIT:
             self.exit()
             
@@ -274,12 +235,20 @@ if __name__ == "__main__":
     
     if len(sys.argv) < 1:
         print("Please add ip and port")
-
-    #print(sys.argv)
-
+    
+    
+    proc = monitor(sys.argv[1], sys.argv[2], True)
+    proc.connect_to_component()
+        
+    proc.connect_to_server_hk_ex()
+    proc.connect_to_server_hk_q()
+    
+    '''
+    
     proc = monitor("temp", "10004")
     #proc = monitor("vm", "10005")
-    #proc = temp_ctrl(sys.argv[1], sys.argv[2])
+    
+    proc.connect_to_component()
     
     st = ti.time()
     
@@ -292,4 +261,5 @@ if __name__ == "__main__":
     duration = ti.time() - st
     print(duration)
     
-    #del proc
+    del proc
+    '''

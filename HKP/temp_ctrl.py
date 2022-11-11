@@ -14,7 +14,7 @@ import time as ti
 
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
-from hk_def import *
+from HKP.HK_def import *
 import Libs.SetConfig as sc
 import Libs.rabbitmq_server as serv
 from Libs.logger import *
@@ -22,12 +22,12 @@ from Libs.logger import *
 
 class temp_ctrl():
     
-    def __init__(self, port):
+    def __init__(self, port, gui=False):
         
         self.log = LOG(WORKING_DIR + "IGRINS", TARGET)
         
-        self.iam = "temp.ctrl %s" % port        
-        self.logwrite(INFO, "start " + self.iam)
+        self.iam = "temp.ctrl(%d)" % (int(port)-10000)
+        self.log.logwrite(self.iam, INFO, "start")
         
         # load ini file
         ini_file = WORKING_DIR + "/IGRINS/Config/IGRINS.ini"
@@ -49,18 +49,8 @@ class temp_ctrl():
         self.ip = cfg.get("HK", "device-server-ip")
         self.port = port
         self.comSocket = None
-        self.send_msg = ""
-        self.recv_msg = ""
         
-        self.connect_to_component()
-        
-        recv_th = threading.Thread(target=self.socket_recv)
-        recv_th.daemon = True
-        recv_th.start()
-        
-        self.connect_to_server_hk_ex()
-        self.connect_to_server_hk_q()
-    
+        self.gui = gui
         
         
     def __del__(self):
@@ -74,21 +64,6 @@ class temp_ctrl():
             print(th.name + " exit.")
             
         self.close_component()
-               
-        
-    def logwrite(self, level, message):
-        level_name = ""
-        if level == DEBUG:
-            level_name = "DEBUG"
-        elif level == INFO:
-            level_name = "INFO"
-        elif level == WARNING:
-            level_name = "WARNING"
-        elif level == ERROR:
-            level_name = "ERROR"
-        
-        msg = "[%s:%s] %s" % (self.iam, level_name, message)
-        self.log.send(level, msg)
         
         
     def connect_to_component(self):
@@ -100,21 +75,21 @@ class temp_ctrl():
             self.comStatus = True
             
             msg = "connected"
-            self.logwrite(INFO, msg)
+            self.log.logwrite(self.iam, INFO, msg)
             
         except:
             self.comSocket = None
             self.comStatus = False
             
             msg = "disconnected"
-            self.logwrite(ERROR, msg)
+            self.log.logwrite(self.iam, ERROR, msg)
             
             self.re_connect_to_component()
               
     
     def re_connect_to_component(self):
         msg = "trying to connect again"
-        self.logwrite(WARNING, msg)
+        self.log.logwrite(self.iam, WARNING, msg)
             
         if self.comSocket != None:
             self.close_component()
@@ -127,113 +102,93 @@ class temp_ctrl():
         
         
     # CLI, TMC-Get SetPoint
-    def get_setpoint(self, nPort):
-        self.send_msg = "SETP? %d" % nPort
-        cmd = self.send_msg + "\r\n"
-        self.socket_send(cmd)
+    def get_setpoint(self, port):
+        cmd = "SETP? %d" % port
+        cmd += "\r\n"
+        self.socket_send(str(port), cmd)
 
 
     # CLI, TMC-Heating Value
-    def get_heating_power(self, nPort):
-        self.send_msg = "HTR? %d" % nPort
-        cmd = self.send_msg + "\r\n"
-        self.socket_send(cmd)
+    def get_heating_power(self, port):
+        cmd = "HTR? %d" % port
+        cmd += "\r\n"
+        self.socket_send(str(port), cmd)
     
     
     # CLI, TMC-Heating(Manual) Get Value
-    def get_heating_power_manual(self, nPort):
-        self.send_msg = "MOUT? %d" % nPort
-        cmd = self.send_msg + "\r\n"
-        self.socket_send(cmd) 
+    def get_heating_power_manual(self, port):
+        cmd = "MOUT? %d" % port
+        cmd += "\r\n"
+        self.socket_send(str(port), cmd) 
     
     
     # CLI, TMC-Heating(Manual) Set Value
-    def SetHeatingValue_manual(self, nPort, value):
-        self.send_msg = "MOUT %d,%f" % (nPort, value)
-        cmd = self.send_msg + "\r\n"
-        self.socket_send(cmd)
+    def SetHeatingValue_manual(self, port, value):
+        cmd = "MOUT %d,%f" % (port, value)
+        cmd += "\r\n"
+        self.socket_send(str(port), cmd)
     
 
     # CLI, TMC-Monitorig
-    def get_value(self, sPort):  
-        self.send_msg = "KRDG? " + sPort
-        cmd = self.send_msg + "\r\n"
-        self.socket_send(cmd)
+    def get_value(self, port):  
+        cmd = "KRDG? " + port
+        cmd += "\r\n"
+        self.socket_send(port, cmd)
 
 
-    def socket_send(self, cmd):
-        send_th = threading.Thread(target=self.handle_send, args=(cmd,))
+    def socket_send(self, port, cmd):
+        send_th = threading.Thread(target=self.handle_com, args=(port, cmd))
         send_th.daemon = True
         send_th.start()
         
 
     # Socket function        
-    def handle_send(self, cmd):
-        try:         
+    def handle_com(self, port, cmd):
+        try:    
+            
+            #send     
             self.comSocket.send(cmd.encode())
             #self.comSocket.sendall(cmd.encode())
-
-            log = "send >>> %s" % cmd
-            self.logwrite(INFO, log)
+            
+            log = "send >>> %s" % cmd[:-2]
+            self.log.logwrite(self.iam, INFO, log)
         
             if cmd.find("MOUT ") == 0:
                 d1, d2 = cmd.split(',')
-                print("set:",str(float(d2)))
                 log = "set:",str(float(d2))
-                self.logwrite(INFO, log)
+                self.log.logwrite(self.iam, INFO, log)
                     
+            #rev
+            res0 = self.comSocket.recv(REBUFSIZE)
+            info = res0.decode()
+                    
+            log = "recv <<< %s" % info[:-2]
+            self.log.logwrite(self.iam, INFO, log)   
+            
+            if info.find('\r\n') < 0:
+                for i in range(30*10):
+                    ti.sleep(0.1)
+                    try:
+                        res0 = self.comSocket.recv(REBUFSIZE)
+                        info += res0.decode()
+
+                        log = "recv <<< %s (again)" % info[:-2]
+                        self.log.logwrite(self.iam, INFO, log)
+
+                        if info.find('\r\n') >= 0:
+                            break
+                    except:
+                        continue
+            
+            msg = "%s:%s" % (port, info[:-2])   
+            if self.gui: 
+                self.send_message_to_hk(msg)
+            
         except:
             self.comStatus = False
-            self.logwrite(ERROR, "sending error") 
+            self.log.logwrite(self.iam, ERROR, "communication error") 
             self.re_connect_to_component()
             
-
-    # Socket function
-    def socket_recv(self):
-        
-        #count = 0
-        print("receving start!")
-        while True:
-            
-            if self.send_msg == "":
-                continue
-            
-            try:                     
-                res0 = self.comSocket.recv(REBUFSIZE)
-                info = res0.decode()
-                        
-                log = "recv <<< %s: %s" % (self.send_msg, info)
-                self.logwrite(INFO, log)   
-                
-                if info.find('\r\n') < 0:
-                    for i in range(30*10):
-                        ti.sleep(0.1)
-                        try:
-                            res0 = self.comSocket.recv(REBUFSIZE)
-                            info += res0.decode()
-
-                            log = "recv <<< %s: %s (again)" % (self.send_msg, info)
-                            self.logwrite(INFO, log)
-
-                            if info.find('\r\n') >= 0:
-                                break
-                        except:
-                            continue
-
-                self.recv_msg = info[:-2]
-                
-                msg = "%s %s" % (self.send_msg, self.recv_msg)    
-                self.send_message_to_hk(msg)
-                        
-                self.send_msg = ""
-                
-            except:
-                self.comStatus = False
-                #self.logwrite(ERROR, "receiving error") 
-                self.re_connect_to_component()   
-                
-                print("disconnected!")
-                break                
         
     #-------------------------------
     # sub -> hk    
@@ -270,22 +225,25 @@ class temp_ctrl():
             self.connection_hk_q.start_consuming()
         except Exception as e:
             if self.connection_hk_q:
-                self.logwrite(ERROR, "The communication of server was disconnected!")
+                self.log.logwrite(self.iam, ERROR, "The communication of server was disconnected!")
                 
     
     def callback_hk(self, ch, method, properties, body):
         cmd = body.decode()
         msg = "receive: %s" % cmd
-        self.logwrite(INFO, msg)
+        self.log.logwrite(self.iam, INFO, msg)
 
         param = cmd.split()
 
-        if param[0] == HK_REQ_GETSETPOINT:
-            self.get_setpoint(int(param[1]))
-        elif param[0] == HK_REQ_GETHEATINGPOWER:
-            self.get_heating_power(int(param[1]))
-        elif param[0] == HK_REQ_GETVALUE:
-            self.get_value(param[1])      
+        if param[0] == HK_REQ_GETSETPOINT and param[1] == self.port:
+            self.get_setpoint(int(param[2]))
+            
+        elif param[0] == HK_REQ_GETHEATINGPOWER and param[1] == self.port:
+            self.get_heating_power(int(param[2]))
+            
+        elif param[0] == HK_REQ_GETVALUE and param[1] == self.port:
+            self.get_value(param[2])      
+            
         elif param[0] == HK_REQ_EXIT:
             self.exit()
 
@@ -295,15 +253,20 @@ if __name__ == "__main__":
     
     if len(sys.argv) < 1:
         print("Please add ip and port")
-
-    #print(sys.argv)
-
+    
+    proc = temp_ctrl(sys.argv[1], True)
+    proc.connect_to_component()
+        
+    proc.connect_to_server_hk_ex()
+    proc.connect_to_server_hk_q()
+    
+    '''    
     proc = temp_ctrl("10001")
-    #proc = temp_ctrl(sys.argv[1])
+    proc.connect_to_component()
     
     st = ti.time()
     
-    delay = 0.1
+    delay = 0
     for i in range(1):
     #while True:
         proc.get_setpoint(1)
@@ -324,5 +287,6 @@ if __name__ == "__main__":
     print(duration)
     
     #del proc
+    '''
     
         

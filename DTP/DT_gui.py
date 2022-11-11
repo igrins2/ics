@@ -3,7 +3,7 @@
 """
 Created on Jun 28, 2022
 
-Modified on Non 7, 2022
+Modified on Non 10, 2022
 
 @author: hilee
 """
@@ -249,13 +249,13 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.connection_main_q.start_consuming()
         except Exception as e:
             if self.connection_main_q:
-                self.dt.logwrite(ERROR, "The communication of server was disconnected!")
+                self.dt.log.logwrite("gui", ERROR, "The communication of server was disconnected!")
                 
     
     def callback_main(self, ch, method, properties, body):
         cmd = body.decode()
         msg = "receive: %s" % cmd
-        self.dt.logwrite(INFO, msg)
+        self.dt.log.logwrite("gui", INFO, msg)
 
         param = cmd.split()
 
@@ -314,13 +314,13 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.connection_hk_q.start_consuming()
         except Exception as e:
             if self.connection_hk_q:
-                self.dt.logwrite(ERROR, "The communication of server was disconnected!")
+                self.dt.log.logwrite("gui", ERROR, "The communication of server was disconnected!")
                 
     
     def callback_hk(self, ch, method, properties, body):
         cmd = body.decode()
         msg = "receive: %s" % cmd
-        self.dt.logwrite(INFO, msg)
+        self.dt.log.logwrite("gui", INFO, msg)
 
         param = cmd.split()
 
@@ -390,14 +390,14 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 self.channel_ics_q[dc_idx].start_consuming()
             except Exception as e:
                 if self.channel_ics_q[dc_idx]:
-                    self.dt.logwrite(ERROR, "The communication of server was disconnected!")
+                    self.dt.log.logwrite("gui", ERROR, "The communication of server was disconnected!")
         else:
             try:
                 self.channel_ics_q[dc_idx].basic_consume(queue=self.queue_ics[dc_idx], on_message_callback=self.callback_ics_k, auto_ack=True)
                 self.channel_ics_q[dc_idx].start_consuming()
             except Exception as e:
                 if self.channel_ics_q[dc_idx]:
-                    self.dt.logwrite(ERROR, "The communication of server was disconnected!")
+                    self.dt.log.logwrite("gui", ERROR, "The communication of server was disconnected!")
 
 
     def alive_check_h(self):
@@ -418,7 +418,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     def callback_ics_h(self, ch, method, properties, body):
         cmd = body.decode()
         msg = "receive: %s" % cmd
-        self.dt.logwrite(INFO, msg)
+        self.dt.log.logwrite("gui", INFO, msg)
 
         param = cmd.split()
 
@@ -464,7 +464,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     def callback_ics_k(self, ch, method, properties, body):
         cmd = body.decode()
         msg = "receive: %s" % cmd
-        self.dt.logwrite(INFO, msg)
+        self.dt.log.logwrite("gui", INFO, msg)
 
         param = cmd.split()
 

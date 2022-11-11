@@ -11,9 +11,6 @@ Modified on Nov 7, 2022
 
 # -----------------------------------------------------------
 # definition: constant
-CLASS_NAME = "[Data Taking Package]"
-
-CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 import os
 dir = os.getcwd().split("/")

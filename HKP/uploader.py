@@ -9,7 +9,7 @@ import threading
 
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
-from hk_def import *
+from HKP.HK_def import *
 import Libs.SetConfig as sc
 import Libs.rabbitmq_server as serv
 from Libs.logger import *
@@ -37,7 +37,7 @@ class uploader():
         self.log = LOG(WORKING_DIR + "IGRINS", TARGET)
         
         self.iam = "uplader"
-        self.logwrite(INFO, "start " + self.iam)
+        self.log.logwrite(self.iam, INFO, "start")
         
         # load ini file
         self.ini_file = WORKING_DIR + "/IGRINS/Config/"
@@ -58,9 +58,10 @@ class uploader():
         #-------
         #for test
         self.start_upload_to_firebase(self.db)
-        self.logwrite(INFO, "Uploaded " + ti.strftime("%Y-%m-%d %H:%M:%S"))
+        self.log.logwrite(self.iam, INFO, "Uploaded " + ti.strftime("%Y-%m-%d %H:%M:%S"))
         #-------
         
+        self.connect_to_server_hk_ex()  #when error occurs!
         self.connect_to_server_hk_q()
         
     
@@ -73,22 +74,7 @@ class uploader():
         
         for th in threading.enumerate():
             print(th.name + " exit.")
-            
-            
-    def logwrite(self, level, message):
-        level_name = ""
-        if level == DEBUG:
-            level_name = "DEBUG"
-        elif level == INFO:
-            level_name = "INFO"
-        elif level == WARNING:
-            level_name = "WARNING"
-        elif level == ERROR:
-            level_name = "ERROR"
-        
-        msg = "[%s:%s] %s" % (self.iam, level_name, message)
-        self.log.send(level, msg)
-            
+                        
 
     def get_firebase(self):
         '''
@@ -101,6 +87,7 @@ class uploader():
             }
         '''
         
+        # for test
         config={
             "apiKey": "AIzaSyDSt_O0KmvB5MjrDXuGJCABAOVNp8Q3ZB8",
             "authDomain": "hkp-db-37e0f.firebaseapp.com",
@@ -112,8 +99,6 @@ class uploader():
             "measurementId": "G-450KS9WJF1"
         }
 
-        #cred = credentials.Certificate(self.ini_file+"hkp-db-37e0f-firebase-adminsdk-9r23k-ce5a33794f.json")
-        #firebase_admin.initialize_app(cred)
         firebase = pyrebase.initialize_app(config)
 
         return firebase
@@ -123,12 +108,12 @@ class uploader():
 
         HK_dict = self.read_item_to_upload()
         if HK_dict is None:
-            self.logwrite(WARNING, "No data ")
+            self.log.logwrite(self.iam, WARNING, "No data ")
 
         else:
             HK_dict["utc_upload"] = datetime.datetime.now(pytz.utc).isoformat()                
             self.push_hk_entry(db, HK_dict)
-            self.logwrite(INFO, HK_dict)
+            self.log.logwrite(self.iam, INFO, HK_dict)
 
 
     def read_item_to_upload(self):
@@ -147,6 +132,22 @@ class uploader():
     
     def push_hk_entry(self, db, entry):
         db.child("BasicHK").push(entry)
+        
+        
+    #-------------------------------
+    # sub -> hk    
+    def connect_to_server_hk_ex(self):
+        # RabbitMQ connect        
+        self.connection_hk_ex, self.channel_hk_ex = serv.connect_to_server(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd)
+
+        if self.connection_hk_ex:
+            # RabbitMQ: define producer
+            serv.define_producer(self.iam, self.channel_hk_ex, "direct", self.sub_hk_ex)
+        
+        
+    def send_message_to_hk(self, message):
+        serv.send_message(self.iam, TARGET, self.channel_hk_ex, self.sub_hk_ex, self.sub_hk_q, message)    
+
                   
             
     #-------------------------------
@@ -169,20 +170,20 @@ class uploader():
             self.connection_hk_q.start_consuming()
         except Exception as e:
             if self.connection_hk_q:
-                self.logwrite(ERROR, "The communication of server was disconnected!")
+                self.log.logwrite(self.iam, ERROR, "The communication of server was disconnected!")
                 
     
     def callback_hk(self, ch, method, properties, body):
         cmd = body.decode()
         msg = "receive: %s" % cmd
-        self.logwrite(INFO, msg)
+        self.log.logwrite(self.iam, INFO, msg)
 
         param = cmd.split()
 
         if param[0] == HK_REQ_UPLOAD_DB:
             self.start_upload_to_firebase(self.db)
             tm = ti.localtime()
-            self.logwrite(INFO, "Uploaded " + ti.strftime("%Y-%m-%d %H:%M:%S"))
+            self.log.logwrite(self.iam, INFO, "Uploaded " + ti.strftime("%Y-%m-%d %H:%M:%S"))
             
         elif param[0] == HK_REQ_EXIT:
             self.exit()

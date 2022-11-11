@@ -2,7 +2,7 @@
 """
 Created on Nov 9, 2022
 
-Created on Nov 9, 2022
+Created on Nov 10, 2022
 
 @author: hilee
 """
@@ -14,7 +14,7 @@ import time as ti
 
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
-from hk_def import *
+from HKP.HK_def import *
 import Libs.SetConfig as sc
 import Libs.rabbitmq_server as serv
 from Libs.logger import *
@@ -22,14 +22,14 @@ from Libs.logger import *
 
 class pdu() :
     
-    def __init__(self, port):
+    def __init__(self, port, gui=False):
         
         self.log = LOG(WORKING_DIR + "IGRINS", TARGET)
         
         self.port = port
         
-        self.iam = "PDU %s" % self.port        
-        self.logwrite(INFO, "start " + self.iam) 
+        self.iam = "PDU(%d)" % (int(self.port))
+        self.log.logwrite(self.iam, INFO, "start") 
         
         # load ini file
         ini_file = WORKING_DIR + "/IGRINS/Config/IGRINS.ini"
@@ -58,13 +58,8 @@ class pdu() :
         self.send_msg = ""
         self.recv_msg = ""
         
+        self.gui = gui
         
-        self.connect_to_component()
-        
-        self.initPDU()
-        
-        self.connect_to_server_hk_ex()
-        self.connect_to_server_hk_q()
         
     
     def __del__(self):
@@ -80,21 +75,6 @@ class pdu() :
         self.close_component()
             
         
-    def logwrite(self, level, message):
-        level_name = ""
-        if level == DEBUG:
-            level_name = "DEBUG"
-        elif level == INFO:
-            level_name = "INFO"
-        elif level == WARNING:
-            level_name = "WARNING"
-        elif level == ERROR:
-            level_name = "ERROR"
-        
-        msg = "[%s:%s] %s" % (self.iam, level_name, message)
-        self.log.send(level, msg)
-        
-
     def connect_to_component(self):
             
         try:            
@@ -104,21 +84,21 @@ class pdu() :
             self.comStatus = True
             
             msg = "connected"
-            self.logwrite(INFO, msg)
+            self.log.logwrite(self.iam, INFO, msg)
             
         except:
             self.comSocket = None
             self.comStatus = False
             
             msg = "disconnected"
-            self.logwrite(ERROR, msg)
+            self.log.logwrite(self.iam, ERROR, msg)
             
             self.re_connect_to_component()         
                  
     
     def re_connect_to_component(self):
         msg = "trying to connect again"
-        self.logwrite(WARNING, msg)
+        self.log.logwrite(self.iam, WARNING, msg)
             
         if self.comSocket != None:
             self.close_component()
@@ -139,19 +119,19 @@ class pdu() :
             cmd = "@@@@\r"
             self.comSocket.send(cmd.encode())
             log = "send >>> %s" % cmd
-            self.logwrite(LOGGING, log)
+            self.log.logwrite(self.iam, INFO, log)
             
             res = self.comSocket.recv(REBUFSIZE)
             log = "recv <<< %s" % res.decode()
-            self.logwrite(LOGGING, log)
+            self.log.logwrite(self.iam, INFO, log)
             
             cmd = "DN0\r"   #need to check!!!
             self.power_status(cmd) 
                 
-            self.logwrite(INFO, "powctr init is completed")
+            self.log.logwrite(self.iam, INFO, "powctr init is completed")
                     
         except:
-            self.logwrite(ERROR, "powctr init is error")
+            self.log.logwrite(self.iam, ERROR, "powctr init is error")
                    
             self.comStatus = False
             self.re_connect_to_component()
@@ -164,12 +144,12 @@ class pdu() :
         try:
             self.comSocket.send(cmd.encode())
             log = "send >>> %s" % cmd
-            self.logwrite(LOGGING, log)
+            self.log.logwrite(self.iam, INFO, log)
             ti.sleep(TSLEEP)
             res = self.comSocket.recv(REBUFSIZE)
             sRes = res.decode()
             log = "recv <<< %s" % sRes
-            self.logwrite(LOGGING, log)
+            self.log.logwrite(self.iam, INFO, log)
             
             # check PDU status
             for i in range(PDU_IDX):
@@ -178,7 +158,7 @@ class pdu() :
                 else:
                     self.pow_flag[i] = "OFF"
         except:
-            self.logwrite(ERROR, "powctr sending fail")
+            self.log.logwrite(self.iam, ERROR, "powctr sending fail")
                    
             self.comStatus = False
             self.re_connect_to_component()
@@ -199,11 +179,9 @@ class pdu() :
             cmd = "N0%d\r" % (idx)
                    
         msg = " %s Button clicked"  % self.pow_flag[idx-1]
-        self.logwrite(INFO, self.POWERSTR[idx-1] + msg)
+        self.log.logwrite(self.iam, INFO, self.POWERSTR[idx-1] + msg)
     
         self.power_status(cmd)
-        
-        self.logwrite(CMDLINE, "---------------------------------------------------------")
             
     
     #-------------------------------
@@ -241,18 +219,19 @@ class pdu() :
             self.connection_hk_q.start_consuming()
         except Exception as e:
             if self.connection_hk_q:
-                self.logwrite(ERROR, "The communication of server was disconnected!")
+                self.log.logwrite(self.iam, ERROR, "The communication of server was disconnected!")
                 
     
     def callback_hk(self, ch, method, properties, body):
         cmd = body.decode()
         msg = "receive: %s" % cmd
-        self.logwrite(INFO, msg)
+        self.log.logwrite(self.iam, INFO, msg)
 
         param = cmd.split()
 
         if param[0] == HK_REQ_PWR_ONOFF:
             self.change_power(int(param[1]), param[2]) 
+            
         elif param[0] == HK_REQ_EXIT:
             self.exit()
             
@@ -264,8 +243,18 @@ if __name__ == "__main__":
 
     #print(sys.argv)
 
+    #
+    proc = pdu(sys.argv[1], True)
+    proc.connect_to_component()
+    proc.initPDU()
+        
+    proc.connect_to_server_hk_ex()
+    proc.connect_to_server_hk_q()
+    
+    '''
     proc = pdu("50023")
-    #proc = temp_ctrl(sys.argv[1])
+    proc.connect_to_component()
+    proc.initPDU()
     
     st = ti.time()
     
@@ -276,6 +265,7 @@ if __name__ == "__main__":
     print(duration)
     
     #del proc
+    '''
     
     
     

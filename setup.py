@@ -14,12 +14,11 @@ setup(
     version='1.0.0',
     author='hilee',
     author_email='hyeinlee@kasi.re.kr',
-    description='IGRINS2 Observing Software',
+    description='IGRINS2 HKP CLI',
     packages=find_packages(),
     entry_points={
         "console_scripts": [
 	    "hkp = HKP.HK_cli:CliCommand"
-	    #"CalBox = DTP.CalBoxTest.CalBoxTest_cli:CliCommand"
         ]
     },
     classifiers=[
