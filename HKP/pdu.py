@@ -63,10 +63,6 @@ class pdu() :
         
     
     def __del__(self):
-        self.exit()
-            
-            
-    def exit(self):
         print("Closing %s" % self.iam)
         
         for th in threading.enumerate():
@@ -74,6 +70,7 @@ class pdu() :
             
         self.close_component()
             
+                    
         
     def connect_to_component(self):
             

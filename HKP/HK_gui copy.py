@@ -3,7 +3,7 @@
 """
 Created on Sep 17, 2021
 
-Modified on Nov 18, 2022
+Modified on May 3, 2022
 
 @author: hilee
 """
@@ -35,8 +35,6 @@ import datetime
 from itertools import cycle
 
 from Libs.hk_field_definition import hk_entries_to_dict
-import Libs.SetConfig as sc
-from Libs.logger import *
 
 import copy
 
@@ -60,11 +58,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
     
     def __init__(self, autostart=False):
         super().__init__()
-        
-        self.log = LOG(WORKING_DIR + "IGRINS", IAM)
-        self.iam = "hk"
-        self.log.logwrite(self.iam, INFO, "start")
-        
         self.setupUi(self)
         self.setWindowTitle("Housekeeping Package [IGOS2 0.2]")
         
@@ -73,17 +66,43 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.tb_Monitor.setColumnWidth(2, self.tb_Monitor.width()/32 * 7)
         self.tb_Monitor.setColumnWidth(3, self.tb_Monitor.width()/32 * 10)
         
+        self.hk = HK(True)
+        
         self.timestamp_alert = None
         
         # check Periodic Button pressed or not
         self.periodicbtn = NOT_PRESSED
         
+        # connect to device
+        for i in range(COM_CNT):
+            self.hk.connect_to_component(i)
+            
+        # PDU init
+        if self.hk.comStatus[PDU] == True:
+            self.hk.initPDU()
+            self.hk.change_power(1, ON)
+            self.hk.change_power(2, ON)
+        
+            idx = 2
+            while idx < PDU_IDX:
+                self.hk.change_power(idx+1, OFF)
+                idx += 1
         self.PDUStatus()
             
         self.VMonitor()
         self.TMonitor()    
         self.init_events()   
         self.Status()
+        
+        self.start_time = time.time()
+        
+        #self.timer = QTimer(self)
+        #self.timer.setInterval(self.hk.Period*1000)
+        #self.timer.timeout.connect(self.PeriodicFunc)
+        
+        #self.timer_alert = QTimer(self)
+        #self.timer_alert.setInterval(1000)
+        #self.timer_alert.timeout.connect(self.set_alert_status_on)
                
         #for test
         self.timer_sendsts = QTimer(self)
@@ -128,8 +147,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     def closeEvent(self, *args, **kwargs):
         
-        self.log.logwrite(self.iam, INFO, "Closing %s : " % sys.argv[0])
-        self.log.logwrite(self.iam, INFO, "This may take several seconds waiting for threads to close.")
+        self.hk.logwrite(BOTH, "Closing %s : " % sys.argv[0])
+        self.hk.logwrite(BOTH, "This may take several seconds waiting for threads to close.")
         
         for i in range(COM_CNT):
             try:           
@@ -143,7 +162,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                     self.hk.close_component(i)
             except:
                 log = "Error when start closing %s ..." % self.hk.comList[i]
-                self.log.logwrite(self.iam, INFO, log)
+                self.hk.logwrite(BOTH, log)
                     
         # DTP close
         
@@ -322,7 +341,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         if self.periodicbtn == PRESSED:
             self.periodicbtn = NOT_PRESSED
             self.bt_pause.setText("Periodic Monitoring")
-            self.log.logwrite(self.iam, INFO, "Periodic Monitoring Button is clicked")
+            self.hk.logwrite(BOTH, "Periodic Monitoring Button is clicked")
 
             if self.chk_alert.isChecked():
                 self.chk_alert.toggle()
@@ -331,14 +350,14 @@ class MainWindow(Ui_Dialog, QMainWindow):
            #self.timer.stop()
             self.set_alert_status_off()
             
-            self.log.logwrite(self.iam, INFO, "[cancel] " + str(datetime.datetime.now()))
+            self.hk.logwrite(BOTH, "[cancel] " + str(datetime.datetime.now()))
             
             
         elif self.periodicbtn == NOT_PRESSED:            
             self.periodicbtn = PRESSED
             self.bt_pause.setText("Pause")
             self.get_setpoint()
-            self.log.logwrite(self.iam, INFO, "Pause Button is clicked")
+            self.hk.logwrite(BOTH, "Pause Button is clicked")
             
             self.chk_alert.setEnabled(True)
             
@@ -365,7 +384,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.SendSts(0)
         
         self.timer_sendsts.start()
-        self.log.logwrite(self.iam, INFO, "[test] Monitoring Start...")
+        self.hk.logwrite(BOTH, "[test] Monitoring Start...")
         
         
     
@@ -377,11 +396,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.SendSts(2)
         
         self.timer_sendsts.stop()
-        self.log.logwrite(self.iam, INFO, "[test] Monitoring Stop!!!")
+        self.hk.logwrite(BOTH, "[test] Monitoring Stop!!!")
         
         
     def SendSts(self, option=1):
-        self.log.logwrite(self.iam, INFO, "sending status...")
+        self.hk.logwrite(BOTH, "sending status...")
         to = self.hk.alert_email
         title = "[IG2] Dewar status"
         
@@ -404,7 +423,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
         
         self.send_gmail(to, title, msg)
-        self.log.logwrite(self.iam, INFO, "email was sent to")
+        self.hk.logwrite(BOTH, "email was sent to")
         
         
             
@@ -432,7 +451,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 
         self.hk.save_setpoint(self.SETP)
       
-        self.log.logwrite(self.iam, DEBUG, self.SETP)
+        self.hk.logwrite(CMDLINE, self.SETP)
         
     
     def QWidgetLabelColor(self, widget, textcolor, bgcolor=None):
@@ -744,7 +763,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             if _t > 0:
                 timer.singleShot(_t, self.PeriodicFunc)
             else:
-                self.log.logwrite(self.iam, ERROR, "periodic is being called with negative time({}). Using default of 10s".format(_t))
+                self.hk.logwrite(BOTH, "periodic is being called with negative time({}). Using default of 10s".format(_t))
                 timer.singleShot(_t, self.PeriodicFunc)        
         
        
@@ -766,9 +785,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
                     executor.submit(self.get_value_fromVM())
                    
             except RuntimeError as e:
-                self.log.logwrite(self.iam, ERROR, e)
+                self.hk.logwrite(BOTH, e)
             except Exception as e:
-                self.log.logwrite(self.iam, ERROR, e)
+                self.hk.logwrite(BOTH, e)
             
         timer = QTimer(self)
         timer.singleShot(2000, self.LoggingFun)
@@ -872,7 +891,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     def send_alert(self):
 
-        self.log.logwrite(self.iam, WARNING, "sending alerts! REAL")
+        self.hk.logwrite(BOTH, "sending alerts! REAL")
 
         to = self.hk.alert_email
 
@@ -883,12 +902,12 @@ class MainWindow(Ui_Dialog, QMainWindow):
 
         msg = "Please check temperatures of IGRINS2!\n {} > {}".format(label, temp)
         
-        self.log.logwrite(self.iam, WARNING, "sending alerts")
+        self.hk.logwrite(BOTH, "sending alerts")
 
         self.send_gmail(to, title, msg)
-        self.log.logwrite(self.iam, WARNING, "email was sent to")
+        self.hk.logwrite(BOTH, "email was sent to")
 
-        self.log.logwrite(self.iam, WARNING, "slacker message was sent")
+        self.hk.logwrite(BOTH, "slacker message was sent")
         
     
     def send_gmail(self, email_to, email_title, email_content):

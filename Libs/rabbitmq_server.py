@@ -17,7 +17,7 @@ import pika
 def connect_to_server(iam, ip_addr, id, pwd):
     try:       
         id_pwd = pika.PlainCredentials(id, pwd)
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host=ip_addr, port=5672, credentials=id_pwd))
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host=ip_addr, port=5672, credentials=id_pwd, heartbeat=0, tcp_options={"TCP_KEEPIDLE":60}))
         channel = connection.channel()
         return connection, channel
         

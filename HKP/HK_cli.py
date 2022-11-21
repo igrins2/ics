@@ -108,10 +108,13 @@ def start():
                 
         elif args[0] == "getsetpoint" or args[0] == "getheatvalue":
             _args = "index, port"
-            if len(args) < 3:
+            
+            if len(args) < 2:
                 show_errmsg(_args)
             elif args[1] == "-h" or args[1] == "--help":
-                show_subfunc(args[0], _args, "index:int(1~3), port:int(1~2, 0:all)")
+                show_subfunc(args[0], _args, "index:int(1~3), port:int(1~2, 0:all)")   
+            elif len(args) < 3:
+                show_errmsg(_args)         
             elif (1 <= int(args[1]) <= 3) is not True:    
                 print("Please input 1~3 for index.")
             elif (0 <= int(args[2]) <= 2) is not True:
@@ -177,6 +180,7 @@ def start():
             else:
                 if hk[VM] == None:
                     hk[VM] = monitor("vm", "10005")
+                    hk[VM].connect_to_component()
                 hk[VM].get_value()
                      
                 
@@ -194,7 +198,10 @@ def start():
                 if hk[PDU] == None:
                     hk[PDU] = pdu("50023")
                     
-                if int(args[1]) == 0:
+                    hk[PDU].connect_to_component()
+                    hk[PDU].initPDU()
+                    
+                if args[1] == "0":
                     for i in range(PDU_IDX):
                         hk[PDU].change_power(i+1, args[2])
                 else:

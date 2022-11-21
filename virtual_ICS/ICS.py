@@ -191,18 +191,18 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.channel = self.connection.channel()
 
             # as producer
-            self.channel.exchange_declare(exchange="ics.dcss.ex", exchange_type="direct")
+            self.channel.exchange_declare(exchange="sc.dcss.ex", exchange_type="direct")
 
             # as consumer
-            self.channel.exchange_declare(exchange="dcss.ics.ex", exchange_type="direct")
+            self.channel.exchange_declare(exchange="dcss.sc.ex", exchange_type="direct")
             result = self.channel.queue_declare(queue='', exclusive=True)
             self.queue = result.method.queue
-            self.channel.queue_bind(exchange='dcss.ics.ex', queue=self.queue, routing_key='dcss.ics.q')
+            self.channel.queue_bind(exchange='dcss.sc.ex', queue=self.queue, routing_key='dcss.sc.q')
         
             th = threading.Thread(target=self.consumer)
             th.start()
 
-            self.timer_alive.start()
+            #self.timer_alive.start()
 
             self.show_alarm()
 
@@ -252,7 +252,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
 
 
     def send_message(self, message):
-        self.channel.basic_publish(exchange='ics.dcss.ex', routing_key='ics.dcss.q', body=message.encode())
+        msg = "%d %s" % (1, message)
+        self.channel.basic_publish(exchange='sc.dcss.ex', routing_key='sc.dcss.q', body=msg.encode())
         print('[send->dcs] ' + message)
 
     # ----------------------------------------------------------------------
@@ -398,7 +399,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
             cmd = "%s %s %s %s %s" % (CMD_SETWINPARAM, self.e_x_start.text(), self.e_x_stop.text(), self.e_y_start.text(), self.e_y_stop.text())
             self.send_message(cmd)
         else:
-            self.send_message(CMD_SETWINPARAM)
+            cmd = "%s 0 2047 0 2047" % CMD_SETWINPARAM
+            self.send_message(cmd)
 
     def acquireramp(self):
         self.send_message(CMD_ACQUIRERAMP)

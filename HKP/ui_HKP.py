@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'HKPaeeNDM.ui'
+## Form generated from reading UI file 'HKPQvrcNe.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.3.0
 ##
@@ -100,7 +100,6 @@ class Ui_Dialog(object):
         __qtablewidgetitem2.setFlags(Qt.ItemIsEnabled);
         self.tb_pdu.setItem(0, 0, __qtablewidgetitem2)
         __qtablewidgetitem3 = QTableWidgetItem()
-        __qtablewidgetitem3.setTextAlignment(Qt.AlignTrailing|Qt.AlignVCenter);
         __qtablewidgetitem3.setFlags(Qt.ItemIsEnabled);
         self.tb_pdu.setItem(0, 1, __qtablewidgetitem3)
         __qtablewidgetitem4 = QTableWidgetItem()
@@ -108,7 +107,6 @@ class Ui_Dialog(object):
         __qtablewidgetitem4.setFlags(Qt.ItemIsEnabled);
         self.tb_pdu.setItem(1, 0, __qtablewidgetitem4)
         __qtablewidgetitem5 = QTableWidgetItem()
-        __qtablewidgetitem5.setTextAlignment(Qt.AlignTrailing|Qt.AlignVCenter);
         __qtablewidgetitem5.setFlags(Qt.ItemIsEnabled);
         self.tb_pdu.setItem(1, 1, __qtablewidgetitem5)
         __qtablewidgetitem6 = QTableWidgetItem()
@@ -116,7 +114,6 @@ class Ui_Dialog(object):
         __qtablewidgetitem6.setFlags(Qt.ItemIsEnabled);
         self.tb_pdu.setItem(2, 0, __qtablewidgetitem6)
         __qtablewidgetitem7 = QTableWidgetItem()
-        __qtablewidgetitem7.setTextAlignment(Qt.AlignTrailing|Qt.AlignVCenter);
         __qtablewidgetitem7.setFlags(Qt.ItemIsEnabled);
         self.tb_pdu.setItem(2, 1, __qtablewidgetitem7)
         __qtablewidgetitem8 = QTableWidgetItem()
@@ -124,7 +121,6 @@ class Ui_Dialog(object):
         __qtablewidgetitem8.setFlags(Qt.ItemIsEnabled);
         self.tb_pdu.setItem(3, 0, __qtablewidgetitem8)
         __qtablewidgetitem9 = QTableWidgetItem()
-        __qtablewidgetitem9.setTextAlignment(Qt.AlignTrailing|Qt.AlignVCenter);
         __qtablewidgetitem9.setFlags(Qt.ItemIsEnabled);
         self.tb_pdu.setItem(3, 1, __qtablewidgetitem9)
         __qtablewidgetitem10 = QTableWidgetItem()
@@ -132,7 +128,6 @@ class Ui_Dialog(object):
         __qtablewidgetitem10.setFlags(Qt.ItemIsEnabled);
         self.tb_pdu.setItem(4, 0, __qtablewidgetitem10)
         __qtablewidgetitem11 = QTableWidgetItem()
-        __qtablewidgetitem11.setTextAlignment(Qt.AlignTrailing|Qt.AlignVCenter);
         __qtablewidgetitem11.setFlags(Qt.ItemIsEnabled);
         self.tb_pdu.setItem(4, 1, __qtablewidgetitem11)
         __qtablewidgetitem12 = QTableWidgetItem()
@@ -140,7 +135,6 @@ class Ui_Dialog(object):
         __qtablewidgetitem12.setFlags(Qt.ItemIsEnabled);
         self.tb_pdu.setItem(5, 0, __qtablewidgetitem12)
         __qtablewidgetitem13 = QTableWidgetItem()
-        __qtablewidgetitem13.setTextAlignment(Qt.AlignTrailing|Qt.AlignVCenter);
         __qtablewidgetitem13.setFlags(Qt.NoItemFlags);
         self.tb_pdu.setItem(5, 1, __qtablewidgetitem13)
         __qtablewidgetitem14 = QTableWidgetItem()
@@ -148,7 +142,6 @@ class Ui_Dialog(object):
         __qtablewidgetitem14.setFlags(Qt.ItemIsEnabled);
         self.tb_pdu.setItem(6, 0, __qtablewidgetitem14)
         __qtablewidgetitem15 = QTableWidgetItem()
-        __qtablewidgetitem15.setTextAlignment(Qt.AlignTrailing|Qt.AlignVCenter);
         __qtablewidgetitem15.setFlags(Qt.NoItemFlags);
         self.tb_pdu.setItem(6, 1, __qtablewidgetitem15)
         __qtablewidgetitem16 = QTableWidgetItem()
@@ -156,11 +149,10 @@ class Ui_Dialog(object):
         __qtablewidgetitem16.setFlags(Qt.ItemIsEnabled);
         self.tb_pdu.setItem(7, 0, __qtablewidgetitem16)
         __qtablewidgetitem17 = QTableWidgetItem()
-        __qtablewidgetitem17.setTextAlignment(Qt.AlignTrailing|Qt.AlignVCenter);
         __qtablewidgetitem17.setFlags(Qt.NoItemFlags);
         self.tb_pdu.setItem(7, 1, __qtablewidgetitem17)
         self.tb_pdu.setObjectName(u"tb_pdu")
-        self.tb_pdu.setGeometry(QRect(30, 55, 201, 231))
+        self.tb_pdu.setGeometry(QRect(30, 55, 201, 223))
         font3 = QFont()
         font3.setPointSize(10)
         font3.setBold(False)
@@ -170,6 +162,8 @@ class Ui_Dialog(object):
         self.tb_pdu.setFrameShape(QFrame.StyledPanel)
         self.tb_pdu.setFrameShadow(QFrame.Sunken)
         self.tb_pdu.setLineWidth(1)
+        self.tb_pdu.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.tb_pdu.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.tb_pdu.setSizeAdjustPolicy(QAbstractScrollArea.AdjustIgnored)
         self.tb_pdu.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.tb_pdu.setShowGrid(True)
@@ -536,9 +530,11 @@ class Ui_Dialog(object):
         __qtablewidgetitem77.setFlags(Qt.ItemIsEnabled);
         self.tb_Monitor.setItem(13, 3, __qtablewidgetitem77)
         self.tb_Monitor.setObjectName(u"tb_Monitor")
-        self.tb_Monitor.setGeometry(QRect(290, 87, 451, 381))
+        self.tb_Monitor.setGeometry(QRect(290, 87, 451, 373))
         self.tb_Monitor.setFont(font3)
         self.tb_Monitor.setFocusPolicy(Qt.NoFocus)
+        self.tb_Monitor.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.tb_Monitor.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.tb_Monitor.setShowGrid(True)
         self.tb_Monitor.setGridStyle(Qt.DotLine)
         self.tb_Monitor.setSortingEnabled(False)
@@ -624,6 +620,30 @@ class Ui_Dialog(object):
         self.bt_com_tm = QPushButton(Dialog)
         self.bt_com_tm.setObjectName(u"bt_com_tm")
         self.bt_com_tm.setGeometry(QRect(200, 390, 31, 27))
+        self.bt_pwr_onoff1 = QPushButton(Dialog)
+        self.bt_pwr_onoff1.setObjectName(u"bt_pwr_onoff1")
+        self.bt_pwr_onoff1.setGeometry(QRect(188, 78, 41, 22))
+        self.bt_pwr_onoff2 = QPushButton(Dialog)
+        self.bt_pwr_onoff2.setObjectName(u"bt_pwr_onoff2")
+        self.bt_pwr_onoff2.setGeometry(QRect(188, 103, 41, 22))
+        self.bt_pwr_onoff3 = QPushButton(Dialog)
+        self.bt_pwr_onoff3.setObjectName(u"bt_pwr_onoff3")
+        self.bt_pwr_onoff3.setGeometry(QRect(188, 128, 41, 22))
+        self.bt_pwr_onoff4 = QPushButton(Dialog)
+        self.bt_pwr_onoff4.setObjectName(u"bt_pwr_onoff4")
+        self.bt_pwr_onoff4.setGeometry(QRect(188, 153, 41, 22))
+        self.bt_pwr_onoff5 = QPushButton(Dialog)
+        self.bt_pwr_onoff5.setObjectName(u"bt_pwr_onoff5")
+        self.bt_pwr_onoff5.setGeometry(QRect(188, 178, 41, 22))
+        self.bt_pwr_onoff6 = QPushButton(Dialog)
+        self.bt_pwr_onoff6.setObjectName(u"bt_pwr_onoff6")
+        self.bt_pwr_onoff6.setGeometry(QRect(188, 203, 41, 22))
+        self.bt_pwr_onoff7 = QPushButton(Dialog)
+        self.bt_pwr_onoff7.setObjectName(u"bt_pwr_onoff7")
+        self.bt_pwr_onoff7.setGeometry(QRect(188, 228, 41, 22))
+        self.bt_pwr_onoff8 = QPushButton(Dialog)
+        self.bt_pwr_onoff8.setObjectName(u"bt_pwr_onoff8")
+        self.bt_pwr_onoff8.setGeometry(QRect(188, 253, 41, 22))
 
         self.retranslateUi(Dialog)
 
@@ -723,5 +743,13 @@ class Ui_Dialog(object):
         self.bt_com_tc2.setText(QCoreApplication.translate("Dialog", u"TC-2", None))
         self.bt_com_tc3.setText(QCoreApplication.translate("Dialog", u"TC-3", None))
         self.bt_com_tm.setText(QCoreApplication.translate("Dialog", u"TM", None))
+        self.bt_pwr_onoff1.setText(QCoreApplication.translate("Dialog", u"On", None))
+        self.bt_pwr_onoff2.setText(QCoreApplication.translate("Dialog", u"On", None))
+        self.bt_pwr_onoff3.setText(QCoreApplication.translate("Dialog", u"On", None))
+        self.bt_pwr_onoff4.setText(QCoreApplication.translate("Dialog", u"On", None))
+        self.bt_pwr_onoff5.setText(QCoreApplication.translate("Dialog", u"On", None))
+        self.bt_pwr_onoff6.setText(QCoreApplication.translate("Dialog", u"On", None))
+        self.bt_pwr_onoff7.setText(QCoreApplication.translate("Dialog", u"On", None))
+        self.bt_pwr_onoff8.setText(QCoreApplication.translate("Dialog", u"On", None))
     # retranslateUi
 

@@ -7,10 +7,12 @@ Modified on Nov 8, 2022
 
 @author: hilee
 """
+CLASS_NAME = "House Keeping Package"
 
 # -----------------------------------------------------------
 # definition: constant
 COM_CNT = 8
+TM_CNT = 8  #will remove
 PDU_IDX = 8
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
@@ -21,6 +23,11 @@ WORKING_DIR = "/" + dir[1] + "/" + dir[2] + "/"
 MAIN = "MAIN"
 IAM = "HK"
 TARGET = "HK"
+
+# will remove
+LOGGING = 1
+CMDLINE = 2
+BOTH = 3
 
 #RETRY_CNT = 5
 # ---------------------------
@@ -48,7 +55,7 @@ TMC3_A = 4
 TMC3_B = 5
 TM_1 = 6
 
-
+#
 # ---------------------------
 # motor
 RELATIVE_DELTA_L = 100000

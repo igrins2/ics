@@ -28,6 +28,7 @@ class LOG():
         self.createFolder(path)
 
         self.logger = logging.getLogger("postprocessor")  
+        self.logger.propagate = False
         self.logger.setLevel(logging.WARNING)
 
         formatter = logging.Formatter('%(asctime)s: %(message)s')

@@ -7,6 +7,7 @@ Modified on May 9, 2022
 @author: hilee
 """
 
+from curses import baudrate
 import os
 import Libs.SetConfig as sc
 #import asyncio
