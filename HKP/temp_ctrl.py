@@ -2,7 +2,7 @@
 """
 Created on Nov 8, 2022
 
-Modified on Nov 8, 2022
+Modified on Nov 28, 2022
 
 @author: hilee
 """
@@ -16,26 +16,26 @@ sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
 from HKP.HK_def import *
 import Libs.SetConfig as sc
-import Libs.rabbitmq_server as serv
+from Libs.MsgMiddleware import *
 from Libs.logger import *
-
 
 class temp_ctrl():
     
-    def __init__(self, port, gui=False):
-        
-        self.log = LOG(WORKING_DIR + "IGRINS", TARGET)
-        
-        self.iam = "temp.ctrl(%d)" % (int(port)-10000)
-        self.log.logwrite(self.iam, INFO, "start")
-        
+    def __init__(self, comport, gui=False):
+                       
+        self.comport = comport
+        self.iam = "tmc%d" % (int(self.comport)-10000)               
+    
+        self.log = LOG(WORKING_DIR + "/IGRINS", MAIN)
+        self.log.send(self.iam, "INFO", "start")    
+     
         # load ini file
         ini_file = WORKING_DIR + "/IGRINS/Config/IGRINS.ini"
         cfg = sc.LoadConfig(ini_file)
         
         global TOUT, REBUFSIZE
-        TOUT = int(cfg.get("HK", "tout"))
-        REBUFSIZE = int(cfg.get("HK", "rebufsize")) 
+        TOUT = int(cfg.get(HK, "tout"))
+        REBUFSIZE = int(cfg.get(HK, "rebufsize")) 
         
         self.ics_ip_addr = cfg.get(MAIN, "ip_addr")
         self.ics_id = cfg.get(MAIN, "id")
@@ -45,23 +45,34 @@ class temp_ctrl():
         self.hk_sub_q = cfg.get(MAIN, "hk_sub_routing_key")
         self.sub_hk_ex = cfg.get(MAIN, "sub_hk_exchange")
         self.sub_hk_q = cfg.get(MAIN, "sub_hk_routing_key")
-        
-        self.ip = cfg.get("HK", "device-server-ip")
-        self.port = port
-        self.comSocket = None
-        
+                
+        self.ip = cfg.get(HK, "device-server-ip")
+ 
         self.gui = gui
         
+        self.comSocket = None
+        
+        self.producer = None
+        self.consumer = None
+        
+        self.th = threading.Timer(1, self.re_connect_to_component)
+        self.th.daemon = True
         
         
     def __del__(self):
-        print("Closing %s" % self.iam)
+        msg = "Closing %s" % self.iam
+        self.log.send(self.iam, "DEBUG", msg)
         
         for th in threading.enumerate():
-            print(th.name + " exit.")
+            self.log.send(self.iam, "DEBUG", th.name + " exit.")
             
         self.close_component()
-                    
+        
+        if self.gui:
+            #self.consumer.stop_consumer()
+            
+            self.producer.__del__()                    
+            self.consumer.__del__()
         
         
     def connect_to_component(self):
@@ -69,25 +80,31 @@ class temp_ctrl():
         try:            
             self.comSocket = socket(AF_INET, SOCK_STREAM)
             self.comSocket.settimeout(TOUT)
-            self.comSocket.connect((self.ip, int(self.port)))
+            self.comSocket.connect((self.ip, int(self.comport)))
             self.comStatus = True
             
             msg = "connected"
-            self.log.logwrite(self.iam, INFO, msg)
+            self.log.send(self.iam, "INFO", msg)
             
         except:
             self.comSocket = None
             self.comStatus = False
             
             msg = "disconnected"
-            self.log.logwrite(self.iam, ERROR, msg)
+            self.log.send(self.iam, "ERROR", msg)
             
-            self.re_connect_to_component()
+            self.th.start()
+            
+        msg = "%s %s %d" % (HK_REQ_COM_STS, self.iam, self.comStatus)   
+        if self.gui:
+            self.producer.send_message(HK, self.sub_hk_q, msg) 
               
     
     def re_connect_to_component(self):
+        self.th.cancel()
+        
         msg = "trying to connect again"
-        self.log.logwrite(self.iam, WARNING, msg)
+        self.log.send(self.iam, "WARNING", msg)
             
         if self.comSocket != None:
             self.close_component()
@@ -99,68 +116,53 @@ class temp_ctrl():
         self.comStatus = False
         
         
-    # CLI, TMC-Get SetPoint
+    # TMC-Get SetPoint
     def get_setpoint(self, port):
         cmd = "SETP? %d" % port
         cmd += "\r\n"
-        self.socket_send(str(port), cmd)
+        self.socket_send(HK_REQ_GETSETPOINT, str(port), cmd)
+            
 
 
-    # CLI, TMC-Heating Value
+    # TMC-Heating Value
     def get_heating_power(self, port):
         cmd = "HTR? %d" % port
         cmd += "\r\n"
-        self.socket_send(str(port), cmd)
+        self.socket_send(HK_REQ_GETHEATINGPOWER, str(port), cmd)
     
     
-    # CLI, TMC-Heating(Manual) Get Value
-    def get_heating_power_manual(self, port):
-        cmd = "MOUT? %d" % port
-        cmd += "\r\n"
-        self.socket_send(str(port), cmd) 
-    
-    
-    # CLI, TMC-Heating(Manual) Set Value
-    def SetHeatingValue_manual(self, port, value):
-        cmd = "MOUT %d,%f" % (port, value)
-        cmd += "\r\n"
-        self.socket_send(str(port), cmd)
-    
-
-    # CLI, TMC-Monitorig
+    # TMC-Monitorig
     def get_value(self, port):  
         cmd = "KRDG? " + port
         cmd += "\r\n"
-        self.socket_send(port, cmd)
+        self.socket_send(HK_REQ_GETVALUE, port, cmd)
 
 
-    def socket_send(self, port, cmd):
-        send_th = threading.Thread(target=self.handle_com, args=(port, cmd))
-        send_th.daemon = True
-        send_th.start()
+    def socket_send(self, param, port, cmd):
+        if self.gui:
+            send_th = threading.Thread(target=self.handle_com, args=(param, port, cmd))
+            send_th.daemon = True
+            send_th.start()
+        else:
+            self.handle_com(param, port, cmd)
         
 
     # Socket function        
-    def handle_com(self, port, cmd):
+    def handle_com(self, param, port, cmd):
         try:    
             #send     
             self.comSocket.send(cmd.encode())
             #self.comSocket.sendall(cmd.encode())
             
             log = "send >>> %s" % cmd[:-2]
-            self.log.logwrite(self.iam, INFO, log)
-        
-            if cmd.find("MOUT ") == 0:
-                d1, d2 = cmd.split(',')
-                log = "set:",str(float(d2))
-                self.log.logwrite(self.iam, INFO, log)
+            self.log.send(self.iam, "INFO", log)
                     
             #rev
             res0 = self.comSocket.recv(REBUFSIZE)
             info = res0.decode()
                     
             log = "recv <<< %s" % info[:-2]
-            self.log.logwrite(self.iam, INFO, log)   
+            self.log.send(self.iam, "INFO", log)   
             
             if info.find('\r\n') < 0:
                 for i in range(30*10):
@@ -170,102 +172,95 @@ class temp_ctrl():
                         info += res0.decode()
 
                         log = "recv <<< %s (again)" % info[:-2]
-                        self.log.logwrite(self.iam, INFO, log)
+                        self.log.send(self.iam, "INFO", log)
 
                         if info.find('\r\n') >= 0:
                             break
                     except:
                         continue
             
-            msg = "%s:%s" % (port, info[:-2])   
+            msg = "%s %s %s %s" % (param, self.iam, port, info[:-2]) 
             if self.gui: 
-                self.send_message_to_hk(msg)
+                self.producer.send_message(HK, self.sub_hk_q, msg)
             
         except:
             self.comStatus = False
-            self.log.logwrite(self.iam, ERROR, "communication error") 
+            self.log.send(self.iam, "ERROR", "communication error") 
             self.re_connect_to_component()
-            
         
-    #-------------------------------
+    
+     #-------------------------------
     # sub -> hk    
-    def connect_to_server_hk_ex(self):
-        # RabbitMQ connect        
-        self.connection_hk_ex, self.channel_hk_ex = serv.connect_to_server(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd)
-
-        if self.connection_hk_ex:
-            # RabbitMQ: define producer
-            serv.define_producer(self.iam, self.channel_hk_ex, "direct", self.sub_hk_ex)
+    def connect_to_server_sub_ex(self):
+        # RabbitMQ connect  
+        self.producer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.sub_hk_ex, "direct")      
+        self.producer.connect_to_server()
+        self.producer.define_producer()
         
-        
-    def send_message_to_hk(self, message):
-        serv.send_message(self.iam, TARGET, self.channel_hk_ex, self.sub_hk_ex, self.sub_hk_q, message)
-            
-            
+                   
     #-------------------------------
+    # hk -> sub
     def connect_to_server_hk_q(self):
         # RabbitMQ connect
-        self.connection_hk_q, self.channel_hk_q = serv.connect_to_server(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd)
-
-        if self.connection_hk_q:
-            # RabbitMQ: define consumer
-            self.queue_hk = serv.define_consumer(self.iam, self.connection_hk_q, "direct", self.hk_sub_ex, self.hk_sub_q)
-
-            th = threading.Thread(target=self.consumer_hk)
-            th.start()
+        self.consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_sub_ex, "direct")      
+        self.consumer.connect_to_server()
+        self.consumer.define_consumer(self.hk_sub_q, self.callback_hk)
+        
+        th = threading.Thread(target=self.consumer.start_consumer)
+        th.start()
+        
+        #th = threading.Thread(target=self.consumer.define_consumer, args=(self.hk_sub_q, self.callback_hk))
+        #th.start()
+        
             
-            
-    # RabbitMQ communication    
-    def consumer_hk(self):
-        try:
-            self.connection_hk_q.basic_consume(queue=self.queue_hk, on_message_callback=self.callback_hk, auto_ack=True)
-            self.connection_hk_q.start_consuming()
-        except Exception as e:
-            if self.connection_hk_q:
-                self.log.logwrite(self.iam, ERROR, "The communication of server was disconnected!")
-                
-    
     def callback_hk(self, ch, method, properties, body):
         cmd = body.decode()
-        msg = "receive: %s" % cmd
-        self.log.logwrite(self.iam, INFO, msg)
-
         param = cmd.split()
-
-        if param[0] == HK_REQ_GETSETPOINT and param[1] == self.port:
+        
+        if len(param) < 3:
+            return
+        if param[0] != HK_REQ_EXIT and param[1] != self.iam:
+            return
+        
+        msg = "receive: %s" % cmd
+        self.log.send(self.iam, "INFO", msg)
+                
+        if param[0] == HK_REQ_GETSETPOINT:
             self.get_setpoint(int(param[2]))
             
-        elif param[0] == HK_REQ_GETHEATINGPOWER and param[1] == self.port:
+        elif param[0] == HK_REQ_GETHEATINGPOWER:
             self.get_heating_power(int(param[2]))
             
-        elif param[0] == HK_REQ_GETVALUE and param[1] == self.port:
+        elif param[0] == HK_REQ_GETVALUE:
             self.get_value(param[2])      
+        
+        elif param[0] == HK_REQ_MANUAL_CMD:
+            cmd = "%s %s\r\n" % (param[2], param[3])
+            self.socket_send(HK_REQ_MANUAL_CMD, param[3], cmd)
             
         elif param[0] == HK_REQ_EXIT:
-            self.exit()
+            self.__del__()
 
 
 
 if __name__ == "__main__":
     
-    if len(sys.argv) < 1:
-        print("Please add ip and port")
+    #sys.argv.append("10001")
+    if len(sys.argv) < 2:
+        print("Please add comport")
+        exit()
     
     proc = temp_ctrl(sys.argv[1], True)
-    proc.connect_to_component()
-        
-    proc.connect_to_server_hk_ex()
+    
+    proc.connect_to_server_sub_ex()
     proc.connect_to_server_hk_q()
     
-    '''    
-    proc = temp_ctrl("10001")
     proc.connect_to_component()
-    
-    st = ti.time()
-    
+
+    #proc.__del__()
+    '''
     delay = 0
     for i in range(1):
-    #while True:
         proc.get_setpoint(1)
         ti.sleep(delay)
         proc.get_setpoint(2)
@@ -279,11 +274,9 @@ if __name__ == "__main__":
         ti.sleep(delay)
         proc.get_value("B")
         ti.sleep(delay)
-    
-    duration = ti.time() - st
-    print(duration)
-    
-    #del proc
+        
+    del proc
     '''
+    
     
         

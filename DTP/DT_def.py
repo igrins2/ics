@@ -17,16 +17,30 @@ dir = os.getcwd().split("/")
 WORKING_DIR = "/" + dir[1] + "/" + dir[2] + "/"
         
 MAIN = "MAIN"
-IAM = "DT"
-TARGET = ["DCSH", "DCSK"]
+DT = "DT"
+HK = "HK"
+
+PDU_IDX = 8
+
+SERV_CONNECT_CNT = 4 #Inst.sequencer / EngTools / DCS / hk Sub
+INST_SEQ = 0
+ENG_TOOLS = 1
+DCS = 2
+HK_SUB = 3
 
 # for list index
-DCSH = 0
-DCSK = 1
+TARGET = ["DCSS", "DCSH", "DCSK"]
+
+DCS_CNT = 3
+SVC = 0
+H = 1
+K = 2
 
 # for cal motor moving position
-UT = 0
+COM_CNT = 3
+PDU = 0
 LT = 1
+UT = 2
 
 PREV = 0
 NEXT = 1
@@ -57,20 +71,27 @@ INFO = 1
 WARNING = 2
 ERROR = 3
 
-# ---------------------------
-#  button
-#NOT_PRESSED = 0
-#PRESSED = 1
-
 MUX_TYPE = 2
 
 FRAME_X = 2048
 FRAME_Y = 2048
 
-HK_FN_INITMOTOR = "InitMotor"
-HK_FN_MOVEMOTORDELTA = "MoveMotorDelta"
-HK_FN_MOVEMOTOR = "MoveMotor"
-HK_FN_LAMPCHANGE = "LampChange"
+#HK_FN_INITMOTOR = "InitMotor"
+#HK_FN_MOVEMOTORDELTA = "MoveMotorDelta"
+#HK_FN_MOVEMOTOR = "MoveMotor"
+HK_REQ_INITMOTOR = "InitMotor"  #motor  
+HK_REQ_MOVEMOTOR = "MoveMotor"  #motor
+HK_REQ_MOTORGO = "MotorGo"      #motor
+HK_REQ_MOTORBACK = "MotorBack"  #motor
+
+HK_REQ_SETUT = "SetUT"          #motor
+HK_REQ_SETLT = "SetLT"          #motor
+
+HK_REQ_EXIT = "Exit"
+
+#HK_FN_LAMPCHANGE = "LampChange"
+HK_REQ_PWR_STS = "PowerStatus"  #pdu
+HK_REQ_PWR_ONOFF = "PowerOnOff" #pdu
 
 CMD_SIMULATION = "Simulation"
 CMD_INITIALIZE1 = "Initialize1"
@@ -81,3 +102,4 @@ CMD_SETFSMODE = "SETFSMODE"
 CMD_SETFSPARAM = "SetFSParam"
 CMD_ACQUIRERAMP = "ACQUIRERAMP"
 CMD_STOPACQUISITION = "STOPACQUISITION"
+

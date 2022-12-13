@@ -10,17 +10,28 @@ Modified on Nov 8, 2022
 
 # -----------------------------------------------------------
 # definition: constant
-COM_CNT = 8
 PDU_IDX = 8
+TM_CNT = 8
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 import os
+
+from DTP.DT_def import MOTOR_UT
 dir = os.getcwd().split("/")
 WORKING_DIR = "/" + dir[1] + "/" + dir[2] + "/"
         
 MAIN = "MAIN"
-IAM = "HK"
-TARGET = "HK"
+HK = "HK"
+
+DEBUG = 0
+INFO = 1
+WARNING = 2
+ERROR = 3
+
+SERV_CONNECT_CNT = 3 #Inst.sequencer / EngTools / hk Sub
+INST_SEQ = 0
+ENG_TOOLS = 1
+HK_SUB = 2
 
 #RETRY_CNT = 5
 # ---------------------------
@@ -29,14 +40,19 @@ TMC1 = 0
 TMC2 = 1
 TMC3 = 2
 TM = 3
-VMC = 4
-LT = 5
-UT = 6
-PDU = 7
+VM = 4
+PDU = 5
+LT = 6
+UT = 7
+
+UPLOADER = 6
 
 # ---------------------------
 ON = "on"
 OFF = "off"
+
+MOTOR_LT = "lt"
+MOTOR_UT = "ut"
 
 # ---------------------------
 # temperature
@@ -48,6 +64,9 @@ TMC3_A = 4
 TMC3_B = 5
 TM_1 = 6
 
+DEFAULT_VALUE = "-999"
+
+LOGGING_INTERVAL = 60
 
 # ---------------------------
 # motor
@@ -60,10 +79,17 @@ MOTOR_ERR = 100
 NOT_PRESSED = 0
 PRESSED = 1
 
+HK_REQ_COM_STS = "ComPortStatus"
+
 HK_REQ_GETSETPOINT = "GetSetPoint"  #temp_ctrl
 HK_REQ_GETHEATINGPOWER = "GetHeatingPower"  #temp_ctrl
-HK_REQ_GETVALUE = "GetValue"    #temp_ctrl, monitor, vm
+HK_REQ_GETVALUE = "GetValue"    #temp_ctrl, tm, vm
+
+HK_REQ_MANUAL_CMD = "SendManualCommand" #temp_ctrl, tm
+
+HK_REQ_PWR_STS = "PowerStatus"  #pdu
 HK_REQ_PWR_ONOFF = "PowerOnOff" #pdu
+
 HK_REQ_UPLOAD_DB = "UploadDB"   #uploader
 
 HK_REQ_INITMOTOR = "InitMotor"  #motor  
@@ -74,5 +100,6 @@ HK_REQ_MOTORBACK = "MotorBack"  #motor
 HK_REQ_SETUT = "SetUT"          #motor
 HK_REQ_SETLT = "SetLT"          #motor
 
-HK_REQ_EXIT = "Exit"
+HK_REQ_CHK = "AliveCheck"   
+HK_REQ_EXIT = "Exit"        
 

@@ -3,28 +3,28 @@
 """
 Created on Jun 28, 2022
 
-Modified on Non 10, 2022
+Modified on Dec 8, 2022
 
 @author: hilee
 """
 
 import sys, os
 
-from pytest import PytestAssertRewriteWarning
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-
-from ui_DTP import *
 
 from PySide6.QtCore import *
 from PySide6.QtGui import *
 from PySide6.QtWidgets import *
 
-from DT_core import *
+from ui_DTP import *
+from DT_def import *
+
+import Libs.SetConfig as sc
+from Libs.MsgMiddleware import *
 from Libs.logger import *
 
 import time as ti
 import threading
-import math
 
 import numpy as np
 import astropy.io.fits as fits 
@@ -35,48 +35,65 @@ class MainWindow(Ui_Dialog, QMainWindow):
     
     def __init__(self, autostart=False):
         super().__init__()
-        self.setupUi(self)
-        self.setWindowTitle("Data Taking Package 0.1")
         
-        self.dt = DT()
+        self.iam = DT
+        
+        self.log = LOG(WORKING_DIR + "/IGRINS", MAIN)  
+        self.log.send(self.iam, "INFO", "start")
+        
+        self.setupUi(self)
+        self.setGeometry(0, 0, 1030, 690)
+        self.setWindowTitle("Data Taking Package 0.3")
+        
+        # load ini file
+        self.cfg = sc.LoadConfig(WORKING_DIR + "IGRINS/Config/IGRINS.ini")
+        
+        self.ics_ip_addr = self.cfg.get(MAIN, 'ip_addr')
+        self.ics_id = self.cfg.get(MAIN, 'id')
+        self.ics_pwd = self.cfg.get(MAIN, 'pwd')
+        
+        self.dt_sub_ex = self.cfg.get(MAIN, 'hk_sub_exchange')
+        self.dt_sub_q = self.cfg.get(MAIN, 'hk_sub_routing_key')
+        self.sub_dt_ex = self.cfg.get(MAIN, 'sub_hk_exchange')     
+        self.sub_dt_q = self.cfg.get(MAIN, 'sub_hk_routing_key')
+        
+        self.dt_dcs_ex = self.cfg.get(DT, 'dt_dcs_exchange')     
+        self.dt_dcs_q = self.cfg.get(DT, 'dt_dcs_routing_key')
+        self.dcs_dt_ex = self.cfg.get(DT, 'dcs_dt_exchange')
+        self.dcs_dt_q = self.cfg.get(DT, 'dcs_dt_exchange')
+        
+        self.fits_path = self.cfg.get(DT, 'fits_path')
+        self.alive_chk_interval = int(self.cfg.get(DT, 'alive-check-interval'))
+        
+        self.com_list = ["pdu", "lt", "ut"]
+        self.dcs_list = ["svc", "h-band", "k-band"]
         
         self.init_events()
         
-        self.label_dcsh_sts.setText("Disconnected")
-        self.label_dcsk_sts.setText("Disconnected")
-        self.dcs_sts = [False, False]
-        self.label_mode.setText("---")
+        self.radio_HK_sync.setChecked(True)
+        self.set_HK_sync()
         
-        self.e_exptimeH.setText("1.63")
-        self.e_FSnumberH.setText("1")
-        self.e_repeatH.setText("1")
+        self.label_zscale_range.setText("---")
+        self.e_mscale_min.setText("1000")
+        self.e_mscale_max.setText("5000")
         
-        self.e_exptimeK.setText("1.63")
-        self.e_FSnumberK.setText("1")
-        self.e_repeatK.setText("1")
-        
-        self.label_prog_sts_H.setText("idle")
-        self.label_prog_time_H.setText("---")
-        self.label_prog_elapsed_H.setText("0.0 sec")
-        
-        self.label_prog_sts_K.setText("idle")
-        self.label_prog_time_K.setText("---")
-        self.label_prog_elapsed_K.setText("0.0 sec")
+        for i in range(DCS_CNT):
+            self.e_exptime[i].setText("1.63")
+            self.e_FS_number[i].setText("1")
+            self.e_repeat[i].setText("1")
+
+            self.label_prog_stats[i].setText("idle")
+            self.label_prog_time[i].setText("---")
+            self.label_prog_elapsed[i].setText("0.0 sec")
         
         today = ti.strftime("%04Y%02m%02d", ti.localtime())
-        self.e_path.setText(self.dt.fits_path + today)
-        self.cur_frame = 0
-        filename = "dcsh_%04d.fits" % self.cur_frame
-        self.e_filename_H.setText(filename)
-        filename = "dcsk_%04d.fits" % self.cur_frame
-        self.e_filename_K.setText(filename)
+        self.cur_frame = [0, 0, 0]
         
-        self.cal_chk = [self.chk_dark, self.chk_flat_on, self.chk_flat_off, self.chk_ThAr, self.chk_pinhole_flat, self.chk_pinhole_ThAr, self.chk_USAF_on, self.chk_USAF_off, self.chk_parking]
-        
-        self.cal_e_exptime = [self.e_dark_exptime, self.e_flaton_exptime, self.e_flatoff_exptime, self.e_ThAr_exptime, self.e_pinholeflat_exptime, self.e_pinholeThAr_exptime, self.e_USAFon_exptime, self.e_USAFoff_exptime, self.e_parking_exptime]
-        
-        self.cal_e_repeat = [self.e_dark_repeat, self.e_flaton_repeat, self.e_flatoff_repeat, self.e_ThAr_repeat, self.e_pinholeflat_repeat, self.e_pinholeThAr_repeat, self.e_USAFon_repeat, self.e_USAFoff_repeat, self.e_parking_repeat]
-        
+        for i in range(DCS_CNT):
+            self.e_path[i].setText(self.fits_path + today)
+            filename = "%s_%04d.fits" % (TARGET[i], self.cur_frame[i])
+            self.e_savefilename[i].setText(filename)
+                    
         for i in range(CAL_CNT):
             self.cal_e_exptime[i].setText("1.63")
             self.cal_e_repeat[i].setText("1")
@@ -90,71 +107,126 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.cal_mode = False
         
-        self.acquiring_h = False
-        self.acquiring_k = False
+        self.dcs_sts = [False for _ in range(DCS_CNT)]
+        self.acquiring = [False for _ in range(DCS_CNT)]
         
-        self.connection_ics_q = [None, None]
-        self.channel_ics_q = [None, None]
-        self.queue_ics = [None, None]
+        self.take_imaging = [False for _ in range(DCS_CNT)]
         
-        self.timer_alive = [None, None]
-        self.timer_alive[DCSH] = QTimer(self)
-        self.timer_alive[DCSH].setInterval(self.dt.alive_chk_interval * 1000) 
-        self.timer_alive[DCSH].timeout.connect(self.alive_check_h)  
+        self.producer = [None for _ in range(SERV_CONNECT_CNT)]
+        self.consumer = [None for _ in range(SERV_CONNECT_CNT)]       
+
+        self.timer_alive = [None for _ in range(DCS_CNT)] 
         
-        self.timer_alive[DCSK] = QTimer(self)
-        self.timer_alive[DCSK].setInterval(self.dt.alive_chk_interval * 1000) 
-        self.timer_alive[DCSK].timeout.connect(self.alive_check_k)      
+        self.img = [None for _ in range(DCS_CNT)]
         
-        self.img = [None, None]
+        self.output_channel = 32
         
         self.cal_cur = 0
            
         for i in range(CAL_CNT):
             self.cal_use_parsing(self.cal_chk[i], self.cal_e_exptime[i], self.cal_e_repeat[i])
+                
+        self.connect_to_server_hk_ex()
+        self.connect_to_server_sub_q()
+        self.connect_to_server_dt_ex()
+        self.connect_to_server_dcs_q()
         
-        self.MQserver_connect_retry()
         
+    def closeEvent(self, event: QCloseEvent) -> None:
+               
+        self.log.send(self.iam, "INFO", "Closing %s : " % sys.argv[0])
+        self.log.send(self.iam, "INFO", "This may take several seconds waiting for threads to close")
+            
+        for idx in range(PDU_IDX):
+            msg = "%s %d %s" % (HK_REQ_PWR_ONOFF, idx+1, OFF)
+            self.producer[HK_SUB].send_message(self.com_list[PDU], self.dt_sub_q, msg) 
+        
+        self.producer[HK_SUB].send_message("all", self.dt_sub_q, HK_REQ_EXIT)                               
+                
+        for th in threading.enumerate():
+            self.log.send(self.iam, "DEBUG", th.name + " exit.")
+                
+        self.log.send(self.iam, "INFO", "Closed!")
+                            
+        for i in range(SERV_CONNECT_CNT):
+            if self.consumer[i] != None:
+                self.consumer[i].stop_consumer()
+                ti.sleep(3)
+            
+            if self.producer[i] != None:
+                self.producer[i].__del__()
+            if self.consumer[i] != None:
+                self.consumer[i].__del__()
+                
+        return super().closeEvent(event)          
+
         
         
     def init_events(self):
-        self.bt_MQserver_retry.setEnabled(False)
-        self.bt_MQserver_retry.clicked.connect(self.MQserver_connect_retry)
+                
+        self.radioButton_zscale.clicked.connect(self.auto_scale)
+        self.radioButton_mscale.clicked.connect(self.manual_scale)
+        self.bt_scale_apply.clicked.connect(self.scale_apply)
         
-        self.bt_DCSH_check_stop.setEnabled(False)
-        self.bt_DCSH_check.clicked.connect(lambda: self.DCS_monit(DCSH, True))
-        self.bt_DCSH_check_stop.clicked.connect(lambda: self.DCS_monit(DCSH, False))
-        self.bt_DCSH_init.clicked.connect(lambda: self.init(DCSH))
+        self.radio_HK_sync.clicked.connect(self.set_HK_sync)
+        self.radio_whole_sync.clicked.connect(self.set_whole_sync)
+        self.radio_SVC.clicked.connect(self.set_svc)
+        self.radio_H.clicked.connect(self.set_H)
+        self.radio_K.clicked.connect(self.set_K)
         
-        self.bt_DCSK_check_stop.setEnabled(False)
-        self.bt_DCSK_check.clicked.connect(lambda: self.DCS_monit(DCSK, True))
-        self.bt_DCSK_check_stop.clicked.connect(lambda: self.DCS_monit(DCSK, False))
-        self.bt_DCSK_init.clicked.connect(lambda: self.init(DCSK))
+        self.radioButton_zscale.setChecked(True)
+        self.radioButton_mscale.setChecked(False)
+        self.bt_scale_apply.setEnabled(False)
         
-        self.label_mode.setText("---")
+        self.bt_take_image.clicked.connect(self.single_exposure)   
         
-        self.radioButton_sync.setChecked(True)
+        self.e_exptime = [self.e_exptime_svc, self.e_exptimeH, self.e_exptimeK]
+        self.e_FS_number = [self.e_FS_number_svc, self.e_FSnumberH, self.e_FSnumberK]
+        self.e_repeat = [self.e_repeat_number_svc, self.e_repeatH, self.e_repeatK]
+                
+        self.label_prog_stats = [self.label_prog_stats_svc, self.label_prog_sts_H, self.label_prog_sts_K]
+        self.label_prog_time = [self.label_prog_time_svc, self.label_prog_time_H, self.label_prog_time_K]
+        self.label_prog_elapsed = [self.label_prog_elapsed_svc, self.label_prog_elapsed_H, self.label_prog_elapsed_K]
+        self.label_cur_num = [self.label_cur_num_svc, self.label_cur_num_H, self.label_cur_num_K]
         
-        self.e_exptimeH.setEnabled(False)
-        self.e_FSnumberH.setEnabled(False)
-        self.e_repeatH.setEnabled(False)
+        self.chk_ds9 = [self.chk_ds9_svc, self.chk_ds9_H, self.chk_ds9_K]
+        self.chk_autosave = [self.checkBox_autosave_svc, self.checkBox_autosave_H, self.checkBox_autosave_K]
         
-        self.e_exptimeK.setEnabled(False)
-        self.e_FSnumberK.setEnabled(False)
-        self.e_repeatK.setEnabled(False)
+        self.bt_save = [self.bt_save_svc, self.bt_save_H, self.bt_save_K]
+        self.bt_path = [self.bt_path_svc, self.bt_path_H, self.bt_path_K]
+                    
+        self.e_path = [self.e_path_svc, self.e_path_H, self.e_path_K]
+        self.e_savefilename = [self.e_savefilename_svc, self.e_savefilename_H, self.e_savefilename_K]
         
-        #for test
-        #self.bt_acquisition.setEnabled(False)
-        self.bt_abort.setEnabled(False)
-        
-        self.bt_acquisition.clicked.connect(self.single_exposure)   
-        self.bt_abort.clicked.connect(self.stop_acquisition)
-        
-        self.bt_save.clicked.connect(self.save_fits)
-        self.bt_path.clicked.connect(self.open_path)
+        for i in range(DCS_CNT):
+            self.e_exptime[i].setEnabled(False)
+            self.e_FS_number[i].setEnabled(False)
+            self.e_repeat[i].setEnabled(False)
+            
+            self.bt_save[i].clicked.connect(lambda: self.save_fits(i))
+            self.bt_path[i].clicked.connect(lambda: self.open_path(i))
+            
+            self.chk_ds9[i].setEnabled(False)
+            self.chk_autosave[i].setEnabled(False)
+            
+            self.bt_save[i].setEnabled(False)
+            self.bt_path[i].setEnabled(False)
+            
+            self.e_path[i].setEnabled(False)
+            self.e_savefilename[i].setEnabled(False)               
+            
         
         #------------------
         #calibration
+        
+        self.chk_open_calibration.clicked.connect(self.open_calilbration)
+        
+        self.cal_chk = [self.chk_dark, self.chk_flat_on, self.chk_flat_off, self.chk_ThAr, self.chk_pinhole_flat, self.chk_pinhole_ThAr, self.chk_USAF_on, self.chk_USAF_off, self.chk_parking]
+        
+        self.cal_e_exptime = [self.e_dark_exptime, self.e_flaton_exptime, self.e_flatoff_exptime, self.e_ThAr_exptime, self.e_pinholeflat_exptime, self.e_pinholeThAr_exptime, self.e_USAFon_exptime, self.e_USAFoff_exptime, self.e_parking_exptime]
+        
+        self.cal_e_repeat = [self.e_dark_repeat, self.e_flaton_repeat, self.e_flatoff_repeat, self.e_ThAr_repeat, self.e_pinholeflat_repeat, self.e_pinholeThAr_repeat, self.e_USAFon_repeat, self.e_USAFoff_repeat, self.e_parking_repeat]
+        
         self.chk_whole.clicked.connect(self.cal_whole_check)
         self.bt_run.clicked.connect(self.cal_run)
         
@@ -202,345 +274,201 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.bt_ltpos_set3.setEnabled(False)
         self.bt_ltpos_set4.setEnabled(False)
         
-    #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    # dt -> main
-    def connect_to_server_to_main_ex(self):
-        # RabbitMQ connect        
-        self.connection_to_main_ex, self.channel_to_main_ex = serv.connect_to_server(IAM, self.dt.ics_ip_addr, self.dt.ics_id, self.dt.ics_pwd)
 
-        if self.connection_to_main_ex:
-            # RabbitMQ: define producer
-            serv.define_producer(IAM, self.channel_to_main_ex, "direct", self.dt.dt_main_ex)
-        else:
-            self.bt_MQserver_retry.setEnabled(True)
-        
-        
-    def send_message_to_main(self, message):
-        serv.send_message(IAM, MAIN, self.channel_to_main_ex, self.dt.dt_main_ex, self.dt.dt_main_q, message)
-        
-        
-    #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    # main -> dt
-    def connect_to_server_to_main_q(self):
-        # RabbitMQ connect
-        self.connection_main_q, self.channel_main_q = serv.connect_to_server(IAM, self.dt.ics_ip_addr, self.dt.ics_id, self.dt.ics_pwd)
-
-        if self.connection_main_q:
-            
-            if self.label_MQserver_sts.text() == "---":
-                self.label_MQserver_sts.setText("main")
-            else:
-                txt = self.label_MQserver_sts.text()
-                self.label_MQserver_sts.setText(txt + "/main")
-                
-            # RabbitMQ: define consumer
-            self.queue_main = serv.define_consumer(IAM, self.connection_main_q, "direct", self.dt.main_dt_ex, self.dt.main_dt_q)
-
-            th = threading.Thread(target=self.consumer_main)
-            th.start()
-        else:
-            self.bt_MQserver_retry.setEnabled(True)
-            
-            
-    # RabbitMQ communication    
-    def consumer_main(self):
-        try:
-            self.connection_main_q.basic_consume(queue=self.queue_main, on_message_callback=self.callback_main, auto_ack=True)
-            self.connection_main_q.start_consuming()
-        except Exception as e:
-            if self.connection_main_q:
-                self.dt.log.logwrite("gui", ERROR, "The communication of server was disconnected!")
-                
+    #-------------------------------
+    # dt -> sub: use hk ex
+    def connect_to_server_hk_ex(self):
+        # RabbitMQ connect  
+        self.producer[HK_SUB] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.dt_sub_ex, "direct", True)      
+        self.producer[HK_SUB].connect_to_server()
+        self.producer[HK_SUB].define_producer()
     
-    def callback_main(self, ch, method, properties, body):
-        cmd = body.decode()
-        msg = "receive: %s" % cmd
-        self.dt.log.logwrite("gui", INFO, msg)
-
-        param = cmd.split()
-
-        if param[0] == CMD_SIMULATION:
-            self.simulation_mode = int(param[1])
-            if self.simulation_mode:
-                self.label_mode.setText("Simulation")
-            else:
-                self.label_mode.setText("Reality")
-                
-                
-    #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    # dt -> hk
-    def connect_to_server_to_hk_ex(self):
-        # RabbitMQ connect        
-        self.connection_dt_ex, self.channel_dt_ex = serv.connect_to_server(IAM, self.dt.ics_ip_addr, self.dt.ics_id, self.dt.ics_pwd)
-
-        if self.connection_dt_ex:
-            # RabbitMQ: define producer
-            serv.define_producer(IAM, self.channel_dt_ex, "direct", self.dt.dt_hk_ex)
-        else:
-            self.bt_MQserver_retry.setEnabled(True)
-        
-        
-    def send_message_to_hk(self, message):
-        serv.send_message(IAM, MAIN, self.channel_dt_ex, self.dt.dt_hk_ex, self.dt.dt_hk_q, message)
-                
-                
-    #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    # hk -> dt
-    def connect_to_server_to_hk_q(self):
+         
+    #-------------------------------
+    # sub -> dt: use hk q
+    def connect_to_server_sub_q(self):
         # RabbitMQ connect
-        self.connection_hk_q, self.channel_hk_q = serv.connect_to_server(IAM, self.dt.ics_ip_addr, self.dt.ics_id, self.dt.ics_pwd)
-
-        if self.connection_hk_q:
-            
-            if self.label_MQserver_sts.text() == "---":
-                self.label_MQserver_sts.setText("hk")
-            else:
-                txt = self.label_MQserver_sts.text()
-                self.label_MQserver_sts.setText(txt + "/hk")
-                
-            # RabbitMQ: define consumer
-            self.queue_hk = serv.define_consumer(IAM, self.connection_hk_q, "direct", self.dt.hk_dt_ex, self.dt.hk_dt_q)
-
-            th = threading.Thread(target=self.consumer_hk)
-            th.start()
-        else:
-            self.bt_MQserver_retry.setEnabled(True)
-            
-            
-    # RabbitMQ communication    
-    def consumer_hk(self):
-        try:
-            self.connection_hk_q.basic_consume(queue=self.queue_hk, on_message_callback=self.callback_main, auto_ack=True)
-            self.connection_hk_q.start_consuming()
-        except Exception as e:
-            if self.connection_hk_q:
-                self.dt.log.logwrite("gui", ERROR, "The communication of server was disconnected!")
-                
-    
-    def callback_hk(self, ch, method, properties, body):
-        cmd = body.decode()
-        msg = "receive: %s" % cmd
-        self.dt.log.logwrite("gui", INFO, msg)
-
-        param = cmd.split()
-
-        if param[0] == HK_FN_INITMOTOR:
-            if param[1] == UT:
-                self.bt_utpos_prev.setEnabled(True)
-                self.bt_utpos_next.setEnabled(True)
+        self.consumer[HK_SUB] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.sub_dt_ex, "direct")      
+        self.consumer[HK_SUB].connect_to_server()
+        self.consumer[HK_SUB].define_consumer(self.sub_dt_q, self.callback_sub)       
+        
+        th = threading.Thread(target=self.consumer[HK_SUB].start_consumer)
+        th.start()
                     
-                self.bt_utpos_set1.setEnabled(True)
-                self.bt_utpos_set2.setEnabled(True)
-            elif param[1] == LT:
-                self.bt_ltpos_prev.setEnabled(True)
-                self.bt_ltpos_next.setEnabled(True)
+    
+    #-------------------------------
+    # rev <- sub        
+    def callback_sub(self, ch, method, properties, body):
+        cmd = body.decode()
+        msg = "receive: %s" % cmd
+        self.log.send(self.iam, "INFO", msg)
+
+        param = cmd.split()
+        
+        # from PDU
+        if param[0] == HK_REQ_PWR_STS:
+            self.single_exposure()
+        
+        if param[0] == HK_REQ_INITMOTOR:
+            if param[2] == "TRY":
+                msg = "%s - need to initialize" % param[1]
+                self.log.send(self.iam, "INFO", msg)
+            
+            elif param[2] == "OK":
+                if param[1] == self.com_list[UT]:
+                    self.bt_utpos_prev.setEnabled(True)
+                    self.bt_utpos_next.setEnabled(True)
                         
-                self.bt_ltpos_set1.setEnabled(True)
-                self.bt_ltpos_set2.setEnabled(True)
-                self.bt_ltpos_set3.setEnabled(True)
-                self.bt_ltpos_set4.setEnabled(True)
+                    self.bt_utpos_set1.setEnabled(True)
+                    self.bt_utpos_set2.setEnabled(True)
+                elif param[1] == self.com_list[LT]:
+                    self.bt_ltpos_prev.setEnabled(True)
+                    self.bt_ltpos_next.setEnabled(True)
+                            
+                    self.bt_ltpos_set1.setEnabled(True)
+                    self.bt_ltpos_set2.setEnabled(True)
+                    self.bt_ltpos_set3.setEnabled(True)
+                    self.bt_ltpos_set4.setEnabled(True)
                 
-        elif param[0] == HK_FN_MOVEMOTOR:
+        elif param[0] == HK_REQ_MOVEMOTOR:
             self.func_lamp(self.cal_cur)
-            #start exposure~
         
-        elif param[0] == HK_FN_LAMPCHANGE:
+        elif param[0] == HK_REQ_MOTORGO:
             pass
-            #start exposure~
             
-            
-            
+        elif param[0] == HK_REQ_MOTORBACK:
+            pass
+
+    
+    #-------------------------------
+    # dt -> dcs    
+    def connect_to_server_dt_ex(self):
+        # RabbitMQ connect  
+        self.producer[DCS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.dt_dcs_ex, "direct", True)      
+        self.producer[DCS].connect_to_server()
+        self.producer[DCS].define_producer()
                 
-                
-    #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    # dcsh, dcsk -> dt
-    def connect_to_server_ics_q(self, dc_idx):
+    
+    #-------------------------------
+    # dcs -> dt
+    def connect_to_server_dcs_q(self):
         # RabbitMQ connect
-        self.connection_ics_q[dc_idx], self.channel_ics_q[dc_idx] = serv.connect_to_server(IAM, self.dt.ics_ip_addr, self.dt.ics_id, self.dt.ics_pwd)
-
-        if self.connection_ics_q[dc_idx]:
+        self.consumer[DCS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.dcs_dt_ex, "direct")      
+        self.consumer[DCS].connect_to_server()
+        
+        self.consumer[DCS].define_consumer(self.dcs_dt_q, self.callback_dcs)       
+        th = threading.Thread(target=self.consumer[DCS].start_consumer)
+        th.start()
             
-            if self.label_MQserver_sts.text() == "---":
-                if dc_idx == DCSH:
-                    self.label_MQserver_sts.setText("dcsh")
-                else:
-                    self.label_MQserver_sts.setText("dcsk")
-            else:
-                txt = self.label_MQserver_sts.text()
-                if dc_idx == DCSH:
-                    self.label_MQserver_sts.setText(txt + "/dcsh")
-                else:
-                    self.label_MQserver_sts.setText(txt + "/dcsk")
-                
-            # RabbitMQ: define consumer
-            self.queue_ics[dc_idx] = serv.define_consumer(IAM, self.channel_ics_q[dc_idx], "direct", self.dt.dcs_ex[dc_idx], self.dt.dcs_q[dc_idx])
+            
+    #-------------------------------
+    # rev <- dcs 
+    def callback_dcs(self, ch, method, properties, body):
+        cmd = body.decode()
+        msg = "receive: %s" % cmd
+        self.log.send(self.iam, "INFO", msg)
 
-            th = threading.Thread(target=lambda: self.consumer_ics(dc_idx))
-            th.start()
+        param = cmd.split()
+        dcs = int(param[1]) #COMMAND, iam, paramerter...
+        
+        if param[0] == CMD_INITIALIZE1:
+            connected = bool(param[2])
+            self.dcs_sts[dcs] = connected
+        
+        elif param[0] == CMD_INITIALIZE2:
+            #downloadMCD
+            self.downloadMCD(dcs, self.simulation_mode)
+            
+        elif param[0] == CMD_DOWNLOAD:
+            #setdetector
+            self.set_detector(dcs, self.simulation_mode, MUX_TYPE, self.output_channel)
+            
+        elif param[0] == CMD_SETDETECTOR:
+            
+            '''
+            if dcs == SVC:
+                self.e_exptime_svc.setEnabled(True)
+                self.e_FS_number_svc.setEnabled(True)
+                self.e_repeat_number_svc.setEnabled(True)  
+            elif dcs == H:
+                self.e_exptimeH.setEnabled(True)
+                self.e_FSnumberH.setEnabled(True)
+                self.e_repeatH.setEnabled(True)            
+            elif dcs == K:
+                self.e_exptimeK.setEnabled(True)
+                self.e_FSnumberK.setEnabled(True)
+                self.e_repeatK.setEnabled(True)
+            '''
                 
-        else:
-            self.bt_MQserver_retry.setEnabled(True)
+        elif param[0] == CMD_SETFSPARAM:
+            #acquire
+            self.acquiring[dcs] = True
+            self.acquireramp(dcs, self.simulation_mode)
+
+        elif param[0] == CMD_ACQUIRERAMP:
+            # load data
+            self.load_data()
+            
+            self.acquiring[dcs] = False
+            
+            if self.acquiring[dcs] == False and self.cal_mode:
+                self.cal_run_cycle()
+        
+        elif param[0] == CMD_STOPACQUISITION:
+            pass    
+        
+        
+    #-------------------------------
+    # dcs command
+    def initialize2(self, dc_idx, simul_mode):
+        msg = "%s %s %d" % (CMD_INITIALIZE2, self.dcs_list[dc_idx], simul_mode)
+        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
+        
+        
+    def downloadMCD(self, dc_idx, simul_mode):
+        msg = "%s %s %d" % (CMD_DOWNLOAD, self.dcs_list[dc_idx], simul_mode)
+        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
+                
+    
+    def set_detector(self, dc_idx, simul_mode, type, channel):
+        msg = "%s %d %d %d" % (CMD_SETDETECTOR, self.dcs_list[dc_idx], MUX_TYPE, channel)
+        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
+            
+          
+    def set_fs_param(self, dc_idx, simul_mode, exptime):
+        #fsmode        
+        msg = "%s %d %d" % (CMD_SETFSMODE, self.dcs_list[dc_idx], simul_mode)
+        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
+        
+        #setparam
+        msg = "%s %d %d 1 1 1 %f 1" % (CMD_SETFSPARAM, self.dcs_list[dc_idx], simul_mode, exptime)
+        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
+            
+    
+    def acquireramp(self, dc_idx, simul_mode):        
+        msg = "%s %d %d" % (CMD_ACQUIRERAMP, self.dcs_list[dc_idx], simul_mode)
+        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
+        
+          
+    #def alive_check(self, dc_idx, slmul_mode):
+    #    self.send_message_to_ics(dc_idx, slmul_mode, "alive?")
+        
+        
+    def stop_acquistion(self, dc_idx, simul_mode):        
+        msg = "%s %d %d" % (CMD_STOPACQUISITION, self.dcs_list[dc_idx], simul_mode)
+        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
                         
             
-    # RabbitMQ communication    
-    def consumer_ics(self, dc_idx):
-        if dc_idx == DCSH:
-            try:
-                self.channel_ics_q[dc_idx].basic_consume(queue=self.queue_ics[dc_idx], on_message_callback=self.callback_ics_h, auto_ack=True)
-                self.channel_ics_q[dc_idx].start_consuming()
-            except Exception as e:
-                if self.channel_ics_q[dc_idx]:
-                    self.dt.log.logwrite("gui", ERROR, "The communication of server was disconnected!")
-        else:
-            try:
-                self.channel_ics_q[dc_idx].basic_consume(queue=self.queue_ics[dc_idx], on_message_callback=self.callback_ics_k, auto_ack=True)
-                self.channel_ics_q[dc_idx].start_consuming()
-            except Exception as e:
-                if self.channel_ics_q[dc_idx]:
-                    self.dt.log.logwrite("gui", ERROR, "The communication of server was disconnected!")
-
-
-    def alive_check_h(self):
-        self.dt.alive_check(DCSH)
-        
-        self.dcs_sts[DCSH] = False
-        timer = QTimer(self)
-        timer.singleShot(self.dt.alive_chk_interval*1000/2, self.show_alarm_h)
-        
-    def alive_check_k(self):
-        self.dt.alive_check(DCSK)
-        
-        self.dcs_sts[DCSK] = False
-        timer = QTimer(self)
-        timer.singleShot(self.dt.alive_chk_interval*1000/2, self.show_alarm_k)
-        
-
-    def callback_ics_h(self, ch, method, properties, body):
-        cmd = body.decode()
-        msg = "receive: %s" % cmd
-        self.dt.log.logwrite("gui", INFO, msg)
-
-        param = cmd.split()
-
-        if param[0] == "alive":
-            self.dcs_sts[DCSH] = True  
-        
-        elif param[0] == CMD_INITIALIZE2:
-            #downloadMCD
-            self.dt.downloadMCD(DCSH, self.simulation_mode)
-            
-        elif param[0] == CMD_DOWNLOAD:
-            #setdetector
-            self.dt.set_detector(DCSH, self.simulation_mode, MUX_TYPE, self.output_channel)
-            
-        elif param[0] == CMD_SETDETECTOR:
-            self.bt_DCSH_init.setEnabled(False)
-            
-            self.e_exptimeH.setEnabled(True)
-            self.e_FSnumberH.setEnabled(True)
-        
-            self.bt_acquisition.setEnabled(True)
-            self.bt_abort.setEnabled(True)
-            self.e_repeatH.setEnabled(True)            
-            
-        elif param[0] == CMD_SETFSPARAM:
-            #acquire
-            self.acquiring_h = True
-            self.dt.acquireramp(DCSH, self.simulation_mode)
-
-        elif param[0] == CMD_ACQUIRERAMP:
-            # load data
-            self.load_data()
-            
-            self.acquiring_h = False
-            
-            if self.acquiring_k == False and self.cal_mode:
-                self.cal_run_cycle()
-        
-        elif param[0] == CMD_STOPACQUISITION:
-            pass
-        
-        
-    def callback_ics_k(self, ch, method, properties, body):
-        cmd = body.decode()
-        msg = "receive: %s" % cmd
-        self.dt.log.logwrite("gui", INFO, msg)
-
-        param = cmd.split()
-
-        if param[0] == "alive":
-            self.dcs_sts[DCSK] = True  
-        
-        elif param[0] == CMD_INITIALIZE2:
-            #downloadMCD
-            self.dt.downloadMCD(DCSK, self.simulation_mode)
-            
-        elif param[0] == CMD_DOWNLOAD:
-            #setdetector
-            self.dt.set_detector(DCSK, self.simulation_mode, MUX_TYPE, self.output_channel)
-            
-        elif param[0] == CMD_SETDETECTOR:
-            self.bt_DCSK_init.setEnabled(False)
-            
-            self.e_exptimeK.setEnabled(True)
-            self.e_FSnumberK.setEnabled(True)
-        
-            self.bt_acquisition.setEnabled(True)
-            self.bt_abort.setEnabled(True)
-            self.e_repeatK.setEnabled(True)            
-            
-        elif param[0] == CMD_SETFSPARAM:
-            #acquire
-            self.acquiring_k = True
-            self.dt.acquireramp(DCSK, self.simulation_mode)
-
-        elif param[0] == CMD_ACQUIRERAMP:
-            # load data
-            self.load_data()
-            
-            self.acquiring_k = False
-            
-            if self.acquiring_h == False and self.cal_mode:
-                self.cal_run_cycle()
-        
-        elif param[0] == CMD_STOPACQUISITION:
-            pass
-            
-            
-    def show_alarm_h(self):
-        textcolor = "black"
-        if self.dcs_sts[DCSH] == True:
-            textcolor = "green"
-            self.label_dcsh_sts.setText("Connected")
-            self.dcs_sts[DCSH] = False
-        else:
-            textcolor = "red"
-            self.label_dcsh_sts.setText("Disconnected")
-        
-        label = "QLabel {color:%s}" % textcolor
-        self.label_dcsh_sts.setStyleSheet(label)
-            
-            
-    def show_alarm_k(self):
-        textcolor = "black"
-        if self.dcs_sts[DCSK] == True:
-            textcolor = "green"
-            self.label_dcsk_sts.setText("Connected")
-            self.dcs_sts[DCSK] = False
-        else:
-            textcolor = "red"
-            self.label_dcsk_sts.setText("Disconnected")
-        
-        label = "QLabel {color:%s}" % textcolor
-        self.label_dcsk_sts.setStyleSheet(label)
-        
+                       
         
     def load_data(self, ics_idx):
         filepath = ""
         if self.simulation_mode:
-            if ics_idx == DCSH:
+            if ics_idx == SVC:
+                filepath = WORKING_DIR + "IGRINS/demo/sc/SDCS_demo.fits"
+            elif ics_idx == H:
                 filepath = WORKING_DIR + "IGRINS/demo/dt/SDCH_demo.fits"
-            else:
+            elif ics_idx == K:
                 filepath = WORKING_DIR + "IGRINS/demo/dt/SDCK_demo.fits"
         
         frm = fits.open(filepath)
@@ -553,72 +481,137 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.zmin, self.zmax = zs.zscale(self.img[ics_idx])
         range = "%d ~ %d" % (self.zmin, self.zmax)
+        
+        if ics_idx == SVC:
+            self.label_zscale_range.setText(range)
+        
+            self.mmin, self.mmax = np.min(self.img[SVC]), np.max(self.img[SVC])
+            self.e_mscale_min.setText("%.1f" % self.mmin)
+            self.e_mscale_max.setText("%.1f" % self.mmax)
                 
         self.reload_img(ics_idx)
         
         
     def reload_img(self, ics_idx):   
         
-        _img = np.flipud(self.img[ics_idx])
+        try:
+            _img = np.flipud(self.img[ics_idx])
+                
+            scene = QGraphicsScene(self)
             
-        scene = QGraphicsScene(self)
+            if ics_idx == SVC:
+                min, max = 0, 0
+                if self.radioButton_zscale.isChecked():
+                    min, max = self.zmin, self.zmax
+                elif self.radioButton_mscale.isChecked():
+                    min, max = self.mmin, self.mmax
+                
+                scene.addPixmap(QPixmap.fromImage(qimage2ndarray.array2qimage(_img, (int(min), int(max)))).scaled(self.graphicsView_H.width(), self.graphicsView_H.height(), Qt.IgnoreAspectRatio, Qt.FastTransformation))
+                self.graphicsView_SVC.setScene(scene) 
+                
+            elif ics_idx == H:
+                scene.addPixmap(QPixmap.fromImage(qimage2ndarray.array2qimage(_img, (int(self.zmin), int(self.zmax)))).scaled(self.graphicsView_K.width(), self.graphicsView_K.height(), Qt.IgnoreAspectRatio, Qt.FastTransformation))
+                self.graphicsView_H.setScene(scene)
+                
+            elif ics_idx == K:
+                scene.addPixmap(QPixmap.fromImage(qimage2ndarray.array2qimage(_img, (int(self.zmin), int(self.zmax)))).scaled(self.graphicsView_K.width(), self.graphicsView_K.height(), Qt.IgnoreAspectRatio, Qt.FastTransformation))
+                self.graphicsView_K.setScene(scene)
         
-        if ics_idx == DCSH:
-            scene.addPixmap(QPixmap.fromImage(qimage2ndarray.array2qimage(_img, (int(self.zmin), int(self.zmax)))).scaled(self.graphicsView_H.width(), self.graphicsView_H.height(), Qt.IgnoreAspectRatio, Qt.FastTransformation))
-            self.graphicsView_H.setScene(scene) 
-        else:
-            scene.addPixmap(QPixmap.fromImage(qimage2ndarray.array2qimage(_img, (int(self.zmin), int(self.zmax)))).scaled(self.graphicsView_K.width(), self.graphicsView_K.height(), Qt.IgnoreAspectRatio, Qt.FastTransformation))
-            self.graphicsView_K.setScene(scene)
+        except:
+            self.log.send(self.iam, "WARNING", "No image")
+            
+            
+    def enable_dcs(self, dcs, enable):
+        self.e_exptime[dcs].setEnabled(enable)
+        self.e_FS_number[dcs].setEnabled(enable)
+        self.e_repeat[dcs].setEnabled(enable)
+        
+        self.chk_ds9[dcs].setEnabled(enable)
+        self.chk_autosave[dcs].setEnabled(enable)
+        
+        self.bt_save[dcs].setEnabled(enable)
+        self.bt_path[dcs].setEnabled(enable)
+        
+        self.e_path[dcs].setEnabled(enable)
+        self.e_savefilename[dcs].setEnabled(enable)        
+            
         
     #---------------------------------
-    # buttons
+    # button 
+    
+    def auto_scale(self):
+        self.reload_img(SVC)
+        self.bt_scale_apply.setEnabled(False)
+    
+    
+    def manual_scale(self):
+        self.reload_img(SVC)
+        self.bt_scale_apply.setEnabled(True)
+    
+    
+    def scale_apply(self):
+        self.mmin = float(self.e_mscale_min.text())
+        self.mmax = float(self.e_mscale_max.text())
+        
+        self.reload_img(SVC)
+    
+    
+    def set_HK_sync(self):
+        self.enable_dcs(SVC, False)
+        self.enable_dcs(H, True)
+        self.enable_dcs(K, True)
+    
+    
+    def set_whole_sync(self):
+        self.enable_dcs(SVC, True)
+        self.enable_dcs(H, True)
+        self.enable_dcs(K, True)
+    
+    
+    def set_svc(self):
+        self.enable_dcs(SVC, True)
+        self.enable_dcs(H, False)
+        self.enable_dcs(K, False)
+    
+    
+    def set_H(self):
+        self.enable_dcs(SVC, False)
+        self.enable_dcs(H, True)
+        self.enable_dcs(K, False)
+    
+    
+    def set_K(self):
+        self.enable_dcs(SVC, False)
+        self.enable_dcs(H, False)
+        self.enable_dcs(K, True)
+        
+    
+    def take_image(self):
 
-    def MQserver_connect_retry(self):
-        #for with main, local
-        self.connect_to_server_to_main_ex()
-        self.connect_to_server_to_main_q()
-        
-        #for hk, local
-        self.connect_to_server_to_hk_ex()
-        self.connect_to_server_to_hk_q()
-        
-        #for dcsh, dcsk
-        self.dt.connect_to_server_ics_ex(DCSH)        
-        self.connect_to_server_ics_q(DCSH)
-        self.dt.connect_to_server_ics_ex(DCSK)        
-        self.connect_to_server_ics_q(DCSK)
-        
-
-    def DCS_monit(self, dc_idx, start):
-        if start:
-            self.timer_alive[dc_idx].start()
-            if dc_idx == DCSH:
-                self.bt_DCSH_check.setEnabled(False)
-                self.bt_DCSH_check_stop.setEnabled(True)
-            else:
-                self.bt_DCSK_check.setEnabled(False)
-                self.bt_DCSK_check_stop.setEnabled(True)
+        if self.take_imaging:
+            #if repeat > 1 -> stop
+            #if single > abort
+            
+            self.take_imaging = False
+            
         else:
-            self.timer_alive[dc_idx].stop()
-            if dc_idx == DCSH:
-                self.bt_DCSH_check.setEnabled(True)
-                self.bt_DCSH_check_stop.setEnabled(False)
-            else:
-                self.bt_DCSK_check.setEnabled(True)
-                self.bt_DCSK_check_stop.setEnabled(False)
-                
-
-
-    def init(self, dc_idx):
-        self.dt.initialize2(dc_idx, self.simulation_mode) 
+            
+            self.single_exposure()
+            #if repeat > 1 -> start
+            #if signel > start
+            
+            self.take_imaging = True
+        
         
         
     def single_exposure(self):
-        # for test
-        if self.radioButton_sync.isChecked() or self.radioButton_H.isChecked():
-            self.load_data(DCSH)
-        if self.radioButton_sync.isChecked() or self.radioButton_K.isChecked(): 
-            self.load_data(DCSK)
+        
+        if self.radio_HK_sync.isChecked() or self.radio_whole_sync.isChecked() or self.radio_H.isChecked():
+            self.load_data(H)
+        if self.radio_HK_sync.isChecked() or self.radio_whole_sync.isChecked() or self.radio_K.isChecked():
+            self.load_data(K)
+        if self.radio_whole_sync.isChecked() or self.radio_SVC.isChecked():
+            self.load_data(SVC)
         return
     
         #calculate!!!! self.fowler_exp from self.e_exptime
@@ -626,20 +619,16 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.dt.set_fs_param(DCSH, self.simulation_mode, self.e_exptimeH)
         if self.radioButton_sync.isChecked() or self.radioButton_K.isChecked():    
             self.dt.set_fs_param(DCSK, self.simulation_mode, self.e_exptimeK)
-        
-        self.bt_acquisition.setEnabled(False)
-        self.bt_abort.setEnabled(True)  
-    
+            
     
     def stop_acquisition(self):
-        if self.radioButton_sync.isChecked() or self.radioButton_H.isChecked():
-            self.dt.stop_acquistion(DCSH, self.simulation_mode)
-        if self.radioButton_sync.isChecked() or self.radioButton_K.isChecked():   
-            self.dt.stop_acquistion(DCSK, self.simulation_mode)
-        
-        self.bt_acquisition.setEnabled(True)
-        self.bt_abort.setEnabled(False)
-    
+        if self.radio_HK_sync.isChecked() or self.radio_whole_sync.isChecked() or self.radio_H.isChecked():
+            self.stop_acquistion(H, self.simulation_mode)
+        if self.radio_HK_sync.isChecked() or self.radio_whole_sync.isChecked() or self.radio_K.isChecked():
+            self.stop_acquistion(K, self.simulation_mode)
+        if self.radio_whole_sync.isChecked() or self.radio_SVC.isChecked():
+            self.stop_acquistion(SVC, self.simulation_mode)
+            
     
     def save_fits(self):
         pass
@@ -647,6 +636,13 @@ class MainWindow(Ui_Dialog, QMainWindow):
     
     def open_path(self):
         pass
+    
+    
+    def open_calilbration(self):
+        if self.chk_open_calibration.isChecked():
+            self.setGeometry(0, 0, 1315, 690)
+        else:
+            self.setGeometry(0, 0, 1030, 690)
     
 
     
@@ -686,24 +682,24 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
             
     def func_lamp(self, idx):        
-        msg = "%s %d %d" % (HK_FN_LAMPCHANGE, FLAT, LAMP_FLAT[idx])
-        self.send_message_to_hk(msg)
-        msg = "%s %d %d" % (HK_FN_LAMPCHANGE, THAR, LAMP_THAR[idx])
-        self.send_message_to_hk(msg)
+        msg = "%s %d %d" % (HK_REQ_PWR_ONOFF, FLAT, LAMP_FLAT[idx])
+        self.producer[HK_SUB].send_message(self.com_list[PDU], self.dt_sub_q, msg)
+        
+        msg = "%s %d %d" % (HK_REQ_PWR_ONOFF, THAR, LAMP_THAR[idx])
+        self.producer[HK_SUB].send_message(self.com_list[PDU], self.dt_sub_q, msg)
             
             
     def func_motor(self, idx):
-        msg = "%s %d %d" % (HK_FN_MOVEMOTOR, UT, MOTOR_UT[idx])
-        self.send_message_to_hk(msg)
-        msg = "%s %d %d" % (HK_FN_MOVEMOTOR, LT, MOTOR_LT[idx])
-        self.send_message_to_hk(msg)
+        msg = "%s %s %d" % (HK_REQ_MOVEMOTOR, self.com_list[UT], MOTOR_UT[idx])
+        self.producer[HK_SUB].send_message(self.com_list[UT], self.dt_sub_q, msg)
+        
+        msg = "%s %d %d" % (HK_REQ_MOVEMOTOR, self.com_list[LT], MOTOR_LT[idx])
+        self.producer[HK_SUB].send_message(self.com_list[LT], self.dt_sub_q, msg)
         
         
-        
-    
     def motor_init(self, motor):
-        msg = "%s %d" % (HK_FN_INITMOTOR, motor)
-        self.send_message_to_hk(msg)
+        msg = "%s %d" % (HK_REQ_INITMOTOR, motor)
+        self.producer[HK_SUB].send_message(self.com_list[motor], self.dt_sub_q, msg)
             
 
     def move_motor_delta(self, motor, direction): #motor-UT/LT, direction-prev, next
@@ -722,8 +718,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 curpos = int(self.e_ltpos.text()) + int(self.e_movinginterval.text())
                 self.e_ltpos.setText(str(curpos))
                 
-        msg = "%s %d %d" % (HK_FN_MOVEMOTORDELTA, motor, direction)
-        self.send_message_to_hk(msg)
+        #msg = "%s %d %d" % (HK_FN_MOVEMOTORDELTA, motor, direction)
+        #self.send_message_to_hk(msg)
                 
     
     def motor_pos_set(self, motor, position): #motor-UT/LT, direction-UT(1/2), LT(1-4)

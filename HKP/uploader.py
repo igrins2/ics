@@ -1,4 +1,3 @@
-from email.utils import localtime
 import os, sys
 import time as ti
 import datetime
@@ -11,10 +10,10 @@ sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
 from HKP.HK_def import *
 import Libs.SetConfig as sc
-import Libs.rabbitmq_server as serv
+from Libs.MsgMiddleware import *
 from Libs.logger import *
 
-HKLogPath = WORKING_DIR + "/IGRINS/Log/Web/tempweb.dat"
+#HKLogPath = WORKING_DIR + "IGRINS/Log/Web/tempweb.dat"
 
 FieldNames = [('date', str), ('time', str),
               ('pressure', float),
@@ -34,10 +33,10 @@ class uploader():
     
     def __init__(self):
         
-        self.log = LOG(WORKING_DIR + "IGRINS", TARGET)
+        self.iam = "uploader"
         
-        self.iam = "uplader"
-        self.log.logwrite(self.iam, INFO, "start")
+        self.log = LOG(WORKING_DIR + "/IGRINS", MAIN)    
+        self.log.send(self.iam, "INFO", "start")
         
         # load ini file
         self.ini_file = WORKING_DIR + "/IGRINS/Config/"
@@ -49,31 +48,29 @@ class uploader():
         
         self.hk_sub_ex = cfg.get(MAIN, "hk_sub_exchange")     
         self.hk_sub_q = cfg.get(MAIN, "hk_sub_routing_key")
-        self.sub_hk_ex = cfg.get(MAIN, "sub_hk_exchange")
-        self.sub_hk_q = cfg.get(MAIN, "sub_hk_routing_key")
-        
+                
         firebase = self.get_firebase()
         self.db = firebase.database()
-        
+    
         #-------
         #for test
-        self.start_upload_to_firebase(self.db)
-        self.log.logwrite(self.iam, INFO, "Uploaded " + ti.strftime("%Y-%m-%d %H:%M:%S"))
+        #self.start_upload_to_firebase(self.db)
+        #self.log.send(self.iam, INFO, "Uploaded " + ti.strftime("%Y-%m-%d %H:%M:%S"))
         #-------
         
-        self.connect_to_server_hk_ex()  #when error occurs!
-        self.connect_to_server_hk_q()
+        self.consumer = None
+        #self.connect_to_server_hk_q()
         
     
     def __del__(self):
-        self.exit()
-        
-        
-    def exit(self):
-        print("Closing %s" % self.iam)
+        msg = "Closing %s" % self.iam
+        self.log.send(self.iam, "DEBUG", msg)
         
         for th in threading.enumerate():
-            print(th.name + " exit.")
+            self.log.send(self.iam, "DEBUG", th.name + " exit.")
+            
+        #self.consumer.stop_consumer()
+        self.consumer.__del__()
                         
 
     def get_firebase(self):
@@ -104,21 +101,21 @@ class uploader():
         return firebase
     
 
-    def start_upload_to_firebase(self, db):
-
-        HK_dict = self.read_item_to_upload()
+    def start_upload_to_firebase(self, db, HK_list):
+        HK_dict = self.read_item_to_upload(HK_list)
         if HK_dict is None:
-            self.log.logwrite(self.iam, WARNING, "No data ")
+            self.log.send(self.iam, "WARNING", "No data ")
 
         else:
             HK_dict["utc_upload"] = datetime.datetime.now(pytz.utc).isoformat()                
             self.push_hk_entry(db, HK_dict)
-            self.log.logwrite(self.iam, INFO, HK_dict)
+            self.log.send(self.iam, "INFO", HK_dict)
 
 
-    def read_item_to_upload(self):
-        HK_list = open(HKLogPath).read().split()
+    def read_item_to_upload(self, HK_list):
+        #HK_list = open(HKLogPath).read().split()
         # print(len(HK_list), len(FieldNames))
+        #HK_list = _hk_list.split()
 
         if len(HK_list) != len(FieldNames):
             return None
@@ -135,63 +132,39 @@ class uploader():
         
         
     #-------------------------------
-    # sub -> hk    
-    def connect_to_server_hk_ex(self):
-        # RabbitMQ connect        
-        self.connection_hk_ex, self.channel_hk_ex = serv.connect_to_server(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd)
-
-        if self.connection_hk_ex:
-            # RabbitMQ: define producer
-            serv.define_producer(self.iam, self.channel_hk_ex, "direct", self.sub_hk_ex)
-        
-        
-    def send_message_to_hk(self, message):
-        serv.send_message(self.iam, TARGET, self.channel_hk_ex, self.sub_hk_ex, self.sub_hk_q, message)    
-
-                  
-            
-    #-------------------------------
     def connect_to_server_hk_q(self):
         # RabbitMQ connect
-        self.connection_hk_q, self.channel_hk_q = serv.connect_to_server(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd)
-
-        if self.connection_hk_q:
-            # RabbitMQ: define consumer
-            self.queue_hk = serv.define_consumer(self.iam, self.connection_hk_q, "direct", self.hk_sub_ex, self.hk_sub_q)
-
-            th = threading.Thread(target=self.consumer_hk)
-            th.start()
+        self.consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_sub_ex, "direct")      
+        self.consumer.connect_to_server()
+        self.consumer.define_consumer(self.hk_sub_q, self.callback_hk)
+        
+        th = threading.Thread(target=self.consumer.start_consumer)
+        th.start()
             
             
-    # RabbitMQ communication    
-    def consumer_hk(self):
-        try:
-            self.connection_hk_q.basic_consume(queue=self.queue_hk, on_message_callback=self.callback_hk, auto_ack=True)
-            self.connection_hk_q.start_consuming()
-        except Exception as e:
-            if self.connection_hk_q:
-                self.log.logwrite(self.iam, ERROR, "The communication of server was disconnected!")
-                
-    
     def callback_hk(self, ch, method, properties, body):
         cmd = body.decode()
-        msg = "receive: %s" % cmd
-        self.log.logwrite(self.iam, INFO, msg)
-
         param = cmd.split()
+        #print("uploader:", param)
+        if len(param) < 2:
+            return
+        
+        if param[0] != HK_REQ_EXIT and param[1] != self.iam:
+            return
 
         if param[0] == HK_REQ_UPLOAD_DB:
-            self.start_upload_to_firebase(self.db)
-            tm = ti.localtime()
-            self.log.logwrite(self.iam, INFO, "Uploaded " + ti.strftime("%Y-%m-%d %H:%M:%S"))
+            db = param[2:]
+            self.start_upload_to_firebase(self.db, db)
             
         elif param[0] == HK_REQ_EXIT:
-            self.exit()
+            self.__del__()
 
 
 if __name__ == "__main__":
     
     fb = uploader()
+    
+    fb.connect_to_server_hk_q()
     
     
     
