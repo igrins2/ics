@@ -35,7 +35,7 @@ class uploader():
         
         self.iam = "uploader"
         
-        self.log = LOG(WORKING_DIR + "/IGRINS", MAIN)    
+        self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools")    
         self.log.send(self.iam, "INFO", "start")
         
         # load ini file
@@ -149,15 +149,18 @@ class uploader():
         if len(param) < 2:
             return
         
-        if param[0] != HK_REQ_EXIT and param[1] != self.iam:
+        if param[1] != self.iam:
             return
+        
+        msg = "receive: %s" % cmd
+        self.log.send(self.iam, "INFO", msg)
 
         if param[0] == HK_REQ_UPLOAD_DB:
             db = param[2:]
             self.start_upload_to_firebase(self.db, db)
             
-        elif param[0] == HK_REQ_EXIT:
-            self.__del__()
+        #elif param[0] == HK_REQ_EXIT:
+        #    self.__del__()
 
 
 if __name__ == "__main__":

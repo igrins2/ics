@@ -26,7 +26,7 @@ class temp_ctrl():
         self.comport = comport
         self.iam = "tmc%d" % (int(self.comport)-10000)               
     
-        self.log = LOG(WORKING_DIR + "/IGRINS", MAIN)
+        self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools")
         self.log.send(self.iam, "INFO", "start")    
      
         # load ini file
@@ -219,7 +219,7 @@ class temp_ctrl():
         
         if len(param) < 3:
             return
-        if param[0] != HK_REQ_EXIT and param[1] != self.iam:
+        if param[1] != self.iam:
             return
         
         msg = "receive: %s" % cmd
@@ -238,8 +238,8 @@ class temp_ctrl():
             cmd = "%s %s\r\n" % (param[2], param[3])
             self.socket_send(HK_REQ_MANUAL_CMD, param[3], cmd)
             
-        elif param[0] == HK_REQ_EXIT:
-            self.__del__()
+        #elif param[0] == HK_REQ_EXIT:
+        #    self.__del__()
 
 
 

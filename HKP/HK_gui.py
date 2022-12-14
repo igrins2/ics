@@ -74,7 +74,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.iam = HK     
         
-        self.log = LOG(WORKING_DIR + "/IGRINS", MAIN)    
+        self.log = LOG(WORKING_DIR + "/IGRINS", "HKP")    
         self.log.send(self.iam, "INFO", "start")
         
         self.setupUi(self)
@@ -87,6 +87,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.ics_ip_addr = self.cfg.get(MAIN, "ip_addr")
         self.ics_id = self.cfg.get(MAIN, "id")
         self.ics_pwd = self.cfg.get(MAIN, "pwd")
+        
+        self.hk_main_ex = self.cfg.get(MAIN, 'gui_main_exchange')     
+        self.hk_main_q = self.cfg.get(MAIN, 'gui_main_routing_key')
+        self.main_hk_ex = self.cfg.get(MAIN, 'main_gui_exchange')
+        self.main_hk_q = self.cfg.get(MAIN, 'main_gui_exchange')
         
         self.hk_sub_ex = self.cfg.get(MAIN, "hk_sub_exchange")     
         self.hk_sub_q = self.cfg.get(MAIN, "hk_sub_routing_key")
@@ -156,6 +161,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.bt_start.setText("email sending: On")
         self.QWidgetBtnColor(self.bt_start, "black", "white")
                
+        self.connect_to_server_main_ex()
+        self.connect_to_server_gui_q()
+        
         self.connect_to_server_hk_ex()
         self.connect_to_server_sub_q()
         
@@ -182,17 +190,23 @@ class MainWindow(Ui_Dialog, QMainWindow):
             msg = "%s %d %s" % (HK_REQ_PWR_ONOFF, idx+1, OFF)
             self.producer[HK_SUB].send_message(self.com_list[PDU], self.hk_sub_q, msg) 
         
-        self.producer[HK_SUB].send_message("all", self.hk_sub_q, HK_REQ_EXIT)                                 
+        #self.producer[HK_SUB].send_message("all", self.hk_sub_q, HK_REQ_EXIT)                                 
                 
         for th in threading.enumerate():
             self.log.send(self.iam, "DEBUG", th.name + " exit.")
         
         self.log.send(self.iam, "INFO", "Closed!")
                         
+        #msg = "%s %s" % (EXIT, self.iam)
+        #self.producer[ENG_TOOLS].send_message(self.iam, self.hk_main_q, msg)
+        
         for i in range(SERV_CONNECT_CNT):
             if self.consumer[i] != None:
                 self.consumer[i].stop_consumer()
-                ti.sleep(3)
+                
+            if i == ENG_TOOLS:
+                msg = "%s %s" % (EXIT, self.iam)
+                self.producer[ENG_TOOLS].send_message(self.iam, self.hk_main_q, msg)
             
             if self.producer[i] != None:
                 self.producer[i].__del__()
@@ -287,6 +301,44 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.QWidgetLabelColor(self.sts_monitor_ok, "green")
         self.QWidgetLabelColor(self.sts_monitor_error, "gray")
+        
+    
+    #-------------------------------
+    # hk -> main
+    def connect_to_server_main_ex(self):
+        # RabbitMQ connect  
+        self.producer[ENG_TOOLS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_main_ex, "direct", True)      
+        self.producer[ENG_TOOLS].connect_to_server()
+        self.producer[ENG_TOOLS].define_producer()
+        
+        msg = "%s %s" % (ALIVE, self.iam)
+        self.producer[ENG_TOOLS].send_message(self.iam, self.hk_main_q, msg)
+    
+         
+    #-------------------------------
+    # main -> hk 
+    def connect_to_server_gui_q(self):
+        # RabbitMQ connect
+        self.consumer[ENG_TOOLS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.main_hk_ex, "direct")      
+        self.consumer[ENG_TOOLS].connect_to_server()
+        self.consumer[ENG_TOOLS].define_consumer(self.main_hk_q, self.callback_main)       
+        
+        th = threading.Thread(target=self.consumer[ENG_TOOLS].start_consumer)
+        th.start()
+        
+        
+    #-------------------------------
+    # rev <- main        
+    def callback_main(self, ch, method, properties, body):
+        cmd = body.decode()
+        param = cmd.split()
+                
+        msg = "receive: %s" % cmd
+        self.log.send(self.iam, "INFO", msg)
+        
+        if param[0] == ALIVE:
+            msg = "%s %s" % (ALIVE, self.iam)
+            self.producer[ENG_TOOLS].send_message(self.iam, self.hk_main_q, msg)
         
         
     #-------------------------------

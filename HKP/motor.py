@@ -23,23 +23,21 @@ class motor() :
     
     def __init__(self, motor, port, gui=False):
         
-        self.motor = motor  
+        self.iam = motor  
         self.port = port 
-        self.iam = "%s(%d)" % (self.motor, int(self.port)-10000)
+        #self.iam = "%s(%d)" % (self.motor, int(self.port)-10000)
         
-        self.log = LOG(WORKING_DIR + "/IGRINS", MAIN)    
+        self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools")    
         self.log.send(self.iam, "INFO", "start")
-        
-        
         
         # load ini file
         self.ini_file = WORKING_DIR + "/IGRINS/Config/IGRINS.ini"
         self.cfg = sc.LoadConfig(self.ini_file)
         
         global TOUT, CMCWTIME, REBUFSIZE
-        TOUT = int(self.cfg.get("HK", "tout"))
-        CMCWTIME = float(self.cfg.get("HK", "cmcwtime"))
-        REBUFSIZE = int(self.cfg.get("HK", "rebufsize")) 
+        TOUT = int(self.cfg.get(HK, "tout"))
+        CMCWTIME = float(self.cfg.get(HK, "cmcwtime"))
+        REBUFSIZE = int(self.cfg.get(HK, "rebufsize")) 
         
         self.ics_ip_addr = self.cfg.get(MAIN, 'ip_addr')
         self.ics_id = self.cfg.get(MAIN, 'id')
@@ -50,11 +48,11 @@ class motor() :
         self.sub_hk_ex = self.cfg.get(MAIN, 'sub_hk_exchange')
         self.sub_hk_q = self.cfg.get(MAIN, 'sub_hk_routing_key')
                 
-        motor_pos = "%s-pos" % self.motor
-        self.motor_pos = self.cfg.get("HK", motor_pos).split(",")
+        motor_pos = "%s-pos" % self.iam
+        self.motor_pos = self.cfg.get(HK, motor_pos).split(",")
         
-        ip_addr = "%s-ip" % self.motor
-        self.ip = self.cfg.get("HK", ip_addr)
+        ip_addr = "%s-ip" % self.iam
+        self.ip = self.cfg.get(HK, ip_addr)
         
         self.gui = gui
         
@@ -108,7 +106,7 @@ class motor() :
             
         msg = "%s %d" % (self.iam, self.comStatus)   
         if self.gui:
-            self.producer.send_message(HK, HK_REQ_COM_STS, msg)
+            self.producer.send_message(DT, HK_REQ_COM_STS, msg)
                              
     
     def re_connect_to_component(self):
@@ -134,9 +132,9 @@ class motor() :
         self.send_to_motor("ECHO_OFF")
 
         message = ""
-        if self.motor == MOTOR_UT:
+        if self.iam == MOTOR_UT:
             message = "%s Initializing (Upper Translator) ..." % self.iam
-        elif self.motor == MOTOR_LT:
+        elif self.iam == MOTOR_LT:
             message = "%s Initializing (Lower Translator) ..." % self.iam
         
         self.log.send(self.iam, "INFO", message)
@@ -147,18 +145,18 @@ class motor() :
         #self.send_to_motor("GOSUB1")
         
         cmd = ""
-        if self.motor == MOTOR_UT:
+        if self.iam == MOTOR_UT:
             cmd = "PRT=-%d" % RELATIVE_DELTA_L 
-        elif self.motor == MOTOR_LT:
+        elif self.iam == MOTOR_LT:
             cmd = "PRT=%d" % RELATIVE_DELTA_L
         self.send_to_motor(cmd)
             
         sts_ut = ["RIN(3)", "RBl"]
         sts_lt = ["RIN(2)", "RBr"]
         sts_bit = []
-        if self.motor == MOTOR_UT:
+        if self.iam == MOTOR_UT:
             sts_bit = sts_ut
-        elif self.motor == MOTOR_LT:
+        elif self.iam == MOTOR_LT:
             sts_bit = sts_lt
                 
         while True:
@@ -179,9 +177,9 @@ class motor() :
         self.send_to_motor(VELOCITY_1)
         #self.send_to_motor("GOSUB2")
         
-        if self.motor == MOTOR_UT:
+        if self.iam == MOTOR_UT:
             cmd = "PRT=%d" % RELATIVE_DETLA_S 
-        elif self.motor == MOTOR_LT:
+        elif self.iam == MOTOR_LT:
             cmd = "PRT=-%d" % RELATIVE_DETLA_S
         self.send_to_motor(cmd)
         
@@ -217,9 +215,9 @@ class motor() :
         
     def motor_go(self):
         message = ""
-        if self.motor == MOTOR_UT:
+        if self.iam == MOTOR_UT:
             message = "%s Moving (Upper Translator) ..." % self.iam
-        elif self.motor == MOTOR_LT:
+        elif self.iam == MOTOR_LT:
             message = "%s Moving (Lower Translator) ..." % self.iam
         
         self.log.send(self.iam, "INFO", message)
@@ -230,9 +228,9 @@ class motor() :
     
     def check_motor(self):
         message = ""
-        if self.motor == MOTOR_UT:
+        if self.iam == MOTOR_UT:
             message = "%s Checking (Upper Translator) ..." % self.iam
-        elif self.motor == MOTOR_LT:
+        elif self.iam == MOTOR_LT:
             message = "%s Checking (Lower Translator) ..." % self.iam
         
         self.log.send(self.iam, "INFO", message)
@@ -258,9 +256,9 @@ class motor() :
         
         cmd = ""
         desti = int(self.motor_pos[posnum])
-        if self.motor == MOTOR_UT:
+        if self.iam == MOTOR_UT:
             cmd = "PT=%d" % desti
-        elif self.motor == MOTOR_LT:
+        elif self.iam == MOTOR_LT:
             cmd = "PT=-%d" % desti
             
         self.send_to_motor(cmd)
@@ -274,9 +272,9 @@ class motor() :
         err = abs(desti) - abs(int(curpos))
         while abs(err) > MOTOR_ERR:
             message = ""
-            if self.motor == MOTOR_UT:
+            if self.iam == MOTOR_UT:
                 message = "%s error correction (Upper Translate) ..." % self.iam
-            elif self.motor == MOTOR_LT:
+            elif self.iam == MOTOR_LT:
                 message = "%s error correction (Lower Translate) ..." % self.iam
             
             self.log.send(self.iam, "INFO", message)
@@ -299,10 +297,10 @@ class motor() :
         
         cmd = ""
         
-        if self.motor == MOTOR_LT:
+        if self.iam == MOTOR_LT:
             if go is True:
                 delta *= (-1)
-        elif self.motor == MOTOR_UT:
+        elif self.iam == MOTOR_UT:
             if go is False:
                 delta *= (-1)
 
@@ -322,7 +320,7 @@ class motor() :
 
         self.motor_pos[posnum] = res
         utpos = self.motor_pos[0] + "," + self.motor_pos[1]
-        self.cfg.set("HK", "ut-pos", utpos )
+        self.cfg.set(HK, "ut-pos", utpos )
         sc.SaveConfig(self.cfg, self.ini_file)
         self.log.send(self.iam, "INFO", "saved (" + utpos + ")")
         
@@ -337,7 +335,7 @@ class motor() :
         for i in range(4):
             ltpos += self.motor_pos[i]
             ltpos += ","
-        self.cfg.set("HK", "lt-pos", ltpos)
+        self.cfg.set(HK, "lt-pos", ltpos)
         sc.SaveConfig(self.cfg, self.ini_file)
         self.log.send(self.iam, "INFO", "saved (" + ltpos + ")")        
         
@@ -371,42 +369,45 @@ class motor() :
         if len(param) < 2:
             return
         
-        if param[0] != HK_REQ_EXIT and param[1] != self.iam:
+        if param[1] != self.iam:
             return
         
-        msg = "%s %s OK" % (param[0], self.motor)
+        msg = "receive: %s" % cmd
+        self.log.send(self.iam, "INFO", msg)
         
-        if param[0] == HK_REQ_INITMOTOR and param[1] == self.motor:
+        msg = "%s %s OK" % (param[0], self.iam)
+        
+        if param[0] == DT_REQ_INITMOTOR:
             self.init_motor()
-            self.producer.send_message(HK, self.sub_hk_q, msg)
+            self.producer.send_message(DT, self.sub_hk_q, msg)
         
-        elif param[0] == HK_REQ_EXIT:
-                self.__del__()
+        #elif param[0] == HK_REQ_EXIT:
+        #        self.__del__()
 
         else:
             if self.init is False:
-                msg = "%s %s TRY" % (HK_REQ_INITMOTOR, self.motor)
-                self.producer.send_message(HK, self.sub_hk_q, msg)
+                msg = "%s %s TRY" % (DT_REQ_INITMOTOR, self.iam)
+                self.producer.send_message(DT, self.sub_hk_q, msg)
             
-            elif param[0] == HK_REQ_MOVEMOTOR and param[1] == self.motor:
+            elif param[0] == DT_REQ_MOVEMOTOR:
                 self.move_motor(int(param[2]))
-                self.producer.send_message(HK, self.sub_hk_q, msg)
+                self.producer.send_message(DT, self.sub_hk_q, msg)
                 
-            elif param[0] == HK_REQ_MOTORGO and param[1] == self.motor:
+            elif param[0] == DT_REQ_MOTORGO:
                 self.move_motor_delta(int(param[2]), True)
-                self.producer.send_message(HK, self.sub_hk_q, msg)
+                self.producer.send_message(DT, self.sub_hk_q, msg)
                 
-            elif param[0] == HK_REQ_MOTORBACK and param[1] == self.motor:
+            elif param[0] == DT_REQ_MOTORBACK:
                 self.move_motor_delta(int(param[2]), False)
-                self.producer.send_message(HK, self.sub_hk_q, msg)
+                self.producer.send_message(DT, self.sub_hk_q, msg)
                 
-            elif param[0] == HK_REQ_SETUT and param[1] == self.motor:
+            elif param[0] == DT_REQ_SETUT:
                 self.setUT(int(param[2]))
-                self.producer.send_message(HK, self.sub_hk_q, msg)
+                self.producer.send_message(DT, self.sub_hk_q, msg)
                 
-            elif param[0] == HK_REQ_SETLT and param[1] == self.motor:
+            elif param[0] == DT_REQ_SETLT:
                 self.setLT(int(param[2]))
-                self.producer.send_message(HK, self.sub_hk_q, msg)
+                self.producer.send_message(DT, self.sub_hk_q, msg)
 
     
 if __name__ == "__main__":

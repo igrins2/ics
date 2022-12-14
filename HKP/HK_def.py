@@ -22,11 +22,7 @@ WORKING_DIR = "/" + dir[1] + "/" + dir[2] + "/"
         
 MAIN = "MAIN"
 HK = "HK"
-
-DEBUG = 0
-INFO = 1
-WARNING = 2
-ERROR = 3
+DT = "DT"
 
 SERV_CONNECT_CNT = 3 #Inst.sequencer / EngTools / hk Sub
 INST_SEQ = 0
@@ -92,14 +88,15 @@ HK_REQ_PWR_ONOFF = "PowerOnOff" #pdu
 
 HK_REQ_UPLOAD_DB = "UploadDB"   #uploader
 
-HK_REQ_INITMOTOR = "InitMotor"  #motor  
-HK_REQ_MOVEMOTOR = "MoveMotor"  #motor
-HK_REQ_MOTORGO = "MotorGo"      #motor
-HK_REQ_MOTORBACK = "MotorBack"  #motor
+DT_REQ_INITMOTOR = "InitMotor"  #motor  
+DT_REQ_MOVEMOTOR = "MoveMotor"  #motor
+DT_REQ_MOTORGO = "MotorGo"      #motor
+DT_REQ_MOTORBACK = "MotorBack"  #motor
 
-HK_REQ_SETUT = "SetUT"          #motor
-HK_REQ_SETLT = "SetLT"          #motor
+DT_REQ_SETUT = "SetUT"          #motor
+DT_REQ_SETLT = "SetLT"          #motor
 
-HK_REQ_CHK = "AliveCheck"   
-HK_REQ_EXIT = "Exit"        
+EXIT = "Exit"
+ALIVE = "Alive"
 
+REQ_CHK = "AliveCheck"   

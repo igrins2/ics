@@ -38,7 +38,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.iam = DT
         
-        self.log = LOG(WORKING_DIR + "/IGRINS", MAIN)  
+        self.log = LOG(WORKING_DIR + "/IGRINS", "DTP")  
         self.log.send(self.iam, "INFO", "start")
         
         self.setupUi(self)
@@ -51,6 +51,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.ics_ip_addr = self.cfg.get(MAIN, 'ip_addr')
         self.ics_id = self.cfg.get(MAIN, 'id')
         self.ics_pwd = self.cfg.get(MAIN, 'pwd')
+        
+        self.dt_main_ex = self.cfg.get(MAIN, 'gui_main_exchange')     
+        self.dt_main_q = self.cfg.get(MAIN, 'gui_main_routing_key')
+        self.main_dt_ex = self.cfg.get(MAIN, 'main_gui_exchange')
+        self.main_dt_q = self.cfg.get(MAIN, 'main_gui_exchange')
         
         self.dt_sub_ex = self.cfg.get(MAIN, 'hk_sub_exchange')
         self.dt_sub_q = self.cfg.get(MAIN, 'hk_sub_routing_key')
@@ -126,8 +131,12 @@ class MainWindow(Ui_Dialog, QMainWindow):
         for i in range(CAL_CNT):
             self.cal_use_parsing(self.cal_chk[i], self.cal_e_exptime[i], self.cal_e_repeat[i])
                 
+        self.connect_to_server_main_ex()
+        self.connect_to_server_gui_q()
+        
         self.connect_to_server_hk_ex()
         self.connect_to_server_sub_q()
+        
         self.connect_to_server_dt_ex()
         self.connect_to_server_dcs_q()
         
@@ -140,18 +149,22 @@ class MainWindow(Ui_Dialog, QMainWindow):
         for idx in range(PDU_IDX):
             msg = "%s %d %s" % (HK_REQ_PWR_ONOFF, idx+1, OFF)
             self.producer[HK_SUB].send_message(self.com_list[PDU], self.dt_sub_q, msg) 
-        
-        self.producer[HK_SUB].send_message("all", self.dt_sub_q, HK_REQ_EXIT)                               
-                
+                        
         for th in threading.enumerate():
             self.log.send(self.iam, "DEBUG", th.name + " exit.")
                 
         self.log.send(self.iam, "INFO", "Closed!")
                             
+        #msg = "%s %s" % (EXIT, self.iam)
+        #self.producer[ENG_TOOLS].send_message(self.iam, self.dt_main_q, msg)
+        
         for i in range(SERV_CONNECT_CNT):
             if self.consumer[i] != None:
                 self.consumer[i].stop_consumer()
-                ti.sleep(3)
+                
+            if i == ENG_TOOLS:
+                msg = "%s %s" % (EXIT, self.iam)
+                self.producer[ENG_TOOLS].send_message(self.iam, self.dt_main_q, msg)
             
             if self.producer[i] != None:
                 self.producer[i].__del__()
@@ -274,6 +287,52 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.bt_ltpos_set3.setEnabled(False)
         self.bt_ltpos_set4.setEnabled(False)
         
+        
+    #-------------------------------
+    # dt -> main
+    def connect_to_server_main_ex(self):
+        # RabbitMQ connect  
+        self.producer[ENG_TOOLS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.dt_main_ex, "direct", True)      
+        self.producer[ENG_TOOLS].connect_to_server()
+        self.producer[ENG_TOOLS].define_producer()
+        
+        msg = "%s %s" % (ALIVE, self.iam)
+        self.producer[ENG_TOOLS].send_message(self.iam, self.dt_main_q, msg)
+    
+         
+    #-------------------------------
+    # main -> dt
+    def connect_to_server_gui_q(self):
+        # RabbitMQ connect
+        self.consumer[ENG_TOOLS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.main_dt_ex, "direct")      
+        self.consumer[ENG_TOOLS].connect_to_server()
+        self.consumer[ENG_TOOLS].define_consumer(self.main_dt_q, self.callback_main)       
+        
+        th = threading.Thread(target=self.consumer[ENG_TOOLS].start_consumer)
+        th.start()
+        
+        
+    #-------------------------------
+    # rev <- main        
+    def callback_main(self, ch, method, properties, body):
+        cmd = body.decode()
+        param = cmd.split()
+        
+        if param[1] != self.iam:
+            return
+                
+        msg = "receive: %s" % cmd
+        self.log.send(self.iam, "INFO", msg)
+        
+        if param[0] == ALIVE:
+            msg = "%s %s" % (ALIVE, self.iam)
+            self.producer[ENG_TOOLS].send_message(self.iam, self.dt_main_q, msg)
+            
+        elif param[0] == TEST_MODE:
+            self.simulation_mode = int(param[2])
+        
+        
+        
 
     #-------------------------------
     # dt -> sub: use hk ex
@@ -300,16 +359,25 @@ class MainWindow(Ui_Dialog, QMainWindow):
     # rev <- sub        
     def callback_sub(self, ch, method, properties, body):
         cmd = body.decode()
+        param = cmd.split()
+        
+        com = False
+        for i in range(COM_CNT):
+            if param[1] == self.com_list[i]:
+                com = True
+                break
+        if com is False:
+            return
+        
         msg = "receive: %s" % cmd
         self.log.send(self.iam, "INFO", msg)
-
-        param = cmd.split()
         
         # from PDU
         if param[0] == HK_REQ_PWR_STS:
-            self.single_exposure()
+            #self.single_exposure()
+            pass
         
-        if param[0] == HK_REQ_INITMOTOR:
+        if param[0] == DT_REQ_INITMOTOR:
             if param[2] == "TRY":
                 msg = "%s - need to initialize" % param[1]
                 self.log.send(self.iam, "INFO", msg)
@@ -330,13 +398,13 @@ class MainWindow(Ui_Dialog, QMainWindow):
                     self.bt_ltpos_set3.setEnabled(True)
                     self.bt_ltpos_set4.setEnabled(True)
                 
-        elif param[0] == HK_REQ_MOVEMOTOR:
+        elif param[0] == DT_REQ_MOVEMOTOR:
             self.func_lamp(self.cal_cur)
         
-        elif param[0] == HK_REQ_MOTORGO:
+        elif param[0] == DT_REQ_MOTORGO:
             pass
             
-        elif param[0] == HK_REQ_MOTORBACK:
+        elif param[0] == DT_REQ_MOTORBACK:
             pass
 
     
@@ -431,22 +499,22 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 
     
     def set_detector(self, dc_idx, simul_mode, type, channel):
-        msg = "%s %d %d %d" % (CMD_SETDETECTOR, self.dcs_list[dc_idx], MUX_TYPE, channel)
+        msg = "%s %s %d %d" % (CMD_SETDETECTOR, self.dcs_list[dc_idx], MUX_TYPE, channel)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
             
           
     def set_fs_param(self, dc_idx, simul_mode, exptime):
         #fsmode        
-        msg = "%s %d %d" % (CMD_SETFSMODE, self.dcs_list[dc_idx], simul_mode)
+        msg = "%s %s %d" % (CMD_SETFSMODE, self.dcs_list[dc_idx], simul_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
         
         #setparam
-        msg = "%s %d %d 1 1 1 %f 1" % (CMD_SETFSPARAM, self.dcs_list[dc_idx], simul_mode, exptime)
+        msg = "%s %s %d 1 1 1 %f 1" % (CMD_SETFSPARAM, self.dcs_list[dc_idx], simul_mode, exptime)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
             
     
     def acquireramp(self, dc_idx, simul_mode):        
-        msg = "%s %d %d" % (CMD_ACQUIRERAMP, self.dcs_list[dc_idx], simul_mode)
+        msg = "%s %s %d" % (CMD_ACQUIRERAMP, self.dcs_list[dc_idx], simul_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
         
           
@@ -455,7 +523,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         
     def stop_acquistion(self, dc_idx, simul_mode):        
-        msg = "%s %d %d" % (CMD_STOPACQUISITION, self.dcs_list[dc_idx], simul_mode)
+        msg = "%s %s %d" % (CMD_STOPACQUISITION, self.dcs_list[dc_idx], simul_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
                         
             
@@ -682,23 +750,23 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
             
     def func_lamp(self, idx):        
-        msg = "%s %d %d" % (HK_REQ_PWR_ONOFF, FLAT, LAMP_FLAT[idx])
+        msg = "%s %s %d %d" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], FLAT, LAMP_FLAT[idx])
         self.producer[HK_SUB].send_message(self.com_list[PDU], self.dt_sub_q, msg)
         
-        msg = "%s %d %d" % (HK_REQ_PWR_ONOFF, THAR, LAMP_THAR[idx])
+        msg = "%s %s %d %d" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], THAR, LAMP_THAR[idx])
         self.producer[HK_SUB].send_message(self.com_list[PDU], self.dt_sub_q, msg)
             
             
     def func_motor(self, idx):
-        msg = "%s %s %d" % (HK_REQ_MOVEMOTOR, self.com_list[UT], MOTOR_UT[idx])
+        msg = "%s %s %d" % (DT_REQ_MOVEMOTOR, self.com_list[UT], MOTOR_UT[idx])
         self.producer[HK_SUB].send_message(self.com_list[UT], self.dt_sub_q, msg)
         
-        msg = "%s %d %d" % (HK_REQ_MOVEMOTOR, self.com_list[LT], MOTOR_LT[idx])
+        msg = "%s %s %d" % (DT_REQ_MOVEMOTOR, self.com_list[LT], MOTOR_LT[idx])
         self.producer[HK_SUB].send_message(self.com_list[LT], self.dt_sub_q, msg)
         
         
     def motor_init(self, motor):
-        msg = "%s %d" % (HK_REQ_INITMOTOR, motor)
+        msg = "%s %s" % (DT_REQ_INITMOTOR, self.com_list[motor])
         self.producer[HK_SUB].send_message(self.com_list[motor], self.dt_sub_q, msg)
             
 

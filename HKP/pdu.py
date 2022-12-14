@@ -25,7 +25,7 @@ class pdu() :
         
         self.iam = "pdu"
         
-        self.log = LOG(WORKING_DIR + "/IGRINS", MAIN)    
+        self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools")    
         self.log.send(self.iam, "INFO", "start")
                         
         # load ini file
@@ -92,14 +92,14 @@ class pdu() :
             self.comStatus = True
             
             msg = "connected"
-            self.log.send(self.iam, INFO, msg)
+            self.log.send(self.iam, "INFO", msg)
             
         except:
             self.comSocket = None
             self.comStatus = False
             
             msg = "disconnected"
-            self.log.send(self.iam, ERROR, msg)
+            self.log.send(self.iam, "ERROR", msg)
             
             self.th.start()
                         
@@ -112,7 +112,7 @@ class pdu() :
         self.th.cancel()
         
         msg = "trying to connect again"
-        self.log.send(self.iam, WARNING, msg)
+        self.log.send(self.iam, "WARNING", msg)
             
         if self.comSocket != None:
             self.close_component()
@@ -132,19 +132,19 @@ class pdu() :
             cmd = "@@@@\r"
             self.comSocket.send(cmd.encode())
             log = "send >>> %s" % cmd
-            self.log.send(self.iam, INFO, log)
+            self.log.send(self.iam, "INFO", log)
             
             res = self.comSocket.recv(REBUFSIZE)
             log = "recv <<< %s" % res.decode()
-            self.log.send(self.iam, INFO, log)
+            self.log.send(self.iam, "INFO", log)
             
             cmd = "DN0\r"   
             self.power_status(cmd) 
                 
-            self.log.send(self.iam, INFO, "powctr init is completed")
+            self.log.send(self.iam, "INFO", "powctr init is completed")
                     
         except:
-            self.log.send(self.iam, ERROR, "powctr init is error")
+            self.log.send(self.iam, "ERROR", "powctr init is error")
                    
             self.comStatus = False
             self.re_connect_to_component()
@@ -156,12 +156,12 @@ class pdu() :
         try:
             self.comSocket.send(cmd.encode())
             log = "send >>> %s" % cmd
-            self.log.send(self.iam, INFO, log)
+            self.log.send(self.iam, "INFO", log)
             ti.sleep(TSLEEP)
             res = self.comSocket.recv(REBUFSIZE)
             sRes = res.decode()
             log = "recv <<< %s" % sRes
-            self.log.send(self.iam, INFO, log)
+            self.log.send(self.iam, "INFO", log)
             
             # check PDU status
             pow_flag = ""
@@ -181,7 +181,7 @@ class pdu() :
                 print(pow_flag)
         except:                  
             self.comStatus = False
-            self.log.send(self.iam, ERROR, "communication error")
+            self.log.send(self.iam, "ERROR", "communication error")
             self.re_connect_to_component()
             
 
@@ -201,7 +201,7 @@ class pdu() :
             cmd = "N0%d\r" % (idx)
             
         msg = " %s Button clicked"  % self.pow_flag[idx-1]
-        self.log.send(self.iam, INFO, self.power_str[idx-1] + msg)
+        self.log.send(self.iam, "INFO", self.power_str[idx-1] + msg)
     
         self.power_status(cmd)
             
@@ -234,11 +234,11 @@ class pdu() :
         if len(param) < 2:
             return
         
-        if param[0] != HK_REQ_EXIT and param[1] != self.iam:
+        if param[1] != self.iam:
             return
         
         msg = "receive: %s" % cmd
-        self.log.send(self.iam, INFO, msg)
+        self.log.send(self.iam, "INFO", msg)
            
         if param[0] == HK_REQ_PWR_STS:
             cmd = "DN0\r"   
@@ -248,8 +248,8 @@ class pdu() :
             idx = int(param[2])
             self.change_power(idx, param[3]) 
             
-        elif param[0] == HK_REQ_EXIT:
-            self.__del__()
+        #elif param[0] == HK_REQ_EXIT:
+        #    self.__del__()
             
             
 if __name__ == "__main__":

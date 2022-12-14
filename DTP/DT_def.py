@@ -64,30 +64,22 @@ ON = 1
 LAMP_FLAT = [OFF, ON, OFF, OFF, ON, OFF, OFF, OFF, OFF]
 LAMP_THAR = [OFF, OFF, OFF, ON, OFF, ON, OFF, OFF, OFF]
 
-# ---------------------------
-# LOG option
-DEBUG = 0
-INFO = 1
-WARNING = 2
-ERROR = 3
-
 MUX_TYPE = 2
 
 FRAME_X = 2048
 FRAME_Y = 2048
 
-#HK_FN_INITMOTOR = "InitMotor"
-#HK_FN_MOVEMOTORDELTA = "MoveMotorDelta"
-#HK_FN_MOVEMOTOR = "MoveMotor"
-HK_REQ_INITMOTOR = "InitMotor"  #motor  
-HK_REQ_MOVEMOTOR = "MoveMotor"  #motor
-HK_REQ_MOTORGO = "MotorGo"      #motor
-HK_REQ_MOTORBACK = "MotorBack"  #motor
+DT_REQ_INITMOTOR = "InitMotor"  #motor  
+DT_REQ_MOVEMOTOR = "MoveMotor"  #motor
+DT_REQ_MOTORGO = "MotorGo"      #motor
+DT_REQ_MOTORBACK = "MotorBack"  #motor
 
-HK_REQ_SETUT = "SetUT"          #motor
-HK_REQ_SETLT = "SetLT"          #motor
+DT_REQ_SETUT = "SetUT"          #motor
+DT_REQ_SETLT = "SetLT"          #motor
 
-HK_REQ_EXIT = "Exit"
+EXIT = "Exit"
+ALIVE = "Alive"
+TEST_MODE = "TestMode"
 
 #HK_FN_LAMPCHANGE = "LampChange"
 HK_REQ_PWR_STS = "PowerStatus"  #pdu
@@ -103,3 +95,4 @@ CMD_SETFSPARAM = "SetFSParam"
 CMD_ACQUIRERAMP = "ACQUIRERAMP"
 CMD_STOPACQUISITION = "STOPACQUISITION"
 
+REQ_CHK = "AliveCheck"

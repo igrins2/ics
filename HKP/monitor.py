@@ -30,7 +30,7 @@ class monitor() :
         elif self.comport == "10005":
             self.iam = "vm"
             
-        self.log = LOG(WORKING_DIR + "/IGRINS", MAIN)
+        self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools")
         self.log.send(self.iam, "INFO", "start")  
         
         # load ini file
@@ -220,7 +220,7 @@ class monitor() :
         param = cmd.split()
         if len(param) < 2:
             return
-        if param[0] != HK_REQ_EXIT and param[1] != self.iam:
+        if param[1] != self.iam:
             return
         
         msg = "receive: %s" % cmd
@@ -236,8 +236,8 @@ class monitor() :
             cmd = "%s %s\r\n" % (param[2], param[3])
             self.socket_send(HK_REQ_MANUAL_CMD, cmd, param[3])
             
-        elif param[0] == HK_REQ_EXIT:
-            self.__del__()
+        #elif param[0] == HK_REQ_EXIT:
+        #    self.__del__()
             
             
  
