@@ -207,7 +207,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         for i in range(SERV_CONNECT_CNT):
             if self.consumer[i] != None:
                 self.consumer[i].stop_consumer()
-                
+
+        for i in range(SERV_CONNECT_CNT):                
             if i == ENG_TOOLS:
                 msg = "%s %s" % (EXIT, self.iam)
                 self.producer[ENG_TOOLS].send_message(self.iam, self.dt_main_q, msg)

@@ -82,16 +82,16 @@ class uploader():
                         
 
     def get_firebase(self):
-        '''
+        
         config = {
             "apiKey": "AIzaSyCDUZO9ejB8LzKPtGB0_5xciByJvYI4IzY",
             "authDomain": "igrins2-hk.firebaseapp.com",
             "databaseURL": "https://igrins2-hk-default-rtdb.firebaseio.com",
             "storageBucket": "igrins2-hk.appspot.com",
-            "serviceAccount": "igrins2-hk-firebase-adminsdk-qtt3q-073f6caf5b.json"
+            "serviceAccount": "/home/ics/workspace/ics/igrins2-hk-firebase-adminsdk-qtt3q-073f6caf5b.json"
             }
-        '''
         
+        '''
         # for test
         config={
             "apiKey": "AIzaSyDSt_O0KmvB5MjrDXuGJCABAOVNp8Q3ZB8",
@@ -103,7 +103,7 @@ class uploader():
             "appId": "1:1059665885507:web:c4d5dbd322c1c0ff4e17f6",
             "measurementId": "G-450KS9WJF1"
         }
-
+        '''
         firebase = pyrebase.initialize_app(config)
 
         return firebase
@@ -116,7 +116,7 @@ class uploader():
 
         else:
             HK_dict["utc_upload"] = datetime.datetime.now(pytz.utc).isoformat()                
-            self.push_hk_entry(self.db, HK_dict)
+            self.push_hk_entry(HK_dict)
             self.log.send(self.iam, INFO, HK_dict)
 
 

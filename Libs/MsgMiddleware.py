@@ -81,7 +81,10 @@ class MsgMiddleware():
         
     def publish(self, target, _routing_key, _message):
         '''
-        ti.sleep(0.1)
+        if target == "tmc1" or target == "pdu" or target == "vm":
+            ti.sleep(0.7)
+        else:
+            ti.sleep(0.2)
                 
         try:
             self.channel.basic_publish(exchange=self.exchange, routing_key=_routing_key, body=_message.encode())

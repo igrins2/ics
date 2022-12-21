@@ -14,8 +14,10 @@ from time import localtime, strftime
 import Libs.SetConfig as sc
 class LOG():
 
-    def __init__(self, work_dir, iam):
+    def __init__(self, work_dir, iam, gui = True):
                 
+        self.gui = gui
+
         # load ini file
         cfg = sc.LoadConfig(work_dir + "/Config/IGRINS.ini")
         
@@ -46,4 +48,6 @@ class LOG():
         if level != "DEBUG":    
             file.write(data)
             file.close()
-        print(data)
+
+        if level != "INFO" or self.gui is False:
+            print(data)

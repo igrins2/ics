@@ -27,7 +27,7 @@ class motor() :
         self.port = port 
         #self.iam = "%s(%d)" % (self.motor, int(self.port)-10000)
         
-        self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools")    
+        self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools", gui)    
         self.log.send(self.iam, INFO, "start")
         
         # load ini file
@@ -57,12 +57,13 @@ class motor() :
         self.gui = gui
         
         self.comSocket = None
+        self.comStatus = False
         
         self.producer = None
         self.consumer = None
         
-        self.th = threading.Timer(1, self.re_connect_to_component)
-        self.th.daemon = True
+        #self.th = threading.Timer(1, self.re_connect_to_component)
+        #self.th.daemon = True
         
         self.init = False
         
@@ -102,7 +103,9 @@ class motor() :
             msg = "disconnected"
             self.log.send(self.iam, ERROR, msg)
             
-            self.th.start()
+            #self.th.start()
+            th = threading.Timer(1, self.re_connect_to_component)
+            th.start()
             
         msg = "%s %d" % (self.iam, self.comStatus)   
         if self.gui:
@@ -370,6 +373,8 @@ class motor() :
             return
         
         if param[1] != self.iam:
+            return
+        if self.comStatus is False:
             return
         
         msg = "receive: %s" % cmd

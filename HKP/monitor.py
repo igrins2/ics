@@ -30,7 +30,7 @@ class monitor() :
         elif self.comport == "10005":
             self.iam = "vm"
             
-        self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools")
+        self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools", gui)
         self.log.send(self.iam, INFO, "start")  
         
         # load ini file
@@ -55,12 +55,13 @@ class monitor() :
         self.gui = gui
         
         self.comSocket = None
+        self.comStatus = False
         
         self.producer = None
         self.consumer = None
         
-        self.th = threading.Timer(1, self.re_connect_to_component)
-        self.th.daemon = True
+        #self.th = threading.Timer(1, self.re_connect_to_component)
+        #self.th.daemon = True
         
         
     
@@ -99,7 +100,10 @@ class monitor() :
             msg = "disconnected"
             self.log.send(self.iam, ERROR, msg)
             
-            self.th.start()
+            #self.th.start()
+            th = threading.Timer(1, self.re_connect_to_component)
+            th.start()
+
             
         msg = "%s %s %d" % (HK_REQ_COM_STS, self.iam, self.comStatus)   
         if self.gui:
@@ -107,7 +111,7 @@ class monitor() :
                  
     
     def re_connect_to_component(self):
-        self.th.cancel()
+        #self.th.cancel()
         
         msg = "trying to connect again"
         self.log.send(self.iam, WARNING, msg)
@@ -222,6 +226,8 @@ class monitor() :
             return
         if param[1] != self.iam:
             return
+        if self.comStatus is False:
+            return
         
         msg = "receive: %s" % cmd
         self.log.send(self.iam, INFO, msg)
@@ -244,12 +250,13 @@ class monitor() :
             
 if __name__ == "__main__":
     
-    #sys.argv.append("10004")
+    #sys.argv.append("10005")
     if len(sys.argv) < 2:
         print("Please add comport")
         exit()
     
     proc = monitor(sys.argv[1], True)
+    #proc = monitor(sys.argv[1])
         
     proc.connect_to_server_sub_ex()
     proc.connect_to_server_hk_q()

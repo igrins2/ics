@@ -26,7 +26,7 @@ class temp_ctrl():
         self.comport = comport
         self.iam = "tmc%d" % (int(self.comport)-10000)               
     
-        self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools")
+        self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools", gui)
         self.log.send(self.iam, INFO, "start")    
      
         # load ini file
@@ -51,12 +51,13 @@ class temp_ctrl():
         self.gui = gui
         
         self.comSocket = None
+        self.comStatus = False
         
         self.producer = None
         self.consumer = None
         
-        self.th = threading.Timer(1, self.re_connect_to_component)
-        self.th.daemon = True
+        #self.th = threading.Timer(1, self.re_connect_to_component)
+        #self.th.daemon = True
         
         
     def __del__(self):
@@ -77,10 +78,14 @@ class temp_ctrl():
         
     def connect_to_component(self):
             
-        try:            
+        try:     
+            msg = "try to connect TMC1..."
+            self.log.send(self.iam, DEBUG, msg)      
+
             self.comSocket = socket(AF_INET, SOCK_STREAM)
             self.comSocket.settimeout(TOUT)
             self.comSocket.connect((self.ip, int(self.comport)))
+            #ti.sleep(3)
             self.comStatus = True
             
             msg = "connected"
@@ -93,7 +98,9 @@ class temp_ctrl():
             msg = "disconnected"
             self.log.send(self.iam, ERROR, msg)
             
-            self.th.start()
+            #self.th.start()
+            th = threading.Timer(3, self.re_connect_to_component)
+            th.start()
             
         msg = "%s %s %d" % (HK_REQ_COM_STS, self.iam, self.comStatus)   
         if self.gui:
@@ -101,7 +108,7 @@ class temp_ctrl():
               
     
     def re_connect_to_component(self):
-        self.th.cancel()
+        #self.th.cancel()
         
         msg = "trying to connect again"
         self.log.send(self.iam, WARNING, msg)
@@ -122,7 +129,6 @@ class temp_ctrl():
         cmd += "\r\n"
         self.socket_send(HK_REQ_GETSETPOINT, str(port), cmd)
             
-
 
     # TMC-Heating Value
     def get_heating_power(self, port):
@@ -221,18 +227,26 @@ class temp_ctrl():
             return
         if param[1] != self.iam:
             return
+        if self.comStatus is False:
+            return
         
         msg = "receive: %s" % cmd
         self.log.send(self.iam, INFO, msg)
                 
         if param[0] == HK_REQ_GETSETPOINT:
             self.get_setpoint(int(param[2]))
+            #self.get_setpoint(1)
+            #self.get_setpoint(2)
             
         elif param[0] == HK_REQ_GETHEATINGPOWER:
             self.get_heating_power(int(param[2]))
+            #self.get_heating_power(1)
+            #self.get_heating_power(2)
             
         elif param[0] == HK_REQ_GETVALUE:
-            self.get_value(param[2])      
+            self.get_value(param[2])  
+            #self.get_value("A")  
+            #self.get_value("B")     
         
         elif param[0] == HK_REQ_MANUAL_CMD:
             cmd = "%s %s\r\n" % (param[2], param[3])
@@ -251,13 +265,13 @@ if __name__ == "__main__":
         exit()
     
     proc = temp_ctrl(sys.argv[1], True)
+    #proc = temp_ctrl(sys.argv[1])
     
     proc.connect_to_server_sub_ex()
     proc.connect_to_server_hk_q()
     
     proc.connect_to_component()
 
-    #proc.__del__()
     '''
     delay = 0
     for i in range(1):
@@ -275,8 +289,7 @@ if __name__ == "__main__":
         proc.get_value("B")
         ti.sleep(delay)
         
-    del proc
+    proc.__del__()
     '''
-    
     
         

@@ -78,6 +78,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 self.proc[i].terminate()
                 self.log.send(self.iam, INFO, str(self.proc[i].pid) + " exit")
                 
+        for th in threading.enumerate():
+            self.log.send(self.iam, DEBUG, th.name + " exit.")
+            
         if self.consumer != None:
             self.consumer.stop_consumer()
         
@@ -196,10 +199,12 @@ class MainWindow(Ui_Dialog, QMainWindow):
             if self.proc_sub[i]:
                 self.log.send(com_list[i], INFO, "start")
         
+        
         cmd = "%sworkspace/ics/HKP/uploader.py" % WORKING_DIR
         self.proc_sub[UPLOADER] = subprocess.Popen(['python', cmd])
         if self.proc_sub[UPLOADER]:
             self.log.send(com_list[UPLOADER], INFO, "start")
+        
             
         self.proc[HKP] = subprocess.Popen(['python', WORKING_DIR + 'workspace/ics/HKP/HK_gui.py'])
         

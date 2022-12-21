@@ -390,21 +390,13 @@ if __name__ == "__main__":
     from SetConfig import LoadConfig, get_ini_files
 
     config_dir = sys.argv[1]
-    #config_dir = "/IGRINS/TEST/Config"
-
-    os.environ["IGRINS_CONFIG"] = ",".join([os.path.join(config_dir,
-                                                         "IGRINS.ini"),
-                                            os.path.join(config_dir,
-                                                         "IGRINS_test.ini")])
-
+    
     fits_list = dict(H="h_fits.list",
                      K="k_fits.list",
                      S="s_fits.list")
 
-    ini_files = get_ini_files(env_name="IGRINS_CONFIG",
-                              default_file='')
-
-    cfg = LoadConfig(ini_files)
+    ini_file = config_dir + "/IGRINS/Config/IGRINS_test.ini"
+    cfg = LoadConfig(ini_file)
 
     host_port_list, handler_list = get_handlers(cfg, fits_list)
 

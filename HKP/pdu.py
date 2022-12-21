@@ -25,7 +25,7 @@ class pdu() :
         
         self.iam = "pdu"
         
-        self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools")    
+        self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools", gui)    
         self.log.send(self.iam, INFO, "start")
                         
         # load ini file
@@ -57,12 +57,13 @@ class pdu() :
         self.gui = gui
         
         self.comSocket = None
+        self.comStatus = False
                 
         self.producer = None
         self.consumer = None
         
-        self.th = threading.Timer(1, self.re_connect_to_component)
-        self.th.daemon = True
+        #self.th = threading.Timer(1, self.re_connect_to_component)
+        #self.th.daemon = True
     
         
     
@@ -101,7 +102,9 @@ class pdu() :
             msg = "disconnected"
             self.log.send(self.iam, ERROR, msg)
             
-            self.th.start()
+            #self.th.start()
+            th = threading.Timer(1, self.re_connect_to_component)
+            th.start()
                         
         msg = "%s %s %d" % (HK_REQ_COM_STS, self.iam, self.comStatus)   
         if self.gui:
@@ -109,7 +112,7 @@ class pdu() :
                  
     
     def re_connect_to_component(self):
-        self.th.cancel()
+        #self.th.cancel()
         
         msg = "trying to connect again"
         self.log.send(self.iam, WARNING, msg)
@@ -236,7 +239,9 @@ class pdu() :
         
         if param[1] != self.iam:
             return
-        
+        if self.comStatus is False:
+            return
+            
         msg = "receive: %s" % cmd
         self.log.send(self.iam, INFO, msg)
            

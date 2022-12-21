@@ -203,7 +203,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         for i in range(SERV_CONNECT_CNT):
             if self.consumer[i] != None:
                 self.consumer[i].stop_consumer()
-                
+
+        for i in range(SERV_CONNECT_CNT):
             if i == ENG_TOOLS:
                 msg = "%s %s" % (EXIT, self.iam)
                 self.producer[ENG_TOOLS].send_message(self.iam, self.hk_main_q, msg)
@@ -370,39 +371,40 @@ class MainWindow(Ui_Dialog, QMainWindow):
 
         param = cmd.split()
         
+        connected = True
         if param[0] == HK_REQ_COM_STS:
             connected = bool(param[2]) 
             if connected == False:
                 self.set_alert_status_on()   
                 
-            if param[1] == self.com_list[TMC1]:
-                self.tempctrl_monitor(connected, TMC1)
-                
-            if param[1] == self.com_list[TMC2]:
-                self.tempctrl_monitor(connected, TMC2*2)
-                
-            if param[1] == self.com_list[TMC3]:
-                self.tempctrl_monitor(connected, TMC3*2)
-                
-            if param[1] == self.com_list[TM]:
-                self.temp_monitor(connected)
-                
-            if param[1] == self.com_list[VM]:
-                self.vacuum_monitor(connected)
-                
-            if param[1] == self.com_list[PDU]:
-                self.pdu_monitor(connected)                
+        if param[1] == self.com_list[TMC1]:
+            self.tempctrl_monitor(connected, TMC1)
+            
+        if param[1] == self.com_list[TMC2]:
+            self.tempctrl_monitor(connected, TMC2*2)
+            
+        if param[1] == self.com_list[TMC3]:
+            self.tempctrl_monitor(connected, TMC3*2)
+            
+        if param[1] == self.com_list[TM]:
+            self.temp_monitor(connected)
+            
+        if param[1] == self.com_list[VM]:
+            self.vacuum_monitor(connected)
+            
+        if param[1] == self.com_list[PDU]:
+            self.pdu_monitor(connected)                
             
         if param[0] == HK_REQ_GETSETPOINT:      
             port = int(param[2])   
             if param[1] == self.com_list[TMC1]:
-                self.set_point[port-1] = " %8.3f" % float(param[3])
+                self.set_point[port-1] = "%.2f" % float(param[3])
                 self.monitor[port-1][1].setText(self.set_point[port-1])
             if param[1] == self.com_list[TMC2]:
-                self.set_point[port+1] = " %8.3f" % float(param[3])
+                self.set_point[port+1] = "%.2f" % float(param[3])
                 self.monitor[port+1][1].setText(self.set_point[port+1])
             if param[1] == self.com_list[TMC3]:
-                self.set_point[4] = " %8.3f" % float(param[3])
+                self.set_point[4] = "%.2f" % float(param[3])
                 self.monitor[5][1].setText(self.set_point[4])
                 
             self.save_setpoint(self.set_point)
@@ -431,23 +433,25 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
             # from TMC
             if param[1] == self.com_list[TMC1]:
+                result = "%.2f" % float(result)
                 if port == "A":
                     self.dtvalue[label_list[0]] = self.GetValuefromTempCtrl(TMC1_A, 0, result, 1.0)
                 if port == "B":
                     self.dtvalue[label_list[1]] = self.GetValuefromTempCtrl(TMC1_B, 1, result, 0.1)
             if param[1] == self.com_list[TMC2]:
+                result = "%.2f" % float(result)
                 if port == "A":
                     self.dtvalue[label_list[2]] = self.GetValuefromTempCtrl(TMC2_A, 2, result, 0.1)
                 if port == "B":
                     self.dtvalue[label_list[3]] = self.GetValuefromTempCtrl(TMC2_B, 3, result, 0.1)
-            if param[1] == self.com_list[TMC3]:    
+            if param[1] == self.com_list[TMC3]:  
+                result = "%.2f" % float(result)  
                 if port == "A":     
-                    self.QShowValue(TMC3_A, 0, str(float(result)), "normal")
-                    self.dtvalue[label_list[4]] = " %8.3f" % float(result)
+                    self.QShowValue(TMC3_A, 0, result, "normal")
+                    self.dtvalue[label_list[4]] = result
                 if port == "B":
                     self.dtvalue[label_list[5]] = self.GetValuefromTempCtrl(TMC3_B, 4, result, 0.1)
 
-            
             # from TM
             if param[1] == self.com_list[TM]:
                 # for all
@@ -455,12 +459,14 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 if p == 0:
                     result = result.split(',')
                     for i in range(TM_CNT):
-                        self.QShowValue(TM_1+i, 0, str(float(result[i])), "normal")
-                        self.dtvalue[label_list[TM_1+i]] = " %8.3f" % float(result[i])
+                        value = "%.2f" % float(result[i])
+                        self.QShowValue(TM_1+i, 0, value, "normal")
+                        self.dtvalue[label_list[TM_1+i]] = value
                 # for each
                 else:
-                    self.QShowValue(TM_1+p-1, 0, str(float(result[i])), "normal")
-                    self.dtvalue[label_list[TM_1+p-1]] = " %8.3f" % float(result[i])
+                    result = "%.2f" % float(result)
+                    self.QShowValue(TM_1+p-1, 0, result, "normal")
+                    self.dtvalue[label_list[TM_1+p-1]] = result
 
             # from VM
             if param[1] == self.com_list[VM]:
@@ -531,8 +537,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
     def GetHeatValuefromTempCtrl(self, port, heat): 
         value  = DEFAULT_VALUE
         if heat != None:
-            self.monitor[port][2].setText(str(float(heat)))
-            value = " %8.3f" % float(heat)
+            value = "%.2f" % float(heat)
+            self.monitor[port][2].setText(value)
         else:
             self.monitor[port][2].setText("Err1")
         return value
@@ -545,8 +551,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 state = "warm"   
             else:
                 state = "normal"
-            self.QShowValue(port, 0, str(float(result)), state)
-            value = " %8.3f" % float(result)
+            value = "%.2f" % float(result)
+            self.QShowValue(port, 0, value, state)
         else:
             self.QShowValue(port, 0, "Err1", "warm")
         return value               
@@ -650,6 +656,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.ost=ti.time()
             
             self.get_pwr_sts()
+
+            if self.power_status[0] == OFF:
+                self.power_onoff(1)
+            if self.power_status[1] == OFF:
+                self.power_onoff(2)
     
             if self.monitor[0][1].text() == "":
                 self.get_setpoint()
@@ -696,8 +707,10 @@ class MainWindow(Ui_Dialog, QMainWindow):
         setp_list = [TMC1, TMC1, TMC2, TMC2, TMC3]  
         setp_port = [1, 2, 1, 2, 2]
             
-        for i in range(len(setp_list)):  
+        for i in range(len(setp_list)): 
+        #for i in range(3):  
             msg = "%s %s %d" % (HK_REQ_GETSETPOINT, self.com_list[setp_list[i]], setp_port[i])
+            #msg = "%s %s" % (HK_REQ_GETSETPOINT, self.com_list[i])
             self.producer[HK_SUB].send_message(self.com_list[setp_list[i]], self.hk_sub_q, msg)
         
         
@@ -705,8 +718,10 @@ class MainWindow(Ui_Dialog, QMainWindow):
         setp_list = [TMC1, TMC1, TMC2, TMC2, TMC3]  
         setp_port = [1, 2, 1, 2, 2]
             
-        for i in range(len(setp_list)):              
+        for i in range(len(setp_list)):  
+        #for i in range(3):            
             msg = "%s %s %d" % (HK_REQ_GETHEATINGPOWER, self.com_list[setp_list[i]], setp_port[i])
+            #msg = "%s %s" % (HK_REQ_GETHEATINGPOWER, self.com_list[i])
             self.producer[HK_SUB].send_message(self.com_list[setp_list[i]], self.hk_sub_q, msg)
             
             
@@ -714,7 +729,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         for i in range(3):
             msg = "%s %s A" % (HK_REQ_GETVALUE, self.com_list[i])
             self.producer[HK_SUB].send_message(self.com_list[i], self.hk_sub_q, msg) 
-                        
+
             msg = "%s %s B" % (HK_REQ_GETVALUE, self.com_list[i])
             self.producer[HK_SUB].send_message(self.com_list[i], self.hk_sub_q, msg) 
                              
@@ -735,6 +750,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         
     def LoggingFun(self):     
+        if self.bt_pause.text == "Periodic Monitoring":
+            return
+
         fname = strftime("%Y%m%d", localtime())+".log"
         f_p_name = self.logpath+fname
         if os.path.isfile(f_p_name):

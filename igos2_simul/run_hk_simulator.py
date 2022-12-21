@@ -20,7 +20,7 @@ if __name__ == "__main__":
     ini_files = get_ini_files(env_name="IGRINS_CONFIG",
                               default_file='')
     '''
-    ini_files = config_dir + "/IGRINS.ini"
+    ini_files = config_dir + "/IGRINS_test.ini"
     cfg = LoadConfig(ini_files)
 
     host_port_list, handler_list = get_handlers(cfg)
