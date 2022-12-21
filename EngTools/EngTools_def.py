@@ -3,7 +3,7 @@
 """
 Created on Sep 17, 2021
 
-Modified on Nov 26, 2021
+Modified on Dec 14, 2021
 
 @author: hilee
 """
@@ -16,6 +16,12 @@ WORKING_DIR = "/" + dir[1] + "/" + dir[2] + "/"
 MAIN = "MAIN"
 HK = "HK"
 DT = "DT"
+
+# LOG option
+DEBUG = "DEBUG"
+INFO = "INFO"
+WARNING = "WARNING"
+ERROR = "ERROR"
 
 COM_CNT = 9
 

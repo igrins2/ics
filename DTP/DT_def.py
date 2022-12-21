@@ -3,7 +3,7 @@
 """
 Created on Jun 28, 2022
 
-Modified on Nov 7, 2022
+Modified on Dec 15, 2022
 
 @author: hilee
 """
@@ -20,6 +20,12 @@ MAIN = "MAIN"
 DT = "DT"
 HK = "HK"
 
+# LOG option
+DEBUG = "DEBUG"
+INFO = "INFO"
+WARNING = "WARNING"
+ERROR = "ERROR"
+
 PDU_IDX = 8
 
 SERV_CONNECT_CNT = 4 #Inst.sequencer / EngTools / DCS / hk Sub
@@ -28,13 +34,21 @@ ENG_TOOLS = 1
 DCS = 2
 HK_SUB = 3
 
-# for list index
-TARGET = ["DCSS", "DCSH", "DCSK"]
-
 DCS_CNT = 3
 SVC = 0
 H = 1
 K = 2
+
+MODE_HK = 0
+MODE_WHOLE = 1
+MODE_SVC = 2
+MODE_H = 3
+MODE_K = 4
+
+T_frame = 1.45479
+T_exp = 1.63
+T_minFowler = 0.168
+T_br = 2
 
 # for cal motor moving position
 COM_CNT = 3
@@ -88,11 +102,14 @@ HK_REQ_PWR_ONOFF = "PowerOnOff" #pdu
 CMD_SIMULATION = "Simulation"
 CMD_INITIALIZE1 = "Initialize1"
 CMD_INITIALIZE2 = "Initialize2"
+
+CMD_RESETASIC = "ResetASIC"
 CMD_DOWNLOAD = "DownloadMCD"
 CMD_SETDETECTOR = "SetDetector"
 CMD_SETFSMODE = "SETFSMODE"
+
 CMD_SETFSPARAM = "SetFSParam"
 CMD_ACQUIRERAMP = "ACQUIRERAMP"
 CMD_STOPACQUISITION = "STOPACQUISITION"
 
-REQ_CHK = "AliveCheck"
+#REQ_CHK = "AliveCheck"

@@ -2,7 +2,7 @@
 """
 Created on Nov 8, 2022
 
-Modified on Nov 28, 2022
+Modified on Dec 14, 2022
 
 @author: hilee
 """
@@ -27,7 +27,7 @@ class temp_ctrl():
         self.iam = "tmc%d" % (int(self.comport)-10000)               
     
         self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools")
-        self.log.send(self.iam, "INFO", "start")    
+        self.log.send(self.iam, INFO, "start")    
      
         # load ini file
         ini_file = WORKING_DIR + "/IGRINS/Config/IGRINS.ini"
@@ -61,10 +61,10 @@ class temp_ctrl():
         
     def __del__(self):
         msg = "Closing %s" % self.iam
-        self.log.send(self.iam, "DEBUG", msg)
+        self.log.send(self.iam, DEBUG, msg)
         
         for th in threading.enumerate():
-            self.log.send(self.iam, "DEBUG", th.name + " exit.")
+            self.log.send(self.iam, DEBUG, th.name + " exit.")
             
         self.close_component()
         
@@ -84,14 +84,14 @@ class temp_ctrl():
             self.comStatus = True
             
             msg = "connected"
-            self.log.send(self.iam, "INFO", msg)
+            self.log.send(self.iam, INFO, msg)
             
         except:
             self.comSocket = None
             self.comStatus = False
             
             msg = "disconnected"
-            self.log.send(self.iam, "ERROR", msg)
+            self.log.send(self.iam, ERROR, msg)
             
             self.th.start()
             
@@ -104,7 +104,7 @@ class temp_ctrl():
         self.th.cancel()
         
         msg = "trying to connect again"
-        self.log.send(self.iam, "WARNING", msg)
+        self.log.send(self.iam, WARNING, msg)
             
         if self.comSocket != None:
             self.close_component()
@@ -155,14 +155,14 @@ class temp_ctrl():
             #self.comSocket.sendall(cmd.encode())
             
             log = "send >>> %s" % cmd[:-2]
-            self.log.send(self.iam, "INFO", log)
+            self.log.send(self.iam, INFO, log)
                     
             #rev
             res0 = self.comSocket.recv(REBUFSIZE)
             info = res0.decode()
                     
             log = "recv <<< %s" % info[:-2]
-            self.log.send(self.iam, "INFO", log)   
+            self.log.send(self.iam, INFO, log)   
             
             if info.find('\r\n') < 0:
                 for i in range(30*10):
@@ -172,7 +172,7 @@ class temp_ctrl():
                         info += res0.decode()
 
                         log = "recv <<< %s (again)" % info[:-2]
-                        self.log.send(self.iam, "INFO", log)
+                        self.log.send(self.iam, INFO, log)
 
                         if info.find('\r\n') >= 0:
                             break
@@ -185,7 +185,7 @@ class temp_ctrl():
             
         except:
             self.comStatus = False
-            self.log.send(self.iam, "ERROR", "communication error") 
+            self.log.send(self.iam, ERROR, "communication error") 
             self.re_connect_to_component()
         
     
@@ -223,7 +223,7 @@ class temp_ctrl():
             return
         
         msg = "receive: %s" % cmd
-        self.log.send(self.iam, "INFO", msg)
+        self.log.send(self.iam, INFO, msg)
                 
         if param[0] == HK_REQ_GETSETPOINT:
             self.get_setpoint(int(param[2]))

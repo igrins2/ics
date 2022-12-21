@@ -1,3 +1,11 @@
+"""
+... from uploader.py from IGRINS
+
+Modified on Dec 15, 2022
+
+@author: hilee, JJLee
+"""
+
 import os, sys
 import time as ti
 import datetime
@@ -36,7 +44,7 @@ class uploader():
         self.iam = "uploader"
         
         self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools")    
-        self.log.send(self.iam, "INFO", "start")
+        self.log.send(self.iam, INFO, "start")
         
         # load ini file
         self.ini_file = WORKING_DIR + "/IGRINS/Config/"
@@ -64,10 +72,10 @@ class uploader():
     
     def __del__(self):
         msg = "Closing %s" % self.iam
-        self.log.send(self.iam, "DEBUG", msg)
+        self.log.send(self.iam, DEBUG, msg)
         
         for th in threading.enumerate():
-            self.log.send(self.iam, "DEBUG", th.name + " exit.")
+            self.log.send(self.iam, DEBUG, th.name + " exit.")
             
         #self.consumer.stop_consumer()
         self.consumer.__del__()
@@ -101,15 +109,15 @@ class uploader():
         return firebase
     
 
-    def start_upload_to_firebase(self, db, HK_list):
+    def start_upload_to_firebase(self, HK_list):
         HK_dict = self.read_item_to_upload(HK_list)
         if HK_dict is None:
-            self.log.send(self.iam, "WARNING", "No data ")
+            self.log.send(self.iam, WARNING, "No data ")
 
         else:
             HK_dict["utc_upload"] = datetime.datetime.now(pytz.utc).isoformat()                
-            self.push_hk_entry(db, HK_dict)
-            self.log.send(self.iam, "INFO", HK_dict)
+            self.push_hk_entry(self.db, HK_dict)
+            self.log.send(self.iam, INFO, HK_dict)
 
 
     def read_item_to_upload(self, HK_list):
@@ -127,8 +135,8 @@ class uploader():
         return HK_dict
     
     
-    def push_hk_entry(self, db, entry):
-        db.child("BasicHK").push(entry)
+    def push_hk_entry(self, entry):
+        self.db.child("BasicHK").push(entry)
         
         
     #-------------------------------
@@ -153,11 +161,11 @@ class uploader():
             return
         
         msg = "receive: %s" % cmd
-        self.log.send(self.iam, "INFO", msg)
+        self.log.send(self.iam, INFO, msg)
 
         if param[0] == HK_REQ_UPLOAD_DB:
             db = param[2:]
-            self.start_upload_to_firebase(self.db, db)
+            self.start_upload_to_firebase(db)
             
         #elif param[0] == HK_REQ_EXIT:
         #    self.__del__()

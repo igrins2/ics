@@ -3,7 +3,7 @@
 """
 Created on Sep 17, 2021
 
-Modified on Dec 7, 2022
+Modified on Dec 14, 2022
 
 @author: hilee
 """
@@ -75,7 +75,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.iam = HK     
         
         self.log = LOG(WORKING_DIR + "/IGRINS", "HKP")    
-        self.log.send(self.iam, "INFO", "start")
+        self.log.send(self.iam, INFO, "start")
         
         self.setupUi(self)
         self.setWindowTitle("Housekeeping Package 0.3")
@@ -183,8 +183,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         ti.sleep(2)
         
-        self.log.send(self.iam, "INFO", "Closing %s : " % sys.argv[0])
-        self.log.send(self.iam, "INFO", "This may take several seconds waiting for threads to close")
+        self.log.send(self.iam, INFO, "Closing %s : " % sys.argv[0])
+        self.log.send(self.iam, INFO, "This may take several seconds waiting for threads to close")
             
         for idx in range(PDU_IDX):
             msg = "%s %d %s" % (HK_REQ_PWR_ONOFF, idx+1, OFF)
@@ -193,9 +193,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         #self.producer[HK_SUB].send_message("all", self.hk_sub_q, HK_REQ_EXIT)                                 
                 
         for th in threading.enumerate():
-            self.log.send(self.iam, "DEBUG", th.name + " exit.")
+            self.log.send(self.iam, DEBUG, th.name + " exit.")
         
-        self.log.send(self.iam, "INFO", "Closed!")
+        self.log.send(self.iam, INFO, "Closed!")
                         
         #msg = "%s %s" % (EXIT, self.iam)
         #self.producer[ENG_TOOLS].send_message(self.iam, self.hk_main_q, msg)
@@ -334,7 +334,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         param = cmd.split()
                 
         msg = "receive: %s" % cmd
-        self.log.send(self.iam, "INFO", msg)
+        self.log.send(self.iam, INFO, msg)
         
         if param[0] == ALIVE:
             msg = "%s %s" % (ALIVE, self.iam)
@@ -366,7 +366,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     def callback_sub(self, ch, method, properties, body):
         cmd = body.decode()
         msg = "receive: %s" % cmd
-        self.log.send(self.iam, "INFO", msg)
+        self.log.send(self.iam, INFO, msg)
 
         param = cmd.split()
         
@@ -406,7 +406,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 self.monitor[5][1].setText(self.set_point[4])
                 
             self.save_setpoint(self.set_point)
-            self.log.send(self.iam, "DEBUG", self.set_point)
+            self.log.send(self.iam, DEBUG, self.set_point)
             
         if param[0] == HK_REQ_GETHEATINGPOWER:     
             port = int(param[2])
@@ -588,7 +588,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.send_sts(2)
         
             self.timer_sendsts.stop()
-            self.log.send(self.iam, "DEBUG", "Monitoring Stop!!!")
+            self.log.send(self.iam, DEBUG, "Monitoring Stop!!!")
             
             self.sending_email_mode = False
             
@@ -599,7 +599,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.send_sts(0)
         
             self.timer_sendsts.start()
-            self.log.send(self.iam, "DEBUG", "Monitoring On...")
+            self.log.send(self.iam, DEBUG, "Monitoring On...")
             
             self.sending_email_mode = True
             
@@ -619,7 +619,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.bt_pause.setText("Periodic Monitoring")
             self.QWidgetBtnColor(self.bt_pause, "black", "white")
             
-            self.log.send(self.iam, "INFO", "Periodic Monitoring paused")
+            self.log.send(self.iam, INFO, "Periodic Monitoring paused")
 
             if self.chk_alert.isChecked():
                 self.chk_alert.toggle()
@@ -627,14 +627,14 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
             self.set_alert_status_off()
             
-            self.log.send(self.iam, "INFO", "[cancel] " + str(datetime.datetime.now()))
+            self.log.send(self.iam, INFO, "[cancel] " + str(datetime.datetime.now()))
             
         elif self.periodicbtn == NOT_PRESSED:            
             self.periodicbtn = PRESSED
             self.bt_pause.setText("Pause")
             self.QWidgetBtnColor(self.bt_pause, "white", "green")
             
-            self.log.send(self.iam, "INFO", "Periodic Monitoring started")
+            self.log.send(self.iam, INFO, "Periodic Monitoring started")
             
             self.chk_alert.setEnabled(True)
             
@@ -667,7 +667,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             if _t > 0:
                 timer.singleShot(_t, self.PeriodicFunc)
             else:
-                self.log.send(self.iam, "ERROR", "periodic is being called with negative time({}). Using default of 10s".format(_t))
+                self.log.send(self.iam, ERROR, "periodic is being called with negative time({}). Using default of 10s".format(_t))
                 timer.singleShot(_t, self.PeriodicFunc)        
         
             
@@ -681,9 +681,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 executor.submit(self.get_value_fromVM())
                    
             except RuntimeError as e:
-                self.log.send(self.iam, "ERROR", e)
+                self.log.send(self.iam, ERROR, e)
             except Exception as e:
-                self.log.send(self.iam, "ERROR", e)
+                self.log.send(self.iam, ERROR, e)
                     
         timer = QTimer(self)
         timer.singleShot(2000, self.LoggingFun)
@@ -824,7 +824,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     def send_alert(self):
 
-        self.log.send(self.iam, "WARNING", "sending alerts! REAL")
+        self.log.send(self.iam, WARNING, "sending alerts! REAL")
 
         to = self.alert_email
 
@@ -835,12 +835,12 @@ class MainWindow(Ui_Dialog, QMainWindow):
 
         msg = "Please check temperatures of IGRINS2!\n {} > {}".format(label, temp)
         
-        self.log.send(self.iam, "WARNING", "sending alerts")
+        self.log.send(self.iam, WARNING, "sending alerts")
 
         self.send_gmail(to, title, msg)
-        self.log.send(self.iam, "WARNING", "email was sent to")
+        self.log.send(self.iam, WARNING, "email was sent to")
 
-        self.log.send(self.iam, "WARNING", "slacker message was sent")
+        self.log.send(self.iam, WARNING, "slacker message was sent")
         
         
     def send_gmail(self, email_to, email_title, email_content):
@@ -885,7 +885,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     
         
     def send_sts(self, option=1):
-        self.log.send(self.iam, "INFO", "sending status...")
+        self.log.send(self.iam, INFO, "sending status...")
         to = self.alert_email
         title = "[IG2] Dewar status"
         
@@ -908,7 +908,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
         
         self.send_gmail(to, title, msg)
-        self.log.send(self.iam, "INFO", "email was sent to")
+        self.log.send(self.iam, INFO, "email was sent to")
         
         
     #----------------------

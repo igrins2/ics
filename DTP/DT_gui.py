@@ -3,12 +3,14 @@
 """
 Created on Jun 28, 2022
 
-Modified on Dec 8, 2022
+Modified on Dec 16, 2022
 
 @author: hilee
 """
 
 import sys, os
+import PySide6
+from matplotlib.figure import Figure
 
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
@@ -23,13 +25,18 @@ import Libs.SetConfig as sc
 from Libs.MsgMiddleware import *
 from Libs.logger import *
 
+import subprocess
+
 import time as ti
 import threading
 
 import numpy as np
 import astropy.io.fits as fits 
 import Libs.zscale as zs
-import qimage2ndarray
+
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.figure import Figure
 
 class MainWindow(Ui_Dialog, QMainWindow):
     
@@ -39,12 +46,33 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.iam = DT
         
         self.log = LOG(WORKING_DIR + "/IGRINS", "DTP")  
-        self.log.send(self.iam, "INFO", "start")
+        self.log.send(self.iam, INFO, "start")
         
         self.setupUi(self)
-        self.setGeometry(0, 0, 1030, 690)
-        self.setWindowTitle("Data Taking Package 0.3")
         
+        self.setGeometry(0, 0, 1030, 700)
+        self.setWindowTitle("Data Taking Package 0.3")        
+        
+        # canvas
+        self.image_fig = []
+        self.image_ax = []
+        self.image_canvas = []
+        
+        for i in range(DCS_CNT):
+            self.image_fig.append(Figure(figsize=(4, 4), dpi=100))
+            self.image_ax.append(self.image_fig[i].add_subplot(111))
+            self.image_fig[i].subplots_adjust(left=0.01,right=0.99,bottom=0.01,top=0.99) 
+            self.image_canvas.append(FigureCanvas(self.image_fig[i]))
+        
+        #self.addToolBar(NavigationToolbar(self.image_canvas, self))
+        vbox_svc = QVBoxLayout(self.frame_svc)
+        vbox_svc.addWidget(self.image_canvas[SVC])
+        vbox_H = QVBoxLayout(self.frame_H)
+        vbox_H.addWidget(self.image_canvas[H])
+        vbox_K = QVBoxLayout(self.frame_K)
+        vbox_K.addWidget(self.image_canvas[K])
+        #vbox.addWidget(self.toolbar)
+                
         # load ini file
         self.cfg = sc.LoadConfig(WORKING_DIR + "IGRINS/Config/IGRINS.ini")
         
@@ -65,18 +93,21 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.dt_dcs_ex = self.cfg.get(DT, 'dt_dcs_exchange')     
         self.dt_dcs_q = self.cfg.get(DT, 'dt_dcs_routing_key')
         self.dcs_dt_ex = self.cfg.get(DT, 'dcs_dt_exchange')
-        self.dcs_dt_q = self.cfg.get(DT, 'dcs_dt_exchange')
+        self.dcs_dt_q = self.cfg.get(DT, 'dcs_dt_routing_key')
         
         self.fits_path = self.cfg.get(DT, 'fits_path')
         self.alive_chk_interval = int(self.cfg.get(DT, 'alive-check-interval'))
         
         self.com_list = ["pdu", "lt", "ut"]
-        self.dcs_list = ["svc", "h-band", "k-band"]
+        self.dcs_list = ["DCSS", "DCSH", "DCSK"]
         
         self.init_events()
         
-        self.radio_HK_sync.setChecked(True)
-        self.set_HK_sync()
+        self.bt_take_image.setText("Take Image")
+        
+        self.enable_dcs(SVC, False)
+        self.enable_dcs(H, False)
+        self.enable_dcs(K, False)
         
         self.label_zscale_range.setText("---")
         self.e_mscale_min.setText("1000")
@@ -87,16 +118,16 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.e_FS_number[i].setText("1")
             self.e_repeat[i].setText("1")
 
-            self.label_prog_stats[i].setText("idle")
+            self.label_prog_sts[i].setText("IDLE")
             self.label_prog_time[i].setText("---")
             self.label_prog_elapsed[i].setText("0.0 sec")
-        
+            
         today = ti.strftime("%04Y%02m%02d", ti.localtime())
         self.cur_frame = [0, 0, 0]
         
         for i in range(DCS_CNT):
             self.e_path[i].setText(self.fits_path + today)
-            filename = "%s_%04d.fits" % (TARGET[i], self.cur_frame[i])
+            filename = "%s_%04d.fits" % (self.dcs_list[i], self.cur_frame[i])
             self.e_savefilename[i].setText(filename)
                     
         for i in range(CAL_CNT):
@@ -114,23 +145,37 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.dcs_sts = [False for _ in range(DCS_CNT)]
         self.acquiring = [False for _ in range(DCS_CNT)]
-        
-        self.take_imaging = [False for _ in range(DCS_CNT)]
-        
+                
         self.producer = [None for _ in range(SERV_CONNECT_CNT)]
         self.consumer = [None for _ in range(SERV_CONNECT_CNT)]       
 
         self.timer_alive = [None for _ in range(DCS_CNT)] 
         
         self.img = [None for _ in range(DCS_CNT)]
+        #self.img_new = [False for _ in range(DCS_CNT)]
         
         self.output_channel = 32
+        
+        self.cur_cnt = [0 for _ in range(DCS_CNT)]
+        
+        self.sel_mode = MODE_HK
+        self.radio_HK_sync.setChecked(True)
+        self.set_HK_sync()
+        
+        self.stop_clicked = False
         
         self.cal_cur = 0
            
         for i in range(CAL_CNT):
-            self.cal_use_parsing(self.cal_chk[i], self.cal_e_exptime[i], self.cal_e_repeat[i])
+            self.cal_use_parsing(self.cal_chk[i], self.cal_e_exptime[i], self.cal_e_repeat[i])         
                 
+        # progress bar     
+        self.cur_prog_step = [0 for _ in range(DCS_CNT)]
+        
+        # elapsed
+        self.elapsed = [0.0 for _ in range(DCS_CNT)]
+                
+        # connect to server
         self.connect_to_server_main_ex()
         self.connect_to_server_gui_q()
         
@@ -139,21 +184,22 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.connect_to_server_dt_ex()
         self.connect_to_server_dcs_q()
+    
         
         
     def closeEvent(self, event: QCloseEvent) -> None:
                
-        self.log.send(self.iam, "INFO", "Closing %s : " % sys.argv[0])
-        self.log.send(self.iam, "INFO", "This may take several seconds waiting for threads to close")
+        self.log.send(self.iam, INFO, "Closing %s : " % sys.argv[0])
+        self.log.send(self.iam, INFO, "This may take several seconds waiting for threads to close")
             
         for idx in range(PDU_IDX):
             msg = "%s %d %s" % (HK_REQ_PWR_ONOFF, idx+1, OFF)
             self.producer[HK_SUB].send_message(self.com_list[PDU], self.dt_sub_q, msg) 
                         
         for th in threading.enumerate():
-            self.log.send(self.iam, "DEBUG", th.name + " exit.")
+            self.log.send(self.iam, DEBUG, th.name + " exit.")
                 
-        self.log.send(self.iam, "INFO", "Closed!")
+        self.log.send(self.iam, INFO, "Closed!")
                             
         #msg = "%s %s" % (EXIT, self.iam)
         #self.producer[ENG_TOOLS].send_message(self.iam, self.dt_main_q, msg)
@@ -191,17 +237,22 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.radioButton_mscale.setChecked(False)
         self.bt_scale_apply.setEnabled(False)
         
-        self.bt_take_image.clicked.connect(self.single_exposure)   
+        self.bt_take_image.clicked.connect(self.btn_click)   
         
+        self.radio_exptime = [self.radio_exptime_svc, self.radio_exptime_H, self.radio_exptime_K]
+        self.radio_N_fowler = [self.radio_number_fowler_svc, self.radio_number_fowler_H, self.radio_number_fowler_K]
+                
         self.e_exptime = [self.e_exptime_svc, self.e_exptimeH, self.e_exptimeK]
         self.e_FS_number = [self.e_FS_number_svc, self.e_FSnumberH, self.e_FSnumberK]
         self.e_repeat = [self.e_repeat_number_svc, self.e_repeatH, self.e_repeatK]
                 
-        self.label_prog_stats = [self.label_prog_stats_svc, self.label_prog_sts_H, self.label_prog_sts_K]
+        self.label_prog_sts = [self.label_prog_stats_svc, self.label_prog_sts_H, self.label_prog_sts_K]
         self.label_prog_time = [self.label_prog_time_svc, self.label_prog_time_H, self.label_prog_time_K]
         self.label_prog_elapsed = [self.label_prog_elapsed_svc, self.label_prog_elapsed_H, self.label_prog_elapsed_K]
         self.label_cur_num = [self.label_cur_num_svc, self.label_cur_num_H, self.label_cur_num_K]
+        self.progressBar = [self.progressBar_svc, self.progressBar_H, self.progressBar_K]
         
+        self.bt_init = [self.bt_init_SVC, self.bt_init_H, self.bt_init_K]
         self.chk_ds9 = [self.chk_ds9_svc, self.chk_ds9_H, self.chk_ds9_K]
         self.chk_autosave = [self.checkBox_autosave_svc, self.checkBox_autosave_H, self.checkBox_autosave_K]
         
@@ -212,23 +263,54 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.e_savefilename = [self.e_savefilename_svc, self.e_savefilename_H, self.e_savefilename_K]
         
         for i in range(DCS_CNT):
+            
+            self.radio_exptime[i].setChecked(True)
+            
             self.e_exptime[i].setEnabled(False)
             self.e_FS_number[i].setEnabled(False)
             self.e_repeat[i].setEnabled(False)
             
-            self.bt_save[i].clicked.connect(lambda: self.save_fits(i))
-            self.bt_path[i].clicked.connect(lambda: self.open_path(i))
-            
             self.chk_ds9[i].setEnabled(False)
             self.chk_autosave[i].setEnabled(False)
             
+            self.bt_init[i].setEnabled(False)
             self.bt_save[i].setEnabled(False)
             self.bt_path[i].setEnabled(False)
             
             self.e_path[i].setEnabled(False)
             self.e_savefilename[i].setEnabled(False)               
             
+        self.radio_exptime[SVC].clicked.connect(lambda: self.judge_exp_time(SVC)) 
+        self.radio_N_fowler[SVC].clicked.connect(lambda: self.judge_FS_number(SVC))
+        self.e_exptime[SVC].textChanged.connect(lambda: self.judge_param(SVC))
+        self.e_FS_number[SVC].textChanged.connect(lambda: self.judge_param(SVC))
+        self.e_repeat[SVC].textChanged.connect(lambda: self.change_name(SVC))
         
+        self.radio_exptime[H].clicked.connect(lambda: self.judge_exp_time(H)) 
+        self.radio_N_fowler[H].clicked.connect(lambda: self.judge_FS_number(H))
+        self.e_exptime[H].textChanged.connect(lambda: self.judge_param(H))
+        self.e_FS_number[H].textChanged.connect(lambda: self.judge_param(H)) 
+        self.e_repeat[H].textChanged.connect(lambda: self.change_name(H))
+        
+        self.radio_exptime[K].clicked.connect(lambda: self.judge_exp_time(K)) 
+        self.radio_N_fowler[K].clicked.connect(lambda: self.judge_FS_number(K))
+        self.e_exptime[K].textChanged.connect(lambda: self.judge_param(K))
+        self.e_FS_number[K].textChanged.connect(lambda: self.judge_param(K)) 
+        self.e_repeat[K].textChanged.connect(lambda: self.change_name(K)) 
+        
+        self.bt_init[SVC].clicked.connect(lambda: self.initialize2(SVC, self.simulation_mode))    
+        self.bt_save[SVC].clicked.connect(lambda: self.save_fits(SVC))
+        self.bt_path[SVC].clicked.connect(lambda: self.open_path(SVC))
+        
+        self.bt_init[H].clicked.connect(lambda: self.initialize2(H, self.simulation_mode))    
+        self.bt_save[H].clicked.connect(lambda: self.save_fits(H))
+        self.bt_path[H].clicked.connect(lambda: self.open_path(H))
+        
+        self.bt_init[K].clicked.connect(lambda: self.initialize2(K, self.simulation_mode))    
+        self.bt_save[K].clicked.connect(lambda: self.save_fits(K))
+        self.bt_path[K].clicked.connect(lambda: self.open_path(K))
+            
+            
         #------------------
         #calibration
         
@@ -322,7 +404,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             return
                 
         msg = "receive: %s" % cmd
-        self.log.send(self.iam, "INFO", msg)
+        self.log.send(self.iam, INFO, msg)
         
         if param[0] == ALIVE:
             msg = "%s %s" % (ALIVE, self.iam)
@@ -370,7 +452,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             return
         
         msg = "receive: %s" % cmd
-        self.log.send(self.iam, "INFO", msg)
+        self.log.send(self.iam, INFO, msg)
         
         # from PDU
         if param[0] == HK_REQ_PWR_STS:
@@ -380,7 +462,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         if param[0] == DT_REQ_INITMOTOR:
             if param[2] == "TRY":
                 msg = "%s - need to initialize" % param[1]
-                self.log.send(self.iam, "INFO", msg)
+                self.log.send(self.iam, INFO, msg)
             
             elif param[2] == "OK":
                 if param[1] == self.com_list[UT]:
@@ -423,8 +505,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         # RabbitMQ connect
         self.consumer[DCS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.dcs_dt_ex, "direct")      
         self.consumer[DCS].connect_to_server()
-        
         self.consumer[DCS].define_consumer(self.dcs_dt_q, self.callback_dcs)       
+        
         th = threading.Thread(target=self.consumer[DCS].start_consumer)
         th.start()
             
@@ -434,62 +516,93 @@ class MainWindow(Ui_Dialog, QMainWindow):
     def callback_dcs(self, ch, method, properties, body):
         cmd = body.decode()
         msg = "receive: %s" % cmd
-        self.log.send(self.iam, "INFO", msg)
+        self.log.send(self.iam, INFO, msg)
 
         param = cmd.split()
-        dcs = int(param[1]) #COMMAND, iam, paramerter...
+        dc_idx = self.dcs_list.index(param[1])
         
         if param[0] == CMD_INITIALIZE1:
             connected = bool(param[2])
-            self.dcs_sts[dcs] = connected
-        
+            self.dcs_sts[dc_idx] = connected
+            
+            self.initialize2(dc_idx, self.simulation_mode)
+            
         elif param[0] == CMD_INITIALIZE2:
+            self.resetASIC(dc_idx, self.simulation_mode)
+        
+        elif param[0] == CMD_RESETASIC:
             #downloadMCD
-            self.downloadMCD(dcs, self.simulation_mode)
+            self.downloadMCD(dc_idx, self.simulation_mode)
             
         elif param[0] == CMD_DOWNLOAD:
             #setdetector
-            self.set_detector(dcs, self.simulation_mode, MUX_TYPE, self.output_channel)
+            self.set_detector(dc_idx, self.simulation_mode, MUX_TYPE, self.output_channel)
             
         elif param[0] == CMD_SETDETECTOR:
-            
-            '''
-            if dcs == SVC:
-                self.e_exptime_svc.setEnabled(True)
-                self.e_FS_number_svc.setEnabled(True)
-                self.e_repeat_number_svc.setEnabled(True)  
-            elif dcs == H:
-                self.e_exptimeH.setEnabled(True)
-                self.e_FSnumberH.setEnabled(True)
-                self.e_repeatH.setEnabled(True)            
-            elif dcs == K:
-                self.e_exptimeK.setEnabled(True)
-                self.e_FSnumberK.setEnabled(True)
-                self.e_repeatK.setEnabled(True)
-            '''
+            self.enable_dcs(dc_idx, True)
                 
         elif param[0] == CMD_SETFSPARAM:
+            
+            #self.img_new[dc_idx] = False
+            
             #acquire
-            self.acquiring[dcs] = True
-            self.acquireramp(dcs, self.simulation_mode)
+            self.acquiring[dc_idx] = True
+            self.acquireramp(dc_idx, self.simulation_mode)
 
         elif param[0] == CMD_ACQUIRERAMP:
+            
+            self.cur_cnt[dc_idx] += 1
+            
+            self.label_prog_sts[dc_idx].setText("END")
+            
+            end_time = strftime("%Y-%m-%d %H:%M:%S", localtime())
+            self.label_prog_time[dc_idx].setText(self.label_prog_time[dc_idx].text() + " / " + end_time)
+                        
+            self.cur_prog_step[dc_idx] = 100
+            self.progressBar[dc_idx].setValue(self.cur_prog_step[dc_idx])           
+            
             # load data
-            self.load_data()
+            self.load_data(dc_idx)
+        
+            self.acquiring[dc_idx] = False
             
-            self.acquiring[dcs] = False
+            show_cur_cnt = "%d / %s" % (self.cur_cnt[dc_idx], self.e_repeat[dc_idx].text())
+            self.label_cur_num[dc_idx].setText(show_cur_cnt)
             
-            if self.acquiring[dcs] == False and self.cal_mode:
-                self.cal_run_cycle()
+            if self.stop_clicked:
+                self.protect_btn(True) 
+                self.bt_take_image.setText("Continuous")
+            
+            elif self.cur_cnt[dc_idx] < int(self.e_repeat[dc_idx].text()):
+                self.acquireramp(dc_idx, self.simulation_mode)
+                
+            else:
+                self.cur_cnt[dc_idx] = 0
+                self.protect_btn(True)
+                    
+                if int(self.e_repeat[SVC].text()) > 1 or int(self.e_repeat[H].text()) > 1 or int(self.e_repeat[K].text()) > 1:
+                    self.bt_take_image.setText("Continuous")
+                else:
+                    self.bt_take_image.setText("Take Image")
+            
+            #if self.acquiring[dc_idx] == False and self.cal_mode:
+            #    self.cal_run_cycle()
         
         elif param[0] == CMD_STOPACQUISITION:
-            pass    
+            
+            self.protect_btn(True)                    
+            self.bt_take_image.setText("Take Image")    
         
         
     #-------------------------------
     # dcs command
     def initialize2(self, dc_idx, simul_mode):
         msg = "%s %s %d" % (CMD_INITIALIZE2, self.dcs_list[dc_idx], simul_mode)
+        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
+        
+        
+    def resetASIC(self, dc_idx, simul_mode):
+        msg = "%s %s %d" % (CMD_RESETASIC, self.dcs_list[dc_idx], simul_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
         
         
@@ -502,18 +615,43 @@ class MainWindow(Ui_Dialog, QMainWindow):
         msg = "%s %s %d %d" % (CMD_SETDETECTOR, self.dcs_list[dc_idx], MUX_TYPE, channel)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
             
-          
-    def set_fs_param(self, dc_idx, simul_mode, exptime):
+        
+    def set_fs_param(self, dc_idx, simul_mode):      
+        
+        show_cur_cnt = "%d / %s" % (self.cur_cnt[dc_idx], self.e_repeat[dc_idx].text())
+        self.label_cur_num[dc_idx].setText(show_cur_cnt)   
+        
         #fsmode        
         msg = "%s %s %d" % (CMD_SETFSMODE, self.dcs_list[dc_idx], simul_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
         
         #setparam
-        msg = "%s %s %d 1 1 1 %f 1" % (CMD_SETFSPARAM, self.dcs_list[dc_idx], simul_mode, exptime)
+        msg = "%s %s %d 1 1 1 %f 1" % (CMD_SETFSPARAM, self.dcs_list[dc_idx], simul_mode, float(self.e_exptime[dc_idx].text()))
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
             
     
-    def acquireramp(self, dc_idx, simul_mode):        
+    def acquireramp(self, dc_idx, simul_mode):  
+        
+        start_time = strftime("%Y-%m-%d %H:%M:%S", localtime())       
+        
+        self.label_prog_sts[dc_idx].setText("START")
+        self.label_prog_time[dc_idx].setText(start_time)
+        
+        # progress bar 
+        _exptime = float(self.e_exptime[dc_idx].text())
+        _FS_number = int(self.e_FS_number[dc_idx].text())
+        _fowlerTime = _exptime - T_frame * _FS_number
+        self.cal_waittime = T_br + (T_frame + _fowlerTime + (2 * T_frame * _FS_number))
+         
+        self.cur_prog_step[dc_idx] = 0
+        self.progressBar[dc_idx].setValue(self.cur_prog_step[dc_idx])        
+        self.show_progressbar(dc_idx)
+        
+        # elapsed                
+        self.elapsed[dc_idx] = ti.time()
+        self.label_prog_elapsed[dc_idx].setText("0.0")      
+        self.show_elapsed(dc_idx)  
+             
         msg = "%s %s %d" % (CMD_ACQUIRERAMP, self.dcs_list[dc_idx], simul_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
         
@@ -523,87 +661,161 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         
     def stop_acquistion(self, dc_idx, simul_mode):        
+        if self.cur_prog_step[dc_idx] == 0:
+            return
+                
         msg = "%s %s %d" % (CMD_STOPACQUISITION, self.dcs_list[dc_idx], simul_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
                         
+    '''                   
+    def show_image(self):
+        for dc_idx in range(DCS_CNT):
+            if self.img_new[dc_idx]:
+                self.load_data(dcs)
+                    
+            ti.sleep(1)                  
+            print(self.test_cnt, self.img_new[SVC])
+            self.test_cnt += 1
             
-                       
+            if self.img[dc_idx] != None:
+                break
+            
+            if dcs == K:
+                dcs = SVC
+    '''
         
+    
     def load_data(self, ics_idx):
-        filepath = ""
-        if self.simulation_mode:
+        
+        self.label_prog_sts[ics_idx].setText("TRANSFER")
+        
+        try:
+            filepath = ""
+            if self.simulation_mode:
+                if ics_idx == SVC:
+                    filepath = WORKING_DIR + "IGRINS/demo/sc/SDCS_demo.fits"
+                elif ics_idx == H:
+                    filepath = WORKING_DIR + "IGRINS/demo/dt/SDCH_demo.fits"
+                elif ics_idx == K:
+                    filepath = WORKING_DIR + "IGRINS/demo/dt/SDCK_demo.fits"
+            
+            frm = fits.open(filepath)
+            data = frm[0].data
+            header = frm[0].header
+            _img = np.array(data, dtype = "f")
+            #_img = np.flipud(np.array(data, dtype = "f"))
+            self.img[ics_idx] = _img[0:FRAME_Y, 0:FRAME_X]
+            #self.img = _img
+            
+            self.zmin, self.zmax = zs.zscale(self.img[ics_idx])
+            range = "%d ~ %d" % (self.zmin, self.zmax)
+            
             if ics_idx == SVC:
-                filepath = WORKING_DIR + "IGRINS/demo/sc/SDCS_demo.fits"
-            elif ics_idx == H:
-                filepath = WORKING_DIR + "IGRINS/demo/dt/SDCH_demo.fits"
-            elif ics_idx == K:
-                filepath = WORKING_DIR + "IGRINS/demo/dt/SDCK_demo.fits"
+                self.label_zscale_range.setText(range)
+            
+                self.mmin, self.mmax = np.min(self.img[SVC]), np.max(self.img[SVC])
+                self.e_mscale_min.setText("%.1f" % self.mmin)
+                self.e_mscale_max.setText("%.1f" % self.mmax)
+                    
+            if self.chk_ds9[ics_idx].isChecked():
+                ds9 = WORKING_DIR + '/IGRINS/ds9'
+                subprocess.Popen([ds9, filepath])
+            
+            self.reload_img(ics_idx)
         
-        frm = fits.open(filepath)
-        data = frm[0].data
-        header = frm[0].header
-        _img = np.array(data, dtype = "f")
-        #_img = np.flipud(np.array(data, dtype = "f"))
-        self.img[ics_idx] = _img[0:FRAME_Y, 0:FRAME_X]
-        #self.img = _img
-        
-        self.zmin, self.zmax = zs.zscale(self.img[ics_idx])
-        range = "%d ~ %d" % (self.zmin, self.zmax)
-        
-        if ics_idx == SVC:
-            self.label_zscale_range.setText(range)
-        
-            self.mmin, self.mmax = np.min(self.img[SVC]), np.max(self.img[SVC])
-            self.e_mscale_min.setText("%.1f" % self.mmin)
-            self.e_mscale_max.setText("%.1f" % self.mmax)
-                
-        self.reload_img(ics_idx)
-        
+        except:
+            self.img[ics_idx] = None
+            #self.img_new[ics_idx] = False
+            self.log.send(self.iam, WARNING, "No image")
+            
         
     def reload_img(self, ics_idx):   
         
         try:
-            _img = np.flipud(self.img[ics_idx])
-                
-            scene = QGraphicsScene(self)
+            #_img = np.flipud(self.img[ics_idx])
+            #_img = np.fliplr(np.rot90(self.img[ics_idx])
             
+            _img = self.img[ics_idx]
+                            
             if ics_idx == SVC:
                 min, max = 0, 0
                 if self.radioButton_zscale.isChecked():
                     min, max = self.zmin, self.zmax
                 elif self.radioButton_mscale.isChecked():
                     min, max = self.mmin, self.mmax
+                                
+            self.image_ax[ics_idx].imshow(_img, vmin=min, vmax=max, cmap='gray', origin='lower')
+            self.image_canvas[ics_idx].draw()
+            
+            self.label_prog_sts[ics_idx].setText("DONE")
                 
-                scene.addPixmap(QPixmap.fromImage(qimage2ndarray.array2qimage(_img, (int(min), int(max)))).scaled(self.graphicsView_H.width(), self.graphicsView_H.height(), Qt.IgnoreAspectRatio, Qt.FastTransformation))
-                self.graphicsView_SVC.setScene(scene) 
-                
-            elif ics_idx == H:
-                scene.addPixmap(QPixmap.fromImage(qimage2ndarray.array2qimage(_img, (int(self.zmin), int(self.zmax)))).scaled(self.graphicsView_K.width(), self.graphicsView_K.height(), Qt.IgnoreAspectRatio, Qt.FastTransformation))
-                self.graphicsView_H.setScene(scene)
-                
-            elif ics_idx == K:
-                scene.addPixmap(QPixmap.fromImage(qimage2ndarray.array2qimage(_img, (int(self.zmin), int(self.zmax)))).scaled(self.graphicsView_K.width(), self.graphicsView_K.height(), Qt.IgnoreAspectRatio, Qt.FastTransformation))
-                self.graphicsView_K.setScene(scene)
-        
         except:
-            self.log.send(self.iam, "WARNING", "No image")
+            self.img[ics_idx] = None
+            self.log.send(self.iam, WARNING, "No image")
+            
+        #self.img_new[ics_idx] = False
             
             
-    def enable_dcs(self, dcs, enable):
-        self.e_exptime[dcs].setEnabled(enable)
-        self.e_FS_number[dcs].setEnabled(enable)
-        self.e_repeat[dcs].setEnabled(enable)
+    def enable_dcs(self, dc_idx, enable):
+        self.radio_exptime[dc_idx].setEnabled(enable)
+        self.e_exptime[dc_idx].setEnabled(enable)
+
+        self.radio_N_fowler[dc_idx].setEnabled(enable)
+        self.e_FS_number[dc_idx].setEnabled(enable)
+
+        self.e_repeat[dc_idx].setEnabled(enable)
         
-        self.chk_ds9[dcs].setEnabled(enable)
-        self.chk_autosave[dcs].setEnabled(enable)
+        self.chk_ds9[dc_idx].setEnabled(enable)
+        self.chk_autosave[dc_idx].setEnabled(enable)
         
-        self.bt_save[dcs].setEnabled(enable)
-        self.bt_path[dcs].setEnabled(enable)
+        self.bt_save[dc_idx].setEnabled(enable)
+        self.bt_path[dc_idx].setEnabled(enable)
         
-        self.e_path[dcs].setEnabled(enable)
-        self.e_savefilename[dcs].setEnabled(enable)        
+        self.e_path[dc_idx].setEnabled(enable)
+        self.e_savefilename[dc_idx].setEnabled(enable)        
+        
+        if self.radio_exptime[dc_idx].isChecked() and enable is True:
+            self.judge_exp_time(dc_idx)
+        elif self.radio_N_fowler[dc_idx].isChecked() and enable is True:
+            self.judge_FS_number(dc_idx)
             
+            
+    def show_elapsed(self, dc_idx):
+        if self.cur_prog_step[dc_idx] >= 100:
+            return
         
+        msg = "%.3f sec" % (ti.time() - self.elapsed[dc_idx])
+        self.label_prog_elapsed[dc_idx].setText(msg)
+        
+        threading.Timer(0.001, self.show_elapsed, args=(dc_idx,)).start()
+                
+        
+    def show_progressbar(self, dc_idx):
+        if self.cur_prog_step[dc_idx] >= 100:
+            #self.log.send(self.iam, INFO, "progress bar end!!!")
+            return
+        
+        self.cur_prog_step[dc_idx] += 1
+        self.progressBar[dc_idx].setValue(self.cur_prog_step[dc_idx])       
+        #self.log.send(self.iam, DEBUG, self.cur_prog_step[dc_idx])
+        
+        threading.Timer(int(self.cal_waittime*10), self.show_progressbar, args=(dc_idx,)).start()
+
+
+    def protect_btn(self, enable):
+        self.radio_HK_sync.setEnabled(enable)
+        self.radio_whole_sync.setEnabled(enable)
+        self.radio_SVC.setEnabled(enable)
+        self.radio_H.setEnabled(enable)
+        self.radio_K.setEnabled(enable)
+        
+        if enable is False and self.bt_take_image.text() == "Stop":
+            self.bt_take_image.setEnabled(True)
+        else:
+            self.bt_take_image.setEnabled(enable)
+        for dc_idx in range(DCS_CNT):
+            self.bt_init[dc_idx].setEnabled(enable)
+                        
     #---------------------------------
     # button 
     
@@ -625,92 +837,153 @@ class MainWindow(Ui_Dialog, QMainWindow):
     
     
     def set_HK_sync(self):
+        self.sel_mode = MODE_HK
+        self.bt_init[SVC].setEnabled(False)
+        self.bt_init[H].setEnabled(True)
+        self.bt_init[K].setEnabled(True)
+        
         self.enable_dcs(SVC, False)
-        self.enable_dcs(H, True)
-        self.enable_dcs(K, True)
-    
+            
     
     def set_whole_sync(self):
-        self.enable_dcs(SVC, True)
-        self.enable_dcs(H, True)
-        self.enable_dcs(K, True)
-    
+        self.sel_mode = MODE_WHOLE
+        self.bt_init[SVC].setEnabled(True)
+        self.bt_init[H].setEnabled(True)
+        self.bt_init[K].setEnabled(True)
+                    
     
     def set_svc(self):
-        self.enable_dcs(SVC, True)
+        self.sel_mode = MODE_SVC
+        self.bt_init[SVC].setEnabled(True)
+        self.bt_init[H].setEnabled(False)
+        self.bt_init[K].setEnabled(False)
+        
         self.enable_dcs(H, False)
         self.enable_dcs(K, False)
     
     
     def set_H(self):
+        self.sel_mode = MODE_H
+        self.bt_init[SVC].setEnabled(False)
+        self.bt_init[H].setEnabled(True)
+        self.bt_init[K].setEnabled(False)
+        
         self.enable_dcs(SVC, False)
-        self.enable_dcs(H, True)
         self.enable_dcs(K, False)
     
     
     def set_K(self):
+        self.sel_mode = MODE_K
+        self.bt_init[SVC].setEnabled(False)
+        self.bt_init[H].setEnabled(False)
+        self.bt_init[K].setEnabled(True)
+        
         self.enable_dcs(SVC, False)
         self.enable_dcs(H, False)
-        self.enable_dcs(K, True)
         
-    
-    def take_image(self):
-
-        if self.take_imaging:
-            #if repeat > 1 -> stop
-            #if single > abort
-            
-            self.take_imaging = False
-            
+        
+    def btn_click(self):
+        btn_name = self.bt_take_image.text()
+        self.stop_clicked = False
+        if btn_name == "Stop":
+            self.stop_clicked = True
+        elif btn_name == "Abort":
+            self.stop_acquisition()
         else:
-            
             self.single_exposure()
-            #if repeat > 1 -> start
-            #if signel > start
             
-            self.take_imaging = True
         
+    def single_exposure(self):    
         
+        if int(self.e_repeat[SVC].text()) > 1 or int(self.e_repeat[H].text()) > 1 or int(self.e_repeat[K].text()) > 1:
+            self.bt_take_image.setText("Stop")
+        else:
+            self.bt_take_image.setText("Abort")
+                    
+        if self.radio_HK_sync.isChecked() or self.radio_whole_sync.isChecked() or self.radio_H.isChecked():
+            self.set_fs_param(H, self.simulation_mode)            
+        if self.radio_HK_sync.isChecked() or self.radio_whole_sync.isChecked() or self.radio_K.isChecked():
+            self.set_fs_param(K, self.simulation_mode)
+        if self.radio_whole_sync.isChecked() or self.radio_SVC.isChecked():
+            self.set_fs_param(SVC, self.simulation_mode)
         
-    def single_exposure(self):
-        
+        self.protect_btn(False)
+        '''
         if self.radio_HK_sync.isChecked() or self.radio_whole_sync.isChecked() or self.radio_H.isChecked():
             self.load_data(H)
         if self.radio_HK_sync.isChecked() or self.radio_whole_sync.isChecked() or self.radio_K.isChecked():
             self.load_data(K)
         if self.radio_whole_sync.isChecked() or self.radio_SVC.isChecked():
             self.load_data(SVC)
-        return
-    
-        #calculate!!!! self.fowler_exp from self.e_exptime
-        if self.radioButton_sync.isChecked() or self.radioButton_H.isChecked():
-            self.dt.set_fs_param(DCSH, self.simulation_mode, self.e_exptimeH)
-        if self.radioButton_sync.isChecked() or self.radioButton_K.isChecked():    
-            self.dt.set_fs_param(DCSK, self.simulation_mode, self.e_exptimeK)
+        '''
             
     
-    def stop_acquisition(self):
+    def stop_acquisition(self):        
         if self.radio_HK_sync.isChecked() or self.radio_whole_sync.isChecked() or self.radio_H.isChecked():
             self.stop_acquistion(H, self.simulation_mode)
         if self.radio_HK_sync.isChecked() or self.radio_whole_sync.isChecked() or self.radio_K.isChecked():
             self.stop_acquistion(K, self.simulation_mode)
         if self.radio_whole_sync.isChecked() or self.radio_SVC.isChecked():
             self.stop_acquistion(SVC, self.simulation_mode)
+                    
+    
+    def judge_exp_time(self, dc_idx):
+        self.e_exptime[dc_idx].setEnabled(True)
+        self.e_FS_number[dc_idx].setEnabled(False)
+        
+        
+    def judge_FS_number(self, dc_idx):
+        self.e_exptime[dc_idx].setEnabled(False)
+        self.e_FS_number[dc_idx].setEnabled(True)
+        
+        
+    def judge_param(self, dc_idx):
+        if self.e_exptime[dc_idx].text() == "" or self.e_FS_number[dc_idx].text() == "":
+            return
+        
+        # calculation fowler number & exp time
+        _expTime = float(self.e_exptime[dc_idx].text())
+        _fowler_num = int(self.e_FS_number[dc_idx].text())
+
+        _fowler_time = T_exp
+
+        if self.radio_exptime[dc_idx].isChecked():
+            _max_fowler_number = int((_expTime - T_minFowler) / T_frame)
+            if _fowler_num > _max_fowler_number:
+                #dialog box
+                QMessageBox.warning(self, WARNING, "please change 'exposure time'!")
+                self.log.send(self.iam, WARNING, "please change 'exposure time'!")
+                return
+
+        elif self.radio_N_fowler[dc_idx].isChecked():
+            _fowler_time = _expTime - T_frame * _fowler_num
+            if _fowler_time < T_minFowler:
+                #dialog box
+                QMessageBox.warning(self, WARNING, "please change 'fowler sampling number'!")
+                self.log.send(self.iam, WARNING, "please change 'fowler sampling number'!")
+                return        
             
     
-    def save_fits(self):
+    def change_name(self, dc_idx):
+        if int(self.e_repeat[dc_idx].text()) > 1:
+            self.bt_take_image.setText("Continuous")
+        else:
+            self.bt_take_image.setText("Take Image")
+        
+    
+    def save_fits(self, dc_idx):
         pass
     
     
-    def open_path(self):
+    def open_path(self, dc_idx):
         pass
     
     
     def open_calilbration(self):
         if self.chk_open_calibration.isChecked():
-            self.setGeometry(0, 0, 1315, 690)
+            self.setGeometry(0, 0, 1315, 700)
         else:
-            self.setGeometry(0, 0, 1030, 690)
+            self.setGeometry(0, 0, 1030, 700)
     
 
     

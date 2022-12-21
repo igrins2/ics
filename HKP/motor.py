@@ -2,7 +2,7 @@
 """
 Created on Nov 10, 2022
 
-Created on Nov 10, 2022
+Created on Dec 14, 2022
 
 @author: hilee
 """
@@ -28,7 +28,7 @@ class motor() :
         #self.iam = "%s(%d)" % (self.motor, int(self.port)-10000)
         
         self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools")    
-        self.log.send(self.iam, "INFO", "start")
+        self.log.send(self.iam, INFO, "start")
         
         # load ini file
         self.ini_file = WORKING_DIR + "/IGRINS/Config/IGRINS.ini"
@@ -70,10 +70,10 @@ class motor() :
     
     def __del__(self):
         msg = "Closing %s" % self.iam
-        self.log.send(self.iam, "DEBUG", msg)
+        self.log.send(self.iam, DEBUG, msg)
         
         for th in threading.enumerate():
-            self.log.send(self.iam, "DEBUG", th.name + " exit.")
+            self.log.send(self.iam, DEBUG, th.name + " exit.")
             
         self.close_component()
                     
@@ -93,14 +93,14 @@ class motor() :
             self.comStatus = True
             
             msg = "connected"
-            self.log.send(self.iam, "INFO", msg)
+            self.log.send(self.iam, INFO, msg)
             
         except:
             self.comSocket = None
             self.comStatus = False
             
             msg = "disconnected"
-            self.log.send(self.iam, "ERROR", msg)
+            self.log.send(self.iam, ERROR, msg)
             
             self.th.start()
             
@@ -113,7 +113,7 @@ class motor() :
         self.th.cancel()
         
         msg = "trying to connect again"
-        self.log.send(self.iam, "WARNING", msg)
+        self.log.send(self.iam, WARNING, msg)
             
         if self.comSocket != None:
             self.close_component()
@@ -137,7 +137,7 @@ class motor() :
         elif self.iam == MOTOR_LT:
             message = "%s Initializing (Lower Translator) ..." % self.iam
         
-        self.log.send(self.iam, "INFO", message)
+        self.log.send(self.iam, INFO, message)
         # -------------------------------------------------
         # Go to left 
         self.send_to_motor("ADT=40")
@@ -202,13 +202,13 @@ class motor() :
         #time.sleep(TSLEEP)
         cmd += "\r"
         self.comSocket.send(cmd.encode())
-        self.log.send(self.iam, "INFO", "send_to_motor: " + cmd)
+        self.log.send(self.iam, INFO, "send_to_motor: " + cmd)
         ti.sleep(CMCWTIME)
         res = self.comSocket.recv(REBUFSIZE)
         if ret:
             res = res.decode()
             res = res[:-1]
-            self.log.send(self.iam, "INFO", "ReceivedFromMotor: " + res)
+            self.log.send(self.iam, INFO, "ReceivedFromMotor: " + res)
             
         return res
         
@@ -220,7 +220,7 @@ class motor() :
         elif self.iam == MOTOR_LT:
             message = "%s Moving (Lower Translator) ..." % self.iam
         
-        self.log.send(self.iam, "INFO", message)
+        self.log.send(self.iam, INFO, message)
             
         self.send_to_motor("G")
         return self.check_motor()
@@ -233,16 +233,16 @@ class motor() :
         elif self.iam == MOTOR_LT:
             message = "%s Checking (Lower Translator) ..." % self.iam
         
-        self.log.send(self.iam, "INFO", message)
+        self.log.send(self.iam, INFO, message)
         
         curpos = ""
         while True:
             curpos = self.send_to_motor("RPA", True)
             
-            self.log.send(self.iam, "INFO", " CurPos: " + curpos)
+            self.log.send(self.iam, INFO, " CurPos: " + curpos)
             if self.send_to_motor("RBt", True) == "0":
                 break
-        self.log.send(self.iam, "INFO", "idle")   
+        self.log.send(self.iam, INFO, "idle")   
             
         return curpos
                    
@@ -264,7 +264,7 @@ class motor() :
         self.send_to_motor(cmd)
         curpos = self.motor_go()
         self.motor_err_correction(desti, curpos)
-        self.log.send(self.iam, "INFO", "Finished") 
+        self.log.send(self.iam, INFO, "Finished") 
                 
     
     def motor_err_correction(self, desti, curpos):
@@ -277,7 +277,7 @@ class motor() :
             elif self.iam == MOTOR_LT:
                 message = "%s error correction (Lower Translate) ..." % self.iam
             
-            self.log.send(self.iam, "INFO", message)
+            self.log.send(self.iam, INFO, message)
             
             self.send_to_motor(VELOCITY_1)
             #self.send_to_motor("GOSUB2")
@@ -293,7 +293,7 @@ class motor() :
         #self.send_to_motor("GOSUB1")
 
         curpos = self.send_to_motor("RPA", True)
-        self.log.send(self.iam, "INFO", "CurPos: " + curpos)
+        self.log.send(self.iam, INFO, "CurPos: " + curpos)
         
         cmd = ""
         
@@ -309,26 +309,26 @@ class motor() :
         curpos = self.motor_go()
         #self.motor_err_correction(movepos, curpos)
         
-        self.log.send(self.iam, "INFO", "Finished")
+        self.log.send(self.iam, INFO, "Finished")
         
 
 
     # CLI
     def setUT(self, posnum):     
         res = self.send_to_motor("RPA", True)
-        self.log.send(self.iam, "INFO", "CurPos: " + res)
+        self.log.send(self.iam, INFO, "CurPos: " + res)
 
         self.motor_pos[posnum] = res
         utpos = self.motor_pos[0] + "," + self.motor_pos[1]
         self.cfg.set(HK, "ut-pos", utpos )
         sc.SaveConfig(self.cfg, self.ini_file)
-        self.log.send(self.iam, "INFO", "saved (" + utpos + ")")
+        self.log.send(self.iam, INFO, "saved (" + utpos + ")")
         
                 
     # CLI
     def setLT(self, posnum):       
         res = self.send_to_motor("RPA", True)
-        self.log.send(self.iam, "INFO", "CurPos: " + res)
+        self.log.send(self.iam, INFO, "CurPos: " + res)
 
         self.motor_pos[posnum] = str(int(res)*(-1))
         ltpos = ""
@@ -337,7 +337,7 @@ class motor() :
             ltpos += ","
         self.cfg.set(HK, "lt-pos", ltpos)
         sc.SaveConfig(self.cfg, self.ini_file)
-        self.log.send(self.iam, "INFO", "saved (" + ltpos + ")")        
+        self.log.send(self.iam, INFO, "saved (" + ltpos + ")")        
         
     
     #-------------------------------
@@ -373,7 +373,7 @@ class motor() :
             return
         
         msg = "receive: %s" % cmd
-        self.log.send(self.iam, "INFO", msg)
+        self.log.send(self.iam, INFO, msg)
         
         msg = "%s %s OK" % (param[0], self.iam)
         

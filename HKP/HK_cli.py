@@ -2,7 +2,7 @@
 """
 Created on Sep 17, 2021
 
-Modified on Dec 08, 2021
+Modified on Dec 15, 2021
 
 @author: hilee
 
@@ -77,10 +77,7 @@ def show_noargs(cmd):
 
 @click.command("start")
 def start():
-    
-    log = subprocess.Popen(['python', WORKING_DIR + 'workspace/ics/Libs/logger.py'])
-            
-    iam = "cli"
+                
     print( '================================================\n'+
            '                Ctrl + C to exit or type: exit  \n'+
            '================================================\n')
@@ -95,19 +92,6 @@ def start():
             args = show_func(False)
         
         #print(args)
-
-        '''
-        if args[0] == "showcommand":
-            _args = "show"
-            if args[1] == "-h" or args[1] == "--help":
-                show_subfunc(args[0], _args, "show: True/False")
-            elif args[1] == "False":
-                show = False
-            elif args[1] == "True":
-                show = True
-            else:
-                show_errmsg(_args)
-        '''
         if args[0] == "show":
             args = show_func(True)
                 
@@ -136,14 +120,14 @@ def start():
                         if args[2] == "0":
                             hk[temp].get_setpoint(1)
                             hk[temp].get_setpoint(2)
-                            ti.sleep(0.5)
+                            #(0.5)
                         else:
                             hk[temp].get_setpoint(int(args[2]))
                     elif args[0] == "getheatvalue":  
                         if args[2] == "0":
                             hk[temp].get_heating_power(1)
                             hk[temp].get_heating_power(2)
-                            ti.sleep(0.5)
+                            #ti.sleep(0.5)
                         else:
                             hk[temp].get_heating_power(int(args[2]))  
             except:
@@ -174,7 +158,7 @@ def start():
                             if args[2] == "0":
                                 hk[temp].get_value("A")
                                 hk[temp].get_value("B")
-                                ti.sleep(0.5)
+                                #ti.sleep(0.5)
                             else:
                                 hk[temp].get_value(args[2])
                                 
@@ -363,17 +347,13 @@ def start():
                 for i in range(COM_CNT):
                     if hk[i]:
                         hk[i].close_component()
-                        
-                if log != None:
-                    log.terminate()
-                    print("log exit")
-                
+                                    
                 break
             
         else:
             print("Please confirm command.")
         
-        ti.sleep(0.5)
+        #ti.sleep(0.5)
         args = ""
   
 

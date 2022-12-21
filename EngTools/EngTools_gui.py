@@ -3,7 +3,7 @@
 """
 Created on Jun 28, 2022
 
-Modified on Oct 20, 2022
+Modified on Dec 14, 2022
 
 @author: hilee
 """
@@ -33,7 +33,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.iam = "EngTools"
         
         self.log = LOG(WORKING_DIR + "/IGRINS", self.iam)  
-        self.log.send(self.iam, "INFO", "start")
+        self.log.send(self.iam, INFO, "start")
         
         self.setupUi(self)
         self.setWindowTitle("EngTools 0.2")
@@ -76,7 +76,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         for i in range(SERV_CONNECT_CNT):
             if self.proc[i] != None:
                 self.proc[i].terminate()
-                self.log.send(self.iam, "INFO", str(self.proc[i].pid) + " exit")
+                self.log.send(self.iam, INFO, str(self.proc[i].pid) + " exit")
                 
         if self.consumer != None:
             self.consumer.stop_consumer()
@@ -125,7 +125,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         param = cmd.split()
                 
         msg = "receive: %s" % cmd
-        self.log.send(self.iam, "INFO", msg)
+        self.log.send(self.iam, INFO, msg)
         
         if param[0] == ALIVE:
             if param[1] == HK:
@@ -194,12 +194,12 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 self.proc_sub[i] = subprocess.Popen(['python', cmd, com_list[i], comport[i]])                
                 
             if self.proc_sub[i]:
-                self.log.send(com_list[i], "INFO", "start")
+                self.log.send(com_list[i], INFO, "start")
         
         cmd = "%sworkspace/ics/HKP/uploader.py" % WORKING_DIR
         self.proc_sub[UPLOADER] = subprocess.Popen(['python', cmd])
         if self.proc_sub[UPLOADER]:
-            self.log.send(com_list[UPLOADER], "INFO", "start")
+            self.log.send(com_list[UPLOADER], INFO, "start")
             
         self.proc[HKP] = subprocess.Popen(['python', WORKING_DIR + 'workspace/ics/HKP/HK_gui.py'])
         

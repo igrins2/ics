@@ -3,29 +3,21 @@
 """
 Created on Nov 22, 2022
 
-Modified on Nov 22, 2022
+Modified on Dec 15, 2022
 
 @author: hilee, Francisco
 """
 
-import functools
 import pika
 import threading
 import time as ti
-import contextlib
-
 
 # RabbitMQ communication
 class MsgMiddleware():
     
     def __init__(self, iam, ip_addr, id, pwd, exchange, type, producer = False):
         
-        self.iam = iam
-        
-        #self.gui = False
-        #if self.iam == "EngTools" or self.iam == "HK" or self.iam == "DT":
-        #    self.gui = True
-        
+        self.iam = iam       
         self.ip_addr = ip_addr
         self.id = id
         self.pwd = pwd

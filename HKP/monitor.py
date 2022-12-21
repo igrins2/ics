@@ -2,7 +2,7 @@
 """
 Created on Nov 9, 2022
 
-Created on Nov 29, 2022
+Created on Dec 14, 2022
 
 @author: hilee
 """
@@ -31,7 +31,7 @@ class monitor() :
             self.iam = "vm"
             
         self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools")
-        self.log.send(self.iam, "INFO", "start")  
+        self.log.send(self.iam, INFO, "start")  
         
         # load ini file
         ini_file = WORKING_DIR + "/IGRINS/Config/IGRINS.ini"
@@ -66,10 +66,10 @@ class monitor() :
     
     def __del__(self):
         msg = "Closing %s" % self.iam
-        self.log.send(self.iam, "DEBUG", msg)
+        self.log.send(self.iam, DEBUG, msg)
         
         for th in threading.enumerate():
-            self.log.send(self.iam, "DEBUG", th.name + " exit.")
+            self.log.send(self.iam, DEBUG, th.name + " exit.")
             
         self.close_component()
         
@@ -90,14 +90,14 @@ class monitor() :
             self.comStatus = True
             
             msg = "connected"
-            self.log.send(self.iam, "INFO", msg)
+            self.log.send(self.iam, INFO, msg)
             
         except:
             self.comSocket = None
             self.comStatus = False
             
             msg = "disconnected"
-            self.log.send(self.iam, "ERROR", msg)
+            self.log.send(self.iam, ERROR, msg)
             
             self.th.start()
             
@@ -110,7 +110,7 @@ class monitor() :
         self.th.cancel()
         
         msg = "trying to connect again"
-        self.log.send(self.iam, "WARNING", msg)
+        self.log.send(self.iam, WARNING, msg)
             
         if self.comSocket != None:
             self.close_component()
@@ -155,14 +155,14 @@ class monitor() :
             #self.comSocket.sendall(cmd.encode())
 
             log = "send >>> %s" % cmd[:-2]
-            self.log.send(self.iam, "INFO", log)
+            self.log.send(self.iam, INFO, log)
             
             #rev
             res0 = self.comSocket.recv(REBUFSIZE)
             info = res0.decode()
                     
             log = "recv <<< %s" % info[:-2]
-            self.log.send(self.iam, "INFO", log)   
+            self.log.send(self.iam, INFO, log)   
                                             
             if self.iam == "tm":
                 if info.find('\r\n') < 0:
@@ -173,7 +173,7 @@ class monitor() :
                             info += res0.decode()
 
                             log = "recv <<< %s (again)" % info[:-2]
-                            self.log.send(self.iam, "INFO", log)
+                            self.log.send(self.iam, INFO, log)
 
                             if info.find('\r\n') >= 0:
                                 break
@@ -189,7 +189,7 @@ class monitor() :
                 self.producer.send_message(HK, self.sub_hk_q, msg)     
         except:
             self.comStatus = False
-            self.log.send(self.iam, "ERROR", "communication error") 
+            self.log.send(self.iam, ERROR, "communication error") 
             self.re_connect_to_component()
 
     
@@ -224,7 +224,7 @@ class monitor() :
             return
         
         msg = "receive: %s" % cmd
-        self.log.send(self.iam, "INFO", msg)
+        self.log.send(self.iam, INFO, msg)
         
         if param[0] == HK_REQ_GETVALUE and param[1] == "tm":
             self.get_value_fromTM(param[2])      

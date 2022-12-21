@@ -3,13 +3,14 @@
 """
 Created on Sep 17, 2021
 
-Modified on Nov 8, 2022
+Modified on Dec 15, 2022
 
 @author: hilee
 """
 
 # -----------------------------------------------------------
 # definition: constant
+COM_CNT = 8
 PDU_IDX = 8
 TM_CNT = 8
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
@@ -23,6 +24,12 @@ WORKING_DIR = "/" + dir[1] + "/" + dir[2] + "/"
 MAIN = "MAIN"
 HK = "HK"
 DT = "DT"
+
+# LOG option
+DEBUG = "DEBUG"
+INFO = "INFO"
+WARNING = "WARNING"
+ERROR = "ERROR"
 
 SERV_CONNECT_CNT = 3 #Inst.sequencer / EngTools / hk Sub
 INST_SEQ = 0
@@ -99,4 +106,4 @@ DT_REQ_SETLT = "SetLT"          #motor
 EXIT = "Exit"
 ALIVE = "Alive"
 
-REQ_CHK = "AliveCheck"   
+#REQ_CHK = "AliveCheck"   
