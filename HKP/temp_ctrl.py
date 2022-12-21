@@ -171,6 +171,7 @@ class temp_ctrl():
             self.log.send(self.iam, INFO, log)   
             
             if info.find('\r\n') < 0:
+                '''
                 for i in range(30*10):
                     ti.sleep(0.1)
                     try:
@@ -184,6 +185,12 @@ class temp_ctrl():
                             break
                     except:
                         continue
+                '''
+
+                th = threading.Timer(1, self.handle_com, args=(param, port, cmd))
+                th.start()
+
+                return
             
             msg = "%s %s %s %s" % (param, self.iam, port, info[:-2]) 
             if self.gui: 
