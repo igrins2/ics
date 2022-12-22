@@ -32,7 +32,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.iam = "EngTools"
         
-        self.log = LOG(WORKING_DIR + "/IGRINS", self.iam)  
+        self.log = LOG(WORKING_DIR + "IGRINS", self.iam)  
         self.log.send(self.iam, INFO, "start")
         
         self.setupUi(self)
@@ -46,7 +46,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         # ---------------------------------------------------------------
         # start subprocess - temp ctrl, monitor, pdu, uploader
         # load ini file
-        ini_file = WORKING_DIR + "/IGRINS/Config/IGRINS.ini"
+        ini_file = WORKING_DIR + "IGRINS/Config/IGRINS.ini"
         self.cfg = sc.LoadConfig(ini_file)
         
         self.ics_ip_addr = self.cfg.get(MAIN, 'ip_addr')
@@ -54,7 +54,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.ics_pwd = self.cfg.get(MAIN, 'pwd')
         
         self.main_gui_ex = self.cfg.get(MAIN, 'main_gui_exchange')
-        self.main_gui_q = self.cfg.get(MAIN, 'main_gui_exchange')
+        self.main_gui_q = self.cfg.get(MAIN, 'main_gui_routing_key')
         self.gui_main_ex = self.cfg.get(MAIN, 'gui_main_exchange')     
         self.gui_main_q = self.cfg.get(MAIN, 'gui_main_routing_key')
         
@@ -72,6 +72,10 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         
     def closeEvent(self, *args, **kwargs):
+        
+        for i in range(COM_CNT):
+            if self.proc_sub[i] != None:
+                self.proc_sub[i].terminate()
         
         for i in range(SERV_CONNECT_CNT):
             if self.proc[i] != None:
@@ -100,6 +104,41 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.bt_runDTP.clicked.connect(self.run_DTP)
         
         
+    def start_sub_system(self):
+        
+        for i in range(COM_CNT):
+            if self.proc_sub[i] != None:
+                self.proc_sub[i].terminate()
+                
+        simul_mode = "%d" % self.simulation
+        
+        comport = []
+        com_list = ["tmc1", "tmc2", "tmc3", "tm", "vm", "pdu", "lt", "ut", "uploader"]
+        for name in com_list:
+            if name != com_list[UPLOADER]:
+                comport.append(self.cfg.get(HK, name + "-port"))
+    
+        for i in range(COM_CNT-1):
+            if self.proc_sub[i] != None:
+                continue
+                
+            if i <= TMC3:
+                cmd = "%sworkspace/ics/HKP/temp_ctrl.py" % WORKING_DIR
+                self.proc_sub[i] = subprocess.Popen(['python', cmd, comport[i], simul_mode])
+            elif i == TM or i == VM:
+                cmd = "%sworkspace/ics/HKP/monitor.py" % WORKING_DIR
+                self.proc_sub[i] = subprocess.Popen(['python', cmd, comport[i], simul_mode])
+            elif i == PDU:
+                cmd = "%sworkspace/ics/HKP/pdu.py" % WORKING_DIR
+                self.proc_sub[i] = subprocess.Popen(['python', cmd, simul_mode])
+            else:
+                cmd = "%sworkspace/ics/HKP/motor.py" % WORKING_DIR
+                self.proc_sub[i] = subprocess.Popen(['python', cmd, com_list[i], comport[i], simul_mode])                
+                        
+        cmd = "%sworkspace/ics/HKP/uploader.py" % WORKING_DIR
+        self.proc_sub[UPLOADER] = subprocess.Popen(['python', cmd, simul_mode])        
+        
+        
     #-------------------------------
     # dt -> sub: use hk ex
     def connect_to_server_main_ex(self):
@@ -118,6 +157,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.consumer.define_consumer(self.gui_main_q, self.callback_gui)       
         
         th = threading.Thread(target=self.consumer.start_consumer)
+        th.daemon = True
         th.start()
         
         
@@ -143,10 +183,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
             if param[1] == HK:
                 self.bt_runHKP.setEnabled(True)
                 
-                for i in range(COM_CNT):
-                    if self.proc_sub[i] != None:
-                        self.proc_sub[i].terminate()
-                
             elif param[1] == DT:
                 self.bt_runDTP.setEnabled(True)     
                 
@@ -154,57 +190,26 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.radio_real.setEnabled(True)   
     
     
-    def set_mode(self):
+    def set_mode(self):                    
         if self.radio_inst_simul.isChecked():
             self.simulation = True
             
-            cmd = "%sworkspace/ics/igos2_simul/run_hk_simulator.py" % WORKING_DIR
-            self.proc_simul = subprocess.Popen(["python", cmd])
+            #cmd = "%sworkspace/ics/igos2_simul/run_hk_simulator.py" % WORKING_DIR
+            #self.proc_simul = subprocess.Popen(["python", cmd])
             
         elif self.radio_real.isChecked():
             self.simulation = False
             
             if self.proc_simul != None:
                 self.proc_simul.terminate()
+                
+        self.start_sub_system()
         
         msg = "%s %s %d" % (TEST_MODE, DT, self.simulation)
         self.producer.send_message(self.iam, self.main_gui_q, msg)        
         
         
     def run_HKP(self):
-        
-        comport = []
-        com_list = ["tmc1", "tmc2", "tmc3", "tm", "vm", "pdu", "lt", "ut", "uploader"]
-        for name in com_list:
-            if name != com_list[UPLOADER]:
-                comport.append(self.cfg.get(HK, name + "-port"))
-    
-        for i in range(COM_CNT-1):
-            if self.proc_sub[i] != None:
-                continue
-                
-            if i <= TMC3:
-                cmd = "%sworkspace/ics/HKP/temp_ctrl.py" % WORKING_DIR
-                self.proc_sub[i] = subprocess.Popen(['python', cmd, comport[i]])
-            elif i == TM or i == VM:
-                cmd = "%sworkspace/ics/HKP/monitor.py" % WORKING_DIR
-                self.proc_sub[i] = subprocess.Popen(['python', cmd, comport[i]])
-            elif i == PDU:
-                cmd = "%sworkspace/ics/HKP/pdu.py" % WORKING_DIR
-                self.proc_sub[i] = subprocess.Popen(['python', cmd])
-            else:
-                cmd = "%sworkspace/ics/HKP/motor.py" % WORKING_DIR
-                self.proc_sub[i] = subprocess.Popen(['python', cmd, com_list[i], comport[i]])                
-                
-            if self.proc_sub[i]:
-                self.log.send(com_list[i], INFO, "start")
-        
-        
-        cmd = "%sworkspace/ics/HKP/uploader.py" % WORKING_DIR
-        self.proc_sub[UPLOADER] = subprocess.Popen(['python', cmd])
-        if self.proc_sub[UPLOADER]:
-            self.log.send(com_list[UPLOADER], INFO, "start")
-        
             
         self.proc[HKP] = subprocess.Popen(['python', WORKING_DIR + 'workspace/ics/HKP/HK_gui.py'])
         

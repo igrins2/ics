@@ -45,7 +45,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.iam = DT
         
-        self.log = LOG(WORKING_DIR + "/IGRINS", "DTP")  
+        self.log = LOG(WORKING_DIR + "IGRINS", "DTP")  
         self.log.send(self.iam, INFO, "start")
         
         self.setupUi(self)
@@ -200,10 +200,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.log.send(self.iam, DEBUG, th.name + " exit.")
                 
         self.log.send(self.iam, INFO, "Closed!")
-                            
-        #msg = "%s %s" % (EXIT, self.iam)
-        #self.producer[ENG_TOOLS].send_message(self.iam, self.dt_main_q, msg)
-        
+                                    
         for i in range(SERV_CONNECT_CNT):
             if self.consumer[i] != None:
                 self.consumer[i].stop_consumer()
@@ -392,6 +389,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.consumer[ENG_TOOLS].define_consumer(self.main_dt_q, self.callback_main)       
         
         th = threading.Thread(target=self.consumer[ENG_TOOLS].start_consumer)
+        th.daemon = True
         th.start()
         
         
@@ -435,6 +433,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.consumer[HK_SUB].define_consumer(self.sub_dt_q, self.callback_sub)       
         
         th = threading.Thread(target=self.consumer[HK_SUB].start_consumer)
+        th.daemon = True
         th.start()
                     
     
@@ -509,6 +508,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.consumer[DCS].define_consumer(self.dcs_dt_q, self.callback_dcs)       
         
         th = threading.Thread(target=self.consumer[DCS].start_consumer)
+        th.daemon = True
         th.start()
             
             
@@ -556,7 +556,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
             self.label_prog_sts[dc_idx].setText("END")
             
-            end_time = strftime("%Y-%m-%d %H:%M:%S", localtime())
+            end_time = ti.strftime("%Y-%m-%d %H:%M:%S", ti.localtime())
             self.label_prog_time[dc_idx].setText(self.label_prog_time[dc_idx].text() + " / " + end_time)
                         
             self.cur_prog_step[dc_idx] = 100
@@ -633,7 +633,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     
     def acquireramp(self, dc_idx, simul_mode):  
         
-        start_time = strftime("%Y-%m-%d %H:%M:%S", localtime())       
+        start_time = ti.strftime("%Y-%m-%d %H:%M:%S", ti.localtime())       
         
         self.label_prog_sts[dc_idx].setText("START")
         self.label_prog_time[dc_idx].setText(start_time)
@@ -719,7 +719,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 self.e_mscale_max.setText("%.1f" % self.mmax)
                     
             if self.chk_ds9[ics_idx].isChecked():
-                ds9 = WORKING_DIR + '/IGRINS/ds9'
+                ds9 = WORKING_DIR + 'IGRINS/ds9'
                 subprocess.Popen([ds9, filepath])
             
             self.reload_img(ics_idx)

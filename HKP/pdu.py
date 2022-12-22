@@ -21,15 +21,15 @@ from Libs.logger import *
 
 class pdu() :
     
-    def __init__(self, gui=False):
+    def __init__(self, simul, gui=False):
         
         self.iam = "pdu"
         
-        self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools", gui)    
+        self.log = LOG(WORKING_DIR + "IGRINS", "EngTools", gui)    
         self.log.send(self.iam, INFO, "start")
                         
         # load ini file
-        ini_file = WORKING_DIR + "/IGRINS/Config/IGRINS.ini"
+        ini_file = WORKING_DIR + "IGRINS/Config/IGRINS.ini"
         cfg = sc.LoadConfig(ini_file)
         
         global TOUT, TSLEEP, REBUFSIZE
@@ -49,8 +49,12 @@ class pdu() :
         self.power_str = cfg.get(HK, "pdu-list").split(',')
         self.pow_flag = [OFF for _ in range(PDU_IDX)]
         
-        self.ip = cfg.get(HK, "pdu-ip")
-        self.comport = cfg.get(HK, "pdu-port")
+        if simul == "1":
+            self.ip = "localhost"
+            self.comport = int(cfg.get(HK, "pdu-port")) + 50000
+        else:
+            self.ip = cfg.get(HK, "pdu-ip")
+            self.comport = cfg.get(HK, "pdu-port")
         
         #---------------------------------------------------------
         # start
@@ -61,10 +65,7 @@ class pdu() :
                 
         self.producer = None
         self.consumer = None
-        
-        #self.th = threading.Timer(1, self.re_connect_to_component)
-        #self.th.daemon = True
-    
+            
         
     
     def __del__(self):
@@ -77,7 +78,7 @@ class pdu() :
         self.close_component()
         
         if self.gui:
-            #self.consumer.stop_consumer()
+            self.consumer.stop_consumer()
             
             self.producer.__del__()                    
             self.consumer.__del__()
@@ -102,7 +103,6 @@ class pdu() :
             msg = "disconnected"
             self.log.send(self.iam, ERROR, msg)
             
-            #self.th.start()
             th = threading.Timer(1, self.re_connect_to_component)
             th.start()
                         
@@ -138,7 +138,8 @@ class pdu() :
             self.log.send(self.iam, INFO, log)
             
             res = self.comSocket.recv(REBUFSIZE)
-            log = "recv <<< %s" % res.decode()
+            #log = "recv <<< %s" % res.decode()
+            log = "recv <<< IPC ONLINE!"
             self.log.send(self.iam, INFO, log)
             
             cmd = "DN0\r"   
@@ -156,6 +157,7 @@ class pdu() :
     def power_status(self, cmd):
         if not self.comStatus:
             return      
+        
         try:
             self.comSocket.send(cmd.encode())
             log = "send >>> %s" % cmd
@@ -163,7 +165,8 @@ class pdu() :
             ti.sleep(TSLEEP)
             res = self.comSocket.recv(REBUFSIZE)
             sRes = res.decode()
-            log = "recv <<< %s" % sRes
+            #log = "recv <<< %s" % sRes
+            log = "recv <<< powctr infor"
             self.log.send(self.iam, INFO, log)
             
             # check PDU status
@@ -234,16 +237,20 @@ class pdu() :
     def callback_hk(self, ch, method, properties, body):
         cmd = body.decode()
         param = cmd.split()
+        
+        #if param[0] == HK_REQ_EXIT:
+        #    self.producer.send_message(HK, self.sub_hk_q, HK_REQ_EXIT) 
+            #self.__del__()
+            
         if len(param) < 2:
             return
-        
         if param[1] != self.iam:
             return
-        if self.comStatus is False:
+        if not self.comStatus:
             return
             
-        msg = "receive: %s" % cmd
-        self.log.send(self.iam, INFO, msg)
+        #msg = "receive: %s" % cmd
+        #self.log.send(self.iam, INFO, msg)
            
         if param[0] == HK_REQ_PWR_STS:
             cmd = "DN0\r"   
@@ -252,14 +259,11 @@ class pdu() :
         elif param[0] == HK_REQ_PWR_ONOFF:
             idx = int(param[2])
             self.change_power(idx, param[3]) 
-            
-        #elif param[0] == HK_REQ_EXIT:
-        #    self.__del__()
-            
+                        
             
 if __name__ == "__main__":
     
-    proc = pdu(True)
+    proc = pdu(sys.argv[1], True)
             
     proc.connect_to_server_sub_ex()
     proc.connect_to_server_hk_q()

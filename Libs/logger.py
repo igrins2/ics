@@ -10,7 +10,6 @@ Modified on , 2022
 
 import os, sys
 import time as ti
-from time import localtime, strftime 
 import Libs.SetConfig as sc
 class LOG():
 
@@ -21,7 +20,6 @@ class LOG():
         # load ini file
         cfg = sc.LoadConfig(work_dir + "/Config/IGRINS.ini")
         
-        self.thatday = ti.strftime("%04Y%02m%02d.log", ti.localtime())
         self.path = "%s/Log/%s/" % (work_dir, iam)
         self.createFolder(self.path)
         
@@ -36,15 +34,16 @@ class LOG():
 
     def send(self, iam, level, message):
        
-        fname = strftime("%Y%m%d", localtime())+".log"
-        f_p_name = self.path + self.thatday
+        fname = ti.strftime("%Y%m%d", ti.localtime())+".log"
+        f_p_name = self.path + fname
+        #print(f_p_name)
         if os.path.isfile(f_p_name):
             file=open(f_p_name,'a+')
         else:
             file=open(f_p_name,'w')
                 
         msg = "[%s:%s] %s" % (iam, level, message)    
-        data = strftime("%Y-%m-%d %H:%M:%S", localtime()) + ": " + msg + "\n"
+        data = ti.strftime("%Y-%m-%d %H:%M:%S", ti.localtime()) + ": " + msg + "\n"
         if level != "DEBUG":    
             file.write(data)
             file.close()

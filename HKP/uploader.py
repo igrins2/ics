@@ -39,15 +39,15 @@ FieldNames = [('date', str), ('time', str),
 
 class uploader():
     
-    def __init__(self):
+    def __init__(self, simul):
         
         self.iam = "uploader"
         
-        self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools")    
+        self.log = LOG(WORKING_DIR + "IGRINS", "EngTools")    
         self.log.send(self.iam, INFO, "start")
         
         # load ini file
-        self.ini_file = WORKING_DIR + "/IGRINS/Config/"
+        self.ini_file = WORKING_DIR + "IGRINS/Config/"
         cfg = sc.LoadConfig(self.ini_file + "IGRINS.ini")
         
         self.ics_ip_addr = cfg.get(MAIN, "ip_addr")
@@ -67,6 +67,8 @@ class uploader():
         #-------
         
         self.consumer = None
+        
+        self.simul = bool(int(simul))
         #self.connect_to_server_hk_q()
         
     
@@ -77,7 +79,7 @@ class uploader():
         for th in threading.enumerate():
             self.log.send(self.iam, DEBUG, th.name + " exit.")
             
-        #self.consumer.stop_consumer()
+        self.consumer.stop_consumer()
         self.consumer.__del__()
                         
 
@@ -144,7 +146,7 @@ class uploader():
         # RabbitMQ connect
         self.consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_sub_ex, "direct")      
         self.consumer.connect_to_server()
-        self.consumer.define_consumer(self.hk_sub_q, self.callback_hk)
+        self.consumer.define_consumer(self.iam, self.callback_hk)
         
         th = threading.Thread(target=self.consumer.start_consumer)
         th.start()
@@ -153,27 +155,27 @@ class uploader():
     def callback_hk(self, ch, method, properties, body):
         cmd = body.decode()
         param = cmd.split()
+                    
         #print("uploader:", param)
         if len(param) < 2:
             return
-        
         if param[1] != self.iam:
             return
         
-        msg = "receive: %s" % cmd
-        self.log.send(self.iam, INFO, msg)
+        #msg = "receive: %s" % cmd
+        #self.log.send(self.iam, INFO, msg)
 
         if param[0] == HK_REQ_UPLOAD_DB:
             db = param[2:]
-            self.start_upload_to_firebase(db)
+            if self.simul is True:
+                print("uploaded virtual firebase database...")
+            else:
+                self.start_upload_to_firebase(db)
             
-        #elif param[0] == HK_REQ_EXIT:
-        #    self.__del__()
-
 
 if __name__ == "__main__":
     
-    fb = uploader()
+    fb = uploader(sys.argv[1])
     
     fb.connect_to_server_hk_q()
     

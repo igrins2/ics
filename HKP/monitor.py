@@ -21,7 +21,7 @@ from Libs.logger import *
 
 class monitor() :
     
-    def __init__(self, comport, gui=False):  
+    def __init__(self, comport, simul, gui=False):  
         
         self.iam = ""
         self.comport = comport
@@ -30,11 +30,11 @@ class monitor() :
         elif self.comport == "10005":
             self.iam = "vm"
             
-        self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools", gui)
+        self.log = LOG(WORKING_DIR + "IGRINS", "EngTools", gui)
         self.log.send(self.iam, INFO, "start")  
         
         # load ini file
-        ini_file = WORKING_DIR + "/IGRINS/Config/IGRINS.ini"
+        ini_file = WORKING_DIR + "IGRINS/Config/IGRINS.ini"
         cfg = sc.LoadConfig(ini_file)
         
         global TOUT, REBUFSIZE
@@ -50,7 +50,10 @@ class monitor() :
         self.sub_hk_ex = cfg.get(MAIN, 'sub_hk_exchange')
         self.sub_hk_q = cfg.get(MAIN, 'sub_hk_routing_key')
                 
-        self.ip = cfg.get(HK, "device-server-ip")
+        if simul == "1":
+            self.ip = "localhost"
+        else:
+            self.ip = cfg.get(HK, "device-server-ip")
         
         self.gui = gui
         
@@ -59,10 +62,7 @@ class monitor() :
         
         self.producer = None
         self.consumer = None
-        
-        #self.th = threading.Timer(1, self.re_connect_to_component)
-        #self.th.daemon = True
-        
+                
         
     
     def __del__(self):
@@ -75,7 +75,7 @@ class monitor() :
         self.close_component()
         
         if self.gui:
-            #self.consumer.stop_consumer()
+            self.consumer.stop_consumer()
             
             self.producer.__del__()                    
             self.consumer.__del__()
@@ -100,7 +100,6 @@ class monitor() :
             msg = "disconnected"
             self.log.send(self.iam, ERROR, msg)
             
-            #self.th.start()
             th = threading.Timer(1, self.re_connect_to_component)
             th.start()
 
@@ -142,6 +141,10 @@ class monitor() :
             
     
     def socket_send(self, param, cmd, port=0):
+        '''
+        if not self.comStatus:
+            return
+        
         if self.gui:
             send_th = threading.Thread(target=self.handle_com, args=(param, cmd, port))
             send_th.daemon = True
@@ -152,6 +155,7 @@ class monitor() :
         
     # Socket function        
     def handle_com(self, param, cmd, port):
+        '''
         try:         
             
             #send
@@ -170,8 +174,7 @@ class monitor() :
                                             
             if self.iam == "tm":
                 if info.find('\r\n') < 0:
-                    for i in range(30*10):
-                        ti.sleep(0.1)
+                    for i in range(10):
                         try:
                             res0 = self.comSocket.recv(REBUFSIZE)
                             info += res0.decode()
@@ -222,15 +225,20 @@ class monitor() :
     def callback_hk(self, ch, method, properties, body):
         cmd = body.decode()
         param = cmd.split()
+        
+        #if param[0] == HK_REQ_EXIT:
+        #    self.producer.send_message(HK, self.sub_hk_q, HK_REQ_EXIT) 
+            #self.__del__()
+            
         if len(param) < 2:
             return
         if param[1] != self.iam:
             return
-        if self.comStatus is False:
+        if not self.comStatus:
             return
         
-        msg = "receive: %s" % cmd
-        self.log.send(self.iam, INFO, msg)
+        #msg = "receive: %s" % cmd
+        #self.log.send(self.iam, INFO, msg)
         
         if param[0] == HK_REQ_GETVALUE and param[1] == "tm":
             self.get_value_fromTM(param[2])      
@@ -240,22 +248,18 @@ class monitor() :
             
         elif param[0] == HK_REQ_MANUAL_CMD and param[1] == self.iam:
             cmd = "%s %s\r\n" % (param[2], param[3])
-            self.socket_send(HK_REQ_MANUAL_CMD, cmd, param[3])
-            
-        #elif param[0] == HK_REQ_EXIT:
-        #    self.__del__()
-            
+            self.socket_send(HK_REQ_MANUAL_CMD, cmd, param[3])           
             
  
             
 if __name__ == "__main__":
     
     #sys.argv.append("10005")
-    if len(sys.argv) < 2:
-        print("Please add comport")
-        exit()
+    #if len(sys.argv) < 2:
+    #    print("Please add comport")
+    #    exit()
     
-    proc = monitor(sys.argv[1], True)
+    proc = monitor(sys.argv[1], sys.argv[2], True)
     #proc = monitor(sys.argv[1])
         
     proc.connect_to_server_sub_ex()

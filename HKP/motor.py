@@ -21,17 +21,17 @@ from Libs.logger import *
 
 class motor() :
     
-    def __init__(self, motor, port, gui=False):
+    def __init__(self, motor, port, simul, gui=False):
         
         self.iam = motor  
         self.port = port 
         #self.iam = "%s(%d)" % (self.motor, int(self.port)-10000)
         
-        self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools", gui)    
+        self.log = LOG(WORKING_DIR + "IGRINS", "EngTools", gui)    
         self.log.send(self.iam, INFO, "start")
         
         # load ini file
-        self.ini_file = WORKING_DIR + "/IGRINS/Config/IGRINS.ini"
+        self.ini_file = WORKING_DIR + "IGRINS/Config/IGRINS.ini"
         self.cfg = sc.LoadConfig(self.ini_file)
         
         global TOUT, CMCWTIME, REBUFSIZE
@@ -52,7 +52,11 @@ class motor() :
         self.motor_pos = self.cfg.get(HK, motor_pos).split(",")
         
         ip_addr = "%s-ip" % self.iam
-        self.ip = self.cfg.get(HK, ip_addr)
+        
+        if simul == "1":
+            self.ip = "localhost"
+        else:
+            self.ip = self.cfg.get(HK, ip_addr)
         
         self.gui = gui
         
@@ -61,10 +65,7 @@ class motor() :
         
         self.producer = None
         self.consumer = None
-        
-        #self.th = threading.Timer(1, self.re_connect_to_component)
-        #self.th.daemon = True
-        
+                
         self.init = False
         
         
@@ -79,7 +80,7 @@ class motor() :
         self.close_component()
                     
         if self.gui:
-            #self.consumer.stop_consumer()
+            self.consumer.stop_consumer()
             
             self.producer.__del__()                    
             self.consumer.__del__()
@@ -103,17 +104,15 @@ class motor() :
             msg = "disconnected"
             self.log.send(self.iam, ERROR, msg)
             
-            #self.th.start()
             th = threading.Timer(1, self.re_connect_to_component)
             th.start()
-            
-        msg = "%s %d" % (self.iam, self.comStatus)   
+                        
+        msg = "%s %s %d" % (HK_REQ_COM_STS, self.iam, self.comStatus)   
         if self.gui:
-            self.producer.send_message(DT, HK_REQ_COM_STS, msg)
+            self.producer.send_message(DT, self.sub_hk_q, msg)
                              
     
     def re_connect_to_component(self):
-        self.th.cancel()
         
         msg = "trying to connect again"
         self.log.send(self.iam, WARNING, msg)
@@ -202,6 +201,9 @@ class motor() :
         
     
     def send_to_motor(self, cmd, ret=False):
+        if not self.comStatus:
+            return
+        
         #time.sleep(TSLEEP)
         cmd += "\r"
         self.comSocket.send(cmd.encode())
@@ -369,26 +371,26 @@ class motor() :
     def callback_hk(self, ch, method, properties, body):
         cmd = body.decode()
         param = cmd.split()
+        
+        #if param[0] == HK_REQ_EXIT:
+        #    self.producer.send_message(HK, self.sub_hk_q, HK_REQ_EXIT) 
+            #self.__del__()
+            
         if len(param) < 2:
             return
-        
         if param[1] != self.iam:
             return
-        if self.comStatus is False:
+        if not self.comStatus:
             return
         
-        msg = "receive: %s" % cmd
-        self.log.send(self.iam, INFO, msg)
+        #msg = "receive: %s" % cmd
+        #self.log.send(self.iam, INFO, msg)
         
         msg = "%s %s OK" % (param[0], self.iam)
         
         if param[0] == DT_REQ_INITMOTOR:
             self.init_motor()
             self.producer.send_message(DT, self.sub_hk_q, msg)
-        
-        #elif param[0] == HK_REQ_EXIT:
-        #        self.__del__()
-
         else:
             if self.init is False:
                 msg = "%s %s TRY" % (DT_REQ_INITMOTOR, self.iam)
@@ -421,11 +423,11 @@ if __name__ == "__main__":
     #sys.argv.append("10007")
     #sys.argv.append("lt")
     #sys.argv.append("10006")
-    if len(sys.argv) < 3:
-        print("Please add ip and port")
-        exit()
+    #if len(sys.argv) < 3:
+    #    print("Please add ip and port")
+    #    exit()
     
-    proc = motor(sys.argv[1], sys.argv[2], True)
+    proc = motor(sys.argv[1], sys.argv[2], sys.argv[3], True)
         
     proc.connect_to_server_sub_ex()
     proc.connect_to_server_hk_q()

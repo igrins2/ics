@@ -21,16 +21,16 @@ from Libs.logger import *
 
 class temp_ctrl():
     
-    def __init__(self, comport, gui=False):
+    def __init__(self, comport, simul, gui=False):
                        
         self.comport = comport
         self.iam = "tmc%d" % (int(self.comport)-10000)               
     
-        self.log = LOG(WORKING_DIR + "/IGRINS", "EngTools", gui)
+        self.log = LOG(WORKING_DIR + "IGRINS", "EngTools", gui)
         self.log.send(self.iam, INFO, "start")    
      
         # load ini file
-        ini_file = WORKING_DIR + "/IGRINS/Config/IGRINS.ini"
+        ini_file = WORKING_DIR + "IGRINS/Config/IGRINS.ini"
         cfg = sc.LoadConfig(ini_file)
         
         global TOUT, REBUFSIZE
@@ -45,8 +45,11 @@ class temp_ctrl():
         self.hk_sub_q = cfg.get(MAIN, "hk_sub_routing_key")
         self.sub_hk_ex = cfg.get(MAIN, "sub_hk_exchange")
         self.sub_hk_q = cfg.get(MAIN, "sub_hk_routing_key")
-                
-        self.ip = cfg.get(HK, "device-server-ip")
+               
+        if simul == '1':
+            self.ip = "localhost"
+        else:   
+            self.ip = cfg.get(HK, "device-server-ip")
  
         self.gui = gui
         
@@ -55,10 +58,7 @@ class temp_ctrl():
         
         self.producer = None
         self.consumer = None
-        
-        #self.th = threading.Timer(1, self.re_connect_to_component)
-        #self.th.daemon = True
-        
+                
         
     def __del__(self):
         msg = "Closing %s" % self.iam
@@ -70,7 +70,7 @@ class temp_ctrl():
         self.close_component()
         
         if self.gui:
-            #self.consumer.stop_consumer()
+            self.consumer.stop_consumer()
             
             self.producer.__del__()                    
             self.consumer.__del__()
@@ -79,13 +79,9 @@ class temp_ctrl():
     def connect_to_component(self):
             
         try:     
-            msg = "try to connect TMC1..."
-            self.log.send(self.iam, DEBUG, msg)      
-
             self.comSocket = socket(AF_INET, SOCK_STREAM)
             self.comSocket.settimeout(TOUT)
             self.comSocket.connect((self.ip, int(self.comport)))
-            #ti.sleep(3)
             self.comStatus = True
             
             msg = "connected"
@@ -98,7 +94,6 @@ class temp_ctrl():
             msg = "disconnected"
             self.log.send(self.iam, ERROR, msg)
             
-            #self.th.start()
             th = threading.Timer(3, self.re_connect_to_component)
             th.start()
             
@@ -145,6 +140,10 @@ class temp_ctrl():
 
 
     def socket_send(self, param, port, cmd):
+        '''
+        if not self.comStatus:
+            return
+        
         if self.gui:
             send_th = threading.Thread(target=self.handle_com, args=(param, port, cmd))
             send_th.daemon = True
@@ -155,6 +154,7 @@ class temp_ctrl():
 
     # Socket function        
     def handle_com(self, param, port, cmd):
+        '''
         try:    
             #send     
             self.comSocket.send(cmd.encode())
@@ -170,13 +170,11 @@ class temp_ctrl():
             log = "recv <<< %s" % info[:-2]
             self.log.send(self.iam, INFO, log)   
             
-            if info.find('\r\n') < 0:
-                '''
-                for i in range(30*10):
-                    ti.sleep(0.1)
+            if info.find('\r\n') < 0 or info.find('+') < 0:                
+                for i in range(10):
                     try:
                         res0 = self.comSocket.recv(REBUFSIZE)
-                        info += res0.decode()
+                        info = res0.decode()
 
                         log = "recv <<< %s (again)" % info[:-2]
                         self.log.send(self.iam, INFO, log)
@@ -185,10 +183,6 @@ class temp_ctrl():
                             break
                     except:
                         continue
-                '''
-
-                th = threading.Timer(1, self.handle_com, args=(param, port, cmd))
-                th.start()
 
                 return
             
@@ -221,57 +215,52 @@ class temp_ctrl():
         
         th = threading.Thread(target=self.consumer.start_consumer)
         th.start()
-        
-        #th = threading.Thread(target=self.consumer.define_consumer, args=(self.hk_sub_q, self.callback_hk))
-        #th.start()
-        
+                
             
     def callback_hk(self, ch, method, properties, body):
         cmd = body.decode()
         param = cmd.split()
         
-        if len(param) < 3:
-            return
+        #if param[0] == HK_REQ_EXIT:
+        #    self.producer.send_message(HK, self.sub_hk_q, HK_REQ_EXIT) 
+            #self.__del__()
+        
+        if len(param) < 2:
+            return      
         if param[1] != self.iam:
             return
-        if self.comStatus is False:
+        if not self.comStatus:
             return
         
-        msg = "receive: %s" % cmd
-        self.log.send(self.iam, INFO, msg)
+        #msg = "receive: %s" % cmd
+        #self.log.send(self.iam, INFO, msg)
                 
         if param[0] == HK_REQ_GETSETPOINT:
-            self.get_setpoint(int(param[2]))
-            #self.get_setpoint(1)
-            #self.get_setpoint(2)
-            
-        elif param[0] == HK_REQ_GETHEATINGPOWER:
-            self.get_heating_power(int(param[2]))
-            #self.get_heating_power(1)
-            #self.get_heating_power(2)
+            if self.iam != "tmc3":
+                self.get_setpoint(1)
+            self.get_setpoint(2)
             
         elif param[0] == HK_REQ_GETVALUE:
-            self.get_value(param[2])  
-            #self.get_value("A")  
-            #self.get_value("B")     
+            #self.get_value(param[2])  
+            self.get_value("A")  
+            self.get_value("B")     
+            if self.iam != "tmc3":
+                self.get_heating_power(1)
+            self.get_heating_power(2)
         
         elif param[0] == HK_REQ_MANUAL_CMD:
             cmd = "%s %s\r\n" % (param[2], param[3])
             self.socket_send(HK_REQ_MANUAL_CMD, param[3], cmd)
-            
-        #elif param[0] == HK_REQ_EXIT:
-        #    self.__del__()
-
 
 
 if __name__ == "__main__":
     
     #sys.argv.append("10001")
-    if len(sys.argv) < 2:
-        print("Please add comport")
-        exit()
+    #if len(sys.argv) < 3:
+    #    print("Please add comport")
+    #    exit()
     
-    proc = temp_ctrl(sys.argv[1], True)
+    proc = temp_ctrl(sys.argv[1], sys.argv[2], True)
     #proc = temp_ctrl(sys.argv[1])
     
     proc.connect_to_server_sub_ex()

@@ -37,7 +37,6 @@ from Libs.logger import *
 import subprocess
 
 import time as ti
-from time import localtime, strftime 
 
 label_list = ["tmc1-a",
               "tmc1-b",
@@ -74,14 +73,14 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.iam = HK     
         
-        self.log = LOG(WORKING_DIR + "/IGRINS", "HKP")    
+        self.log = LOG(WORKING_DIR + "IGRINS", "HKP")    
         self.log.send(self.iam, INFO, "start")
         
         self.setupUi(self)
         self.setWindowTitle("Housekeeping Package 0.3")
         
         # load ini file
-        self.ini_file = WORKING_DIR + "/IGRINS/Config/IGRINS.ini"
+        self.ini_file = WORKING_DIR + "IGRINS/Config/IGRINS.ini"
         self.cfg = sc.LoadConfig(self.ini_file)
               
         self.ics_ip_addr = self.cfg.get(MAIN, "ip_addr")
@@ -91,7 +90,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.hk_main_ex = self.cfg.get(MAIN, 'gui_main_exchange')     
         self.hk_main_q = self.cfg.get(MAIN, 'gui_main_routing_key')
         self.main_hk_ex = self.cfg.get(MAIN, 'main_gui_exchange')
-        self.main_hk_q = self.cfg.get(MAIN, 'main_gui_exchange')
+        self.main_hk_q = self.cfg.get(MAIN, 'main_gui_routing_key')
         
         self.hk_sub_ex = self.cfg.get(MAIN, "hk_sub_exchange")     
         self.hk_sub_q = self.cfg.get(MAIN, "hk_sub_routing_key")
@@ -156,6 +155,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.consumer = [None for _ in range(SERV_CONNECT_CNT)]
         
         self.uploade_start = 0
+        #self.thread = []
                 
         self.sending_email_mode = False
         self.bt_start.setText("email sending: On")
@@ -188,18 +188,19 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
         for idx in range(PDU_IDX):
             msg = "%s %d %s" % (HK_REQ_PWR_ONOFF, idx+1, OFF)
-            self.producer[HK_SUB].send_message(self.com_list[PDU], self.hk_sub_q, msg) 
-        
-        #self.producer[HK_SUB].send_message("all", self.hk_sub_q, HK_REQ_EXIT)                                 
+            self.producer[HK_SUB].send_message(self.com_list[PDU], self.hk_sub_q, msg)         
+            
+        self.producer[HK_SUB].send_message("all", self.hk_sub_q, HK_REQ_EXIT)
                 
         for th in threading.enumerate():
             self.log.send(self.iam, DEBUG, th.name + " exit.")
+            
+        #futures.as_completed(self.thread)
+        #for f in futures.as_completed(self.thread):
+        #self.log.send(self.iam, DEBUG, self.thread + " exit.")
         
         self.log.send(self.iam, INFO, "Closed!")
-                        
-        #msg = "%s %s" % (EXIT, self.iam)
-        #self.producer[ENG_TOOLS].send_message(self.iam, self.hk_main_q, msg)
-        
+                                
         for i in range(SERV_CONNECT_CNT):
             if self.consumer[i] != None:
                 self.consumer[i].stop_consumer()
@@ -291,7 +292,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     def show_info(self):
         
-        updated_datetime = strftime("%Y-%m-%d %H:%M:%S", localtime())
+        updated_datetime = ti.strftime("%Y-%m-%d %H:%M:%S", ti.localtime())
         self.sts_updated.setText(updated_datetime)
         
         interval_sec = "Interval : %d s" % self.Period
@@ -325,8 +326,19 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.consumer[ENG_TOOLS].define_consumer(self.main_hk_q, self.callback_main)       
         
         th = threading.Thread(target=self.consumer[ENG_TOOLS].start_consumer)
+        th.daemon = True
         th.start()
         
+        '''
+        with futures.ThreadPoolExecutor() as executor:
+            try:
+                self.thread = executor.submit(self.consumer[ENG_TOOLS].start_consumer)
+                
+            except RuntimeError as e:
+                self.log.send(self.iam, ERROR, e)
+            except Exception as e:
+                self.log.send(self.iam, ERROR, e)
+        '''
         
     #-------------------------------
     # rev <- main        
@@ -357,10 +369,12 @@ class MainWindow(Ui_Dialog, QMainWindow):
         # RabbitMQ connect
         self.consumer[HK_SUB] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.sub_hk_ex, "direct")      
         self.consumer[HK_SUB].connect_to_server()
-        
         self.consumer[HK_SUB].define_consumer(self.sub_hk_q, self.callback_sub)       
+        
         th = threading.Thread(target=self.consumer[HK_SUB].start_consumer)
+        th.daemon = True
         th.start()
+        
                 
     #-------------------------------
     # rev <- sub 
@@ -371,6 +385,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
 
         param = cmd.split()
         
+        #if param[0] == HK_REQ_EXIT:
+        #    print(self.iam, HK_REQ_EXIT)
+            #self.consumer[HK_SUB].stop_consumer()
+        #    return
+        
         connected = True
         if param[0] == HK_REQ_COM_STS:
             connected = bool(param[2]) 
@@ -380,19 +399,19 @@ class MainWindow(Ui_Dialog, QMainWindow):
         if param[1] == self.com_list[TMC1]:
             self.tempctrl_monitor(connected, TMC1)
             
-        if param[1] == self.com_list[TMC2]:
+        elif param[1] == self.com_list[TMC2]:
             self.tempctrl_monitor(connected, TMC2*2)
             
-        if param[1] == self.com_list[TMC3]:
+        elif param[1] == self.com_list[TMC3]:
             self.tempctrl_monitor(connected, TMC3*2)
             
-        if param[1] == self.com_list[TM]:
+        elif param[1] == self.com_list[TM]:
             self.temp_monitor(connected)
             
-        if param[1] == self.com_list[VM]:
+        elif param[1] == self.com_list[VM]:
             self.vacuum_monitor(connected)
             
-        if param[1] == self.com_list[PDU]:
+        elif param[1] == self.com_list[PDU]:
             self.pdu_monitor(connected)                
             
         if param[0] == HK_REQ_GETSETPOINT:      
@@ -408,9 +427,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 self.monitor[5][1].setText(self.set_point[4])
                 
             self.save_setpoint(self.set_point)
-            self.log.send(self.iam, DEBUG, self.set_point)
+            #self.log.send(self.iam, DEBUG, self.set_point)
             
-        if param[0] == HK_REQ_GETHEATINGPOWER:     
+        elif param[0] == HK_REQ_GETHEATINGPOWER:     
             port = int(param[2])
             heat = param[3]
             if param[1] == self.com_list[TMC1]:
@@ -427,7 +446,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 self.heatlabel[label_list[5]] = self.GetHeatValuefromTempCtrl(TMC3_B, heat)       
 
             
-        if param[0] == HK_REQ_GETVALUE:
+        elif param[0] == HK_REQ_GETVALUE:
             port = param[2]
             result = param[3]
             
@@ -438,13 +457,13 @@ class MainWindow(Ui_Dialog, QMainWindow):
                     self.dtvalue[label_list[0]] = self.GetValuefromTempCtrl(TMC1_A, 0, result, 1.0)
                 if port == "B":
                     self.dtvalue[label_list[1]] = self.GetValuefromTempCtrl(TMC1_B, 1, result, 0.1)
-            if param[1] == self.com_list[TMC2]:
+            elif param[1] == self.com_list[TMC2]:
                 result = "%.2f" % float(result)
                 if port == "A":
                     self.dtvalue[label_list[2]] = self.GetValuefromTempCtrl(TMC2_A, 2, result, 0.1)
                 if port == "B":
                     self.dtvalue[label_list[3]] = self.GetValuefromTempCtrl(TMC2_B, 3, result, 0.1)
-            if param[1] == self.com_list[TMC3]:  
+            elif param[1] == self.com_list[TMC3]:  
                 result = "%.2f" % float(result)  
                 if port == "A":     
                     self.QShowValue(TMC3_A, 0, result, "normal")
@@ -453,7 +472,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                     self.dtvalue[label_list[5]] = self.GetValuefromTempCtrl(TMC3_B, 4, result, 0.1)
 
             # from TM
-            if param[1] == self.com_list[TM]:
+            elif param[1] == self.com_list[TM]:
                 # for all
                 p = int(port)
                 if p == 0:
@@ -466,15 +485,16 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 else:
                     result = "%.2f" % float(result)
                     self.QShowValue(TM_1+p-1, 0, result, "normal")
-                    self.dtvalue[label_list[TM_1+p-1]] = result
-
+                    self.dtvalue[label_list[TM_1+p-1]] = result 
+                    
             # from VM
-            if param[1] == self.com_list[VM]:
-                self.QShowValueVM(self.dpvalue, "normal")
-                self.dpvalue = result    
+            elif param[1] == self.com_list[VM]:
+                self.QShowValueVM(result, "normal")
+                self.dpvalue = result     
+                  
                 
         # from PDU
-        if param[0] == HK_REQ_PWR_STS:
+        elif param[0] == HK_REQ_PWR_STS:
             for i in range(PDU_IDX):
                 self.power_status[i] = param[i+2]    
                 if self.power_status[i] == ON:
@@ -486,7 +506,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                     self.bt_pwr_onoff[i].setText(ON)
                     self.QWidgetBtnColor(self.bt_pwr_onoff[i], "black", "white")                  
                 
-        if param[0] == HK_REQ_MANUAL_CMD:
+        elif param[0] == HK_REQ_MANUAL_CMD:
             result = "[%s:%s] %s" % (param[1], param[2], param[3])
             self.e_recv.setText(result)
                       
@@ -662,8 +682,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             if self.power_status[1] == OFF:
                 self.power_onoff(2)
     
-            if self.monitor[0][1].text() == "":
-                self.get_setpoint()
+            self.get_setpoint()
             self.GetValue()
             
             self.st=ti.time()
@@ -684,13 +703,12 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
     def GetValue(self):
         
-        with futures.ThreadPoolExecutor(max_workers=5) as executor:
+        with futures.ThreadPoolExecutor() as executor:
             try:
-                executor.submit(self.get_heating())
+                executor.submit(self.get_value_fromVM())
                 executor.submit(self.get_value_fromTMC())
                 executor.submit(self.get_value_fromTM())
-                executor.submit(self.get_value_fromVM())
-                   
+                
             except RuntimeError as e:
                 self.log.send(self.iam, ERROR, e)
             except Exception as e:
@@ -704,35 +722,16 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     def get_setpoint(self):        
         # bench, Grating, SVC, Detector K, Detector H 
-        setp_list = [TMC1, TMC1, TMC2, TMC2, TMC3]  
-        setp_port = [1, 2, 1, 2, 2]
-            
-        for i in range(len(setp_list)): 
-        #for i in range(3):  
-            msg = "%s %s %d" % (HK_REQ_GETSETPOINT, self.com_list[setp_list[i]], setp_port[i])
-            #msg = "%s %s" % (HK_REQ_GETSETPOINT, self.com_list[i])
-            self.producer[HK_SUB].send_message(self.com_list[setp_list[i]], self.hk_sub_q, msg)
+        for i in range(3):  
+            msg = "%s %s" % (HK_REQ_GETSETPOINT, self.com_list[i])
+            self.producer[HK_SUB].send_message(self.com_list[i], self.hk_sub_q, msg)
         
-        
-    def get_heating(self):
-        setp_list = [TMC1, TMC1, TMC2, TMC2, TMC3]  
-        setp_port = [1, 2, 1, 2, 2]
-            
-        for i in range(len(setp_list)):  
-        #for i in range(3):            
-            msg = "%s %s %d" % (HK_REQ_GETHEATINGPOWER, self.com_list[setp_list[i]], setp_port[i])
-            #msg = "%s %s" % (HK_REQ_GETHEATINGPOWER, self.com_list[i])
-            self.producer[HK_SUB].send_message(self.com_list[setp_list[i]], self.hk_sub_q, msg)
-            
-            
+                    
     def get_value_fromTMC(self):
         for i in range(3):
-            msg = "%s %s A" % (HK_REQ_GETVALUE, self.com_list[i])
+            msg = "%s %s" % (HK_REQ_GETVALUE, self.com_list[i])
             self.producer[HK_SUB].send_message(self.com_list[i], self.hk_sub_q, msg) 
 
-            msg = "%s %s B" % (HK_REQ_GETVALUE, self.com_list[i])
-            self.producer[HK_SUB].send_message(self.com_list[i], self.hk_sub_q, msg) 
-                             
     
     def get_value_fromTM(self):
         msg = "%s %s 0" % (HK_REQ_GETVALUE, self.com_list[TM])
@@ -753,7 +752,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         if self.bt_pause.text == "Periodic Monitoring":
             return
 
-        fname = strftime("%Y%m%d", localtime())+".log"
+        fname = ti.strftime("%Y%m%d", ti.localtime())+".log"
         f_p_name = self.logpath+fname
         if os.path.isfile(f_p_name):
             file=open(f_p_name,'a+')
@@ -784,7 +783,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         hk_entries.append(alert_status)
 
         # hk_entries to string
-        updated_datetime = strftime("%Y-%m-%d %H:%M:%S", localtime())
+        updated_datetime = ti.strftime("%Y-%m-%d %H:%M:%S", ti.localtime())
         self.sts_updated.setText(updated_datetime)
 
         str_log1 = "\t".join([updated_datetime] + list(map(str, hk_entries))) + "\n"    #by hilee
