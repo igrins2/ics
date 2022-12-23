@@ -15,7 +15,7 @@ import time as ti
 # RabbitMQ communication
 class MsgMiddleware():
     
-    def __init__(self, iam, ip_addr, id, pwd, exchange, type, producer = False):
+    def __init__(self, iam, ip_addr, id, pwd, exchange):
         
         self.iam = iam       
         self.ip_addr = ip_addr
@@ -24,8 +24,6 @@ class MsgMiddleware():
         
         self.exchange = exchange
         self.queue = None
-        self.type = type
-        self.producer = producer
                 
         self.channel = None
         self.connection = None
@@ -36,15 +34,8 @@ class MsgMiddleware():
         for th in threading.enumerate():
             print(th.name + f"{th.name} exit.")
             
-        if self.producer:
-            print(f"'{self.iam}' closed rabbitmq queue and connections (producer)")
-        else:
-            print(f"'{self.iam}' closed rabbitmq queue and connections (consumer)")
+        print(f"'{self.iam}' closed rabbitmq queue and connections")
       
-        if self.producer is False:
-            self.channel.cancel()
-            if self.queue:
-                self.stop_consumer()        
         try:
             if self.connection.is_open:
                 self.connection.close()
@@ -66,7 +57,7 @@ class MsgMiddleware():
     # as producer
     def define_producer(self):
         try:
-            self.channel.exchange_declare(exchange=self.exchange, exchange_type=self.type)
+            self.channel.exchange_declare(exchange=self.exchange, exchange_type="direct")
                     
         except Exception as e:
             print(f"'{self.iam}' cannot define producer.\r\nPlease check the server and try again!")
@@ -91,12 +82,11 @@ class MsgMiddleware():
     def define_consumer(self, _routing_key, _callback):        
         try:
             if self.queue is None:
-                #self.channel.exchange_declare(exchange=self.exchange, exchange_type=self.type)
+                self.channel.exchange_declare(exchange=self.exchange, exchange_type="direct")
                 result = self.channel.queue_declare(queue='', durable=True, exclusive=True)
                 self.queue = result.method.queue
                 print(f"queueName= '{self.queue}'")
             
-            #for _key in _routing_key:
             self.channel.queue_bind(exchange=self.exchange, queue=self.queue, routing_key=_routing_key)
             self.channel.basic_consume(queue=self.queue, on_message_callback=_callback, auto_ack=True)
 
@@ -114,23 +104,3 @@ class MsgMiddleware():
             print(f"'{self.iam}' error starting consuming msg")         
             raise
         
-        
-               
-    def stop_consumer(self):        
-        try:
-            self.channel.cancel()
-            if self.queue:
-                self.channel.stop_consuming()
-            
-                ti.sleep(3)
-                
-        except Exception as e:
-            print(f"'{self.iam}' error stopping consuming msg")
-            raise
-
-        
-
-    
-        
-
-            

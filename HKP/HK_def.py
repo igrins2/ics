@@ -95,8 +95,6 @@ HK_REQ_PWR_ONOFF = "PowerOnOff" #pdu
 
 HK_REQ_UPLOAD_DB = "UploadDB"   #uploader
 
-HK_REQ_EXIT = "CommandExit"
-
 DT_REQ_INITMOTOR = "InitMotor"  #motor  
 DT_REQ_MOVEMOTOR = "MoveMotor"  #motor
 DT_REQ_MOTORGO = "MotorGo"      #motor

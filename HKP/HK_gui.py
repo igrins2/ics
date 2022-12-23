@@ -189,22 +189,12 @@ class MainWindow(Ui_Dialog, QMainWindow):
         for idx in range(PDU_IDX):
             msg = "%s %d %s" % (HK_REQ_PWR_ONOFF, idx+1, OFF)
             self.producer[HK_SUB].send_message(self.com_list[PDU], self.hk_sub_q, msg)         
-            
-        self.producer[HK_SUB].send_message("all", self.hk_sub_q, HK_REQ_EXIT)
-                
+                            
         for th in threading.enumerate():
             self.log.send(self.iam, DEBUG, th.name + " exit.")
-            
-        #futures.as_completed(self.thread)
-        #for f in futures.as_completed(self.thread):
-        #self.log.send(self.iam, DEBUG, self.thread + " exit.")
-        
-        self.log.send(self.iam, INFO, "Closed!")
+                    
+        self.log.send(self.iam, INFO, "Closed!")        
                                 
-        for i in range(SERV_CONNECT_CNT):
-            if self.consumer[i] != None:
-                self.consumer[i].stop_consumer()
-
         for i in range(SERV_CONNECT_CNT):
             if i == ENG_TOOLS:
                 msg = "%s %s" % (EXIT, self.iam)
@@ -212,8 +202,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
             if self.producer[i] != None:
                 self.producer[i].__del__()
-            if self.consumer[i] != None:
-                self.consumer[i].__del__()
                 
         return super().closeEvent(event)
     
@@ -309,7 +297,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     # hk -> main
     def connect_to_server_main_ex(self):
         # RabbitMQ connect  
-        self.producer[ENG_TOOLS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_main_ex, "direct", True)      
+        self.producer[ENG_TOOLS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_main_ex)      
         self.producer[ENG_TOOLS].connect_to_server()
         self.producer[ENG_TOOLS].define_producer()
         
@@ -321,7 +309,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     # main -> hk 
     def connect_to_server_gui_q(self):
         # RabbitMQ connect
-        self.consumer[ENG_TOOLS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.main_hk_ex, "direct")      
+        self.consumer[ENG_TOOLS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.main_hk_ex)      
         self.consumer[ENG_TOOLS].connect_to_server()
         self.consumer[ENG_TOOLS].define_consumer(self.main_hk_q, self.callback_main)       
         
@@ -358,7 +346,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     # hk -> sub    
     def connect_to_server_hk_ex(self):
         # RabbitMQ connect  
-        self.producer[HK_SUB] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_sub_ex, "direct", True)      
+        self.producer[HK_SUB] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_sub_ex)      
         self.producer[HK_SUB].connect_to_server()
         self.producer[HK_SUB].define_producer()
     
@@ -367,7 +355,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     # sub -> hk
     def connect_to_server_sub_q(self):
         # RabbitMQ connect
-        self.consumer[HK_SUB] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.sub_hk_ex, "direct")      
+        self.consumer[HK_SUB] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.sub_hk_ex)      
         self.consumer[HK_SUB].connect_to_server()
         self.consumer[HK_SUB].define_consumer(self.sub_hk_q, self.callback_sub)       
         
@@ -384,12 +372,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.log.send(self.iam, INFO, msg)
 
         param = cmd.split()
-        
-        #if param[0] == HK_REQ_EXIT:
-        #    print(self.iam, HK_REQ_EXIT)
-            #self.consumer[HK_SUB].stop_consumer()
-        #    return
-        
+                
         connected = True
         if param[0] == HK_REQ_COM_STS:
             connected = bool(param[2]) 

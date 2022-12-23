@@ -40,8 +40,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 
         self.init_events()
         
-        self.radio_real.setChecked(True)
-        self.simulation = False
+        #self.radio_real.setChecked(True)
+        #self.simulation = False
             
         # ---------------------------------------------------------------
         # start subprocess - temp ctrl, monitor, pdu, uploader
@@ -67,33 +67,36 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.producer = None
         self.consumer = None
         
+        self.bt_runHKP.setEnabled(False)
+        self.bt_runDTP.setEnabled(False)
+        
         self.connect_to_server_main_ex()
         self.connect_to_server_gui_q()
         
         
-    def closeEvent(self, *args, **kwargs):
+    def closeEvent(self, event: QCloseEvent) -> None:
         
         for i in range(COM_CNT):
             if self.proc_sub[i] != None:
+                print(self.proc_sub[i].pid)
+                #ti.sleep(20)
                 self.proc_sub[i].terminate()
+                self.log.send(self.iam, INFO, str(self.proc_sub[i].pid) + " exit")
         
         for i in range(SERV_CONNECT_CNT):
             if self.proc[i] != None:
+                print(self.proc[i].pid)
+                #ti.sleep(20)
                 self.proc[i].terminate()
                 self.log.send(self.iam, INFO, str(self.proc[i].pid) + " exit")
                 
         for th in threading.enumerate():
             self.log.send(self.iam, DEBUG, th.name + " exit.")
-            
-        if self.consumer != None:
-            self.consumer.stop_consumer()
-        
+                    
         if self.producer != None:
             self.producer.__del__()
-        if self.consumer != None:
-            self.consumer.__del__()
                                                                 
-        return QMainWindow.closeEvent(self, *args, **kwargs)
+        return super().closeEvent(event)
         
         
     def init_events(self):
@@ -106,10 +109,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     def start_sub_system(self):
         
-        for i in range(COM_CNT):
-            if self.proc_sub[i] != None:
-                self.proc_sub[i].terminate()
-                
         simul_mode = "%d" % self.simulation
         
         comport = []
@@ -135,15 +134,16 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 cmd = "%sworkspace/ics/HKP/motor.py" % WORKING_DIR
                 self.proc_sub[i] = subprocess.Popen(['python', cmd, com_list[i], comport[i], simul_mode])                
                         
-        cmd = "%sworkspace/ics/HKP/uploader.py" % WORKING_DIR
-        self.proc_sub[UPLOADER] = subprocess.Popen(['python', cmd, simul_mode])        
+        if self.proc_sub[UPLOADER] == None:
+            cmd = "%sworkspace/ics/HKP/uploader.py" % WORKING_DIR
+            self.proc_sub[UPLOADER] = subprocess.Popen(['python', cmd, simul_mode])        
         
         
     #-------------------------------
     # dt -> sub: use hk ex
     def connect_to_server_main_ex(self):
         # RabbitMQ connect  
-        self.producer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.main_gui_ex, "direct", True)      
+        self.producer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.main_gui_ex)      
         self.producer.connect_to_server()
         self.producer.define_producer()
     
@@ -152,7 +152,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     # sub -> dt: use hk q
     def connect_to_server_gui_q(self):
         # RabbitMQ connect
-        self.consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.gui_main_ex, "direct")      
+        self.consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.gui_main_ex)      
         self.consumer.connect_to_server()
         self.consumer.define_consumer(self.gui_main_q, self.callback_gui)       
         
@@ -191,22 +191,41 @@ class MainWindow(Ui_Dialog, QMainWindow):
     
     
     def set_mode(self):                    
+        
+        for i in range(COM_CNT):
+            if self.proc_sub[i] != None:
+                if self.proc_sub[i].poll() == None:
+                    #print(self.proc_sub[i].pid)
+                    #ti.sleep(20)
+                    #self.proc_sub[i].terminate()
+                    self.proc_sub[i].kill()
+                    self.proc_sub[i] = None
+        
         if self.radio_inst_simul.isChecked():
             self.simulation = True
             
-            #cmd = "%sworkspace/ics/igos2_simul/run_hk_simulator.py" % WORKING_DIR
-            #self.proc_simul = subprocess.Popen(["python", cmd])
+            if self.proc_simul == None:
+                cmd = "%sworkspace/ics/igos2_simul/run_hk_simulator.py" % WORKING_DIR
+                self.proc_simul = subprocess.Popen(["python", cmd])
             
         elif self.radio_real.isChecked():
             self.simulation = False
             
             if self.proc_simul != None:
-                self.proc_simul.terminate()
+                if self.proc_simul.poll() == None:
+                    #print(self.proc_simul.pid)
+                    #ti.sleep(20)
+                    #self.proc_simul.terminate()
+                    self.proc_simul.kill()
+                    self.proc_simul = None
                 
         self.start_sub_system()
         
+        self.bt_runHKP.setEnabled(True)
+        self.bt_runDTP.setEnabled(True)   
+        
         msg = "%s %s %d" % (TEST_MODE, DT, self.simulation)
-        self.producer.send_message(self.iam, self.main_gui_q, msg)        
+        self.producer.send_message(self.iam, self.main_gui_q, msg)  
         
         
     def run_HKP(self):
@@ -222,6 +241,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.radio_inst_simul.setEnabled(False)
         self.radio_real.setEnabled(False)
+        
+        msg = "%s %s %d" % (TEST_MODE, DT, self.simulation)
+        self.producer.send_message(self.iam, self.main_gui_q, msg)     
         
     
     def send_to_GMP(self):

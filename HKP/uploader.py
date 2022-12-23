@@ -78,10 +78,7 @@ class uploader():
         
         for th in threading.enumerate():
             self.log.send(self.iam, DEBUG, th.name + " exit.")
-            
-        self.consumer.stop_consumer()
-        self.consumer.__del__()
-                        
+                                    
 
     def get_firebase(self):
         
@@ -144,9 +141,9 @@ class uploader():
     #-------------------------------
     def connect_to_server_hk_q(self):
         # RabbitMQ connect
-        self.consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_sub_ex, "direct")      
+        self.consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_sub_ex)      
         self.consumer.connect_to_server()
-        self.consumer.define_consumer(self.iam, self.callback_hk)
+        self.consumer.define_consumer(self.hk_sub_q, self.callback_hk)
         
         th = threading.Thread(target=self.consumer.start_consumer)
         th.start()

@@ -17,9 +17,6 @@ class LOG():
                 
         self.gui = gui
 
-        # load ini file
-        cfg = sc.LoadConfig(work_dir + "/Config/IGRINS.ini")
-        
         self.path = "%s/Log/%s/" % (work_dir, iam)
         self.createFolder(self.path)
         

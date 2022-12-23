@@ -78,10 +78,7 @@ class pdu() :
         self.close_component()
         
         if self.gui:
-            self.consumer.stop_consumer()
-            
             self.producer.__del__()                    
-            self.consumer.__del__()
             
                     
         
@@ -216,7 +213,7 @@ class pdu() :
     # sub -> hk    
     def connect_to_server_sub_ex(self):
         # RabbitMQ connect        
-        self.producer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.sub_hk_ex, "direct")      
+        self.producer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.sub_hk_ex)      
         self.producer.connect_to_server()
         self.producer.define_producer()     
            
@@ -225,7 +222,7 @@ class pdu() :
     # hk -> sub
     def connect_to_server_hk_q(self):
         # RabbitMQ connect
-        self.consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_sub_ex, "direct")      
+        self.consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_sub_ex)      
         self.consumer.connect_to_server()
         self.consumer.define_consumer(self.hk_sub_q, self.callback_hk)
         
@@ -237,11 +234,7 @@ class pdu() :
     def callback_hk(self, ch, method, properties, body):
         cmd = body.decode()
         param = cmd.split()
-        
-        #if param[0] == HK_REQ_EXIT:
-        #    self.producer.send_message(HK, self.sub_hk_q, HK_REQ_EXIT) 
-            #self.__del__()
-            
+                    
         if len(param) < 2:
             return
         if param[1] != self.iam:
