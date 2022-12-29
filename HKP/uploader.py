@@ -37,7 +37,7 @@ FieldNames = [('date', str), ('time', str),
               ('shieldtop', float), ('air', float), 
               ('alert_status', str)]
 
-class uploader():
+class uploader(threading.Thread):
     
     def __init__(self, simul):
         
@@ -68,7 +68,7 @@ class uploader():
         
         self.consumer = None
         
-        self.simul = bool(int(simul))
+        self.simul = bool(simul)
         #self.connect_to_server_hk_q()
         
     

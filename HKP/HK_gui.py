@@ -187,8 +187,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.log.send(self.iam, INFO, "This may take several seconds waiting for threads to close")
             
         for idx in range(PDU_IDX):
-            msg = "%s %d %s" % (HK_REQ_PWR_ONOFF, idx+1, OFF)
-            self.producer[HK_SUB].send_message(self.com_list[PDU], self.hk_sub_q, msg)         
+            if self.power_status[idx] == ON:
+                self.power_onoff(idx+1)               
                             
         for th in threading.enumerate():
             self.log.send(self.iam, DEBUG, th.name + " exit.")
@@ -197,8 +197,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
                                 
         for i in range(SERV_CONNECT_CNT):
             if i == ENG_TOOLS:
-                msg = "%s %s" % (EXIT, self.iam)
-                self.producer[ENG_TOOLS].send_message(self.iam, self.hk_main_q, msg)
+                msg = "%s %s" % (EXIT, HK)
+                self.producer[ENG_TOOLS].send_message(MAIN, self.hk_main_q, msg)
             
             if self.producer[i] != None:
                 self.producer[i].__del__()
@@ -301,8 +301,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.producer[ENG_TOOLS].connect_to_server()
         self.producer[ENG_TOOLS].define_producer()
         
-        msg = "%s %s" % (ALIVE, self.iam)
-        self.producer[ENG_TOOLS].send_message(self.iam, self.hk_main_q, msg)
+        msg = "%s %s" % (ALIVE, HK)
+        self.producer[ENG_TOOLS].send_message(MAIN, self.hk_main_q, msg)
     
          
     #-------------------------------
@@ -317,17 +317,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         th.daemon = True
         th.start()
         
-        '''
-        with futures.ThreadPoolExecutor() as executor:
-            try:
-                self.thread = executor.submit(self.consumer[ENG_TOOLS].start_consumer)
-                
-            except RuntimeError as e:
-                self.log.send(self.iam, ERROR, e)
-            except Exception as e:
-                self.log.send(self.iam, ERROR, e)
-        '''
-        
+       
     #-------------------------------
     # rev <- main        
     def callback_main(self, ch, method, properties, body):
@@ -338,8 +328,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.log.send(self.iam, INFO, msg)
         
         if param[0] == ALIVE:
-            msg = "%s %s" % (ALIVE, self.iam)
-            self.producer[ENG_TOOLS].send_message(self.iam, self.hk_main_q, msg)
+            msg = "%s %s" % (ALIVE, HK)
+            self.producer[ENG_TOOLS].send_message(MAIN, self.hk_main_q, msg)
         
         
     #-------------------------------
@@ -479,7 +469,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         # from PDU
         elif param[0] == HK_REQ_PWR_STS:
             for i in range(PDU_IDX):
-                self.power_status[i] = param[i+2]    
+                self.power_status[i] = param[i+3]    
                 if self.power_status[i] == ON:
                     self.QWidgetLabelColor(self.pdulist[i], "red")
                     self.bt_pwr_onoff[i].setText(OFF)
@@ -565,9 +555,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
     # button
     def power_onoff(self, idx):
         if self.power_status[idx-1] == ON:
-            msg = "%s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], idx, OFF)
+            msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], HK, idx, OFF)
         else:
-            msg = "%s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], idx, ON)
+            msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], HK, idx, ON)
         self.producer[HK_SUB].send_message(self.com_list[PDU], self.hk_sub_q, msg) 
         
         
@@ -616,6 +606,17 @@ class MainWindow(Ui_Dialog, QMainWindow):
     # strat process
        
     def on_startup(self, periodic=True, send_alert=True):
+                            
+        self.get_pwr_sts()
+            
+        for idx in range(PDU_IDX):
+            if idx < 2:
+                if self.power_status[idx] == OFF:
+                    self.power_onoff(idx+1)
+            else:
+                if self.power_status[idx] == ON:
+                    self.power_onoff(idx+1)
+                    
         if periodic:
             self.Periodic()
             if send_alert:
@@ -659,11 +660,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.ost=ti.time()
             
             self.get_pwr_sts()
-
-            if self.power_status[0] == OFF:
-                self.power_onoff(1)
-            if self.power_status[1] == OFF:
-                self.power_onoff(2)
     
             self.get_setpoint()
             self.GetValue()
@@ -727,7 +723,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     
     def get_pwr_sts(self):
-        msg = "%s %s" % (HK_REQ_PWR_STS, self.com_list[PDU])
+        msg = "%s %s %s" % (HK_REQ_PWR_STS, self.com_list[PDU], HK)
         self.producer[HK_SUB].send_message(self.com_list[PDU], self.hk_sub_q, msg) 
         
         

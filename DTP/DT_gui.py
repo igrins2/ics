@@ -9,7 +9,6 @@ Modified on Dec 16, 2022
 """
 
 import sys, os
-import PySide6
 from matplotlib.figure import Figure
 
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
@@ -33,6 +32,8 @@ import threading
 import numpy as np
 import astropy.io.fits as fits 
 import Libs.zscale as zs
+
+import glob
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
@@ -83,7 +84,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.dt_main_ex = self.cfg.get(MAIN, 'gui_main_exchange')     
         self.dt_main_q = self.cfg.get(MAIN, 'gui_main_routing_key')
         self.main_dt_ex = self.cfg.get(MAIN, 'main_gui_exchange')
-        self.main_dt_q = self.cfg.get(MAIN, 'main_gui_exchange')
+        self.main_dt_q = self.cfg.get(MAIN, 'main_gui_routing_key')
         
         self.dt_sub_ex = self.cfg.get(MAIN, 'hk_sub_exchange')
         self.dt_sub_q = self.cfg.get(MAIN, 'hk_sub_routing_key')
@@ -122,11 +123,13 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.label_prog_time[i].setText("---")
             self.label_prog_elapsed[i].setText("0.0 sec")
             
-        today = ti.strftime("%04Y%02m%02d", ti.localtime())
+        self.today = ti.strftime("%04Y%02m%02d", ti.localtime())
         self.cur_frame = [0, 0, 0]
         
         for i in range(DCS_CNT):
-            self.e_path[i].setText(self.fits_path + today)
+            self.label_cur_num[i].setText("0 / 0")
+            self.e_path[i].setText(self.fits_path + self.today)
+            self.cur_frame[i] = self.new_seq(i)
             filename = "%s_%04d.fits" % (self.dcs_list[i], self.cur_frame[i])
             self.e_savefilename[i].setText(filename)
                     
@@ -134,8 +137,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.cal_e_exptime[i].setText("1.63")
             self.cal_e_repeat[i].setText("1")
         
-        self.e_utpos.setText("1")
-        self.e_ltpos.setText("1")
+        self.e_utpos.setText("-")
+        self.e_ltpos.setText("-")
         
         self.e_movinginterval.setText("1")        
         
@@ -148,8 +151,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 
         self.producer = [None for _ in range(SERV_CONNECT_CNT)]
         self.consumer = [None for _ in range(SERV_CONNECT_CNT)]       
-
-        #self.timer_alive = [None for _ in range(DCS_CNT)] 
         
         self.img = [None for _ in range(DCS_CNT)]
         #self.img_new = [False for _ in range(DCS_CNT)]
@@ -157,14 +158,20 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.output_channel = 32
         
         self.cur_cnt = [0 for _ in range(DCS_CNT)]
+        self.header = [None for _ in range(DCS_CNT)]
         
         self.sel_mode = MODE_HK
         self.radio_HK_sync.setChecked(True)
         self.set_HK_sync()
         
         self.stop_clicked = False
+        self.cal_stop_clicked = False
         
         self.cal_cur = 0
+        self.ut_moved = False
+        self.lt_moved = False
+        
+        self.power_status = [OFF for _ in range(DCS_CNT)] # motor, FLAT, THAR
            
         for i in range(CAL_CNT):
             self.cal_use_parsing(self.cal_chk[i], self.cal_e_exptime[i], self.cal_e_repeat[i])         
@@ -174,17 +181,17 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         # elapsed
         self.elapsed = [0.0 for _ in range(DCS_CNT)]
-                
+        
         # connect to server
         self.connect_to_server_main_ex()
         self.connect_to_server_gui_q()
-        
+    
         self.connect_to_server_hk_ex()
         self.connect_to_server_sub_q()
         
         self.connect_to_server_dt_ex()
         self.connect_to_server_dcs_q()
-    
+                            
         
         
     def closeEvent(self, event: QCloseEvent) -> None:
@@ -193,7 +200,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.log.send(self.iam, INFO, "This may take several seconds waiting for threads to close")
             
         for idx in range(PDU_IDX):
-            msg = "%s %d %s" % (HK_REQ_PWR_ONOFF, idx+1, OFF)
+            msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, idx+1, OFF)
             self.producer[HK_SUB].send_message(self.com_list[PDU], self.dt_sub_q, msg) 
                         
         for th in threading.enumerate():
@@ -203,8 +210,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
                                     
         for i in range(SERV_CONNECT_CNT):                
             if i == ENG_TOOLS:
-                msg = "%s %s" % (EXIT, self.iam)
-                self.producer[ENG_TOOLS].send_message(self.iam, self.dt_main_q, msg)
+                msg = "%s %s" % (EXIT, DT)
+                self.producer[ENG_TOOLS].send_message(MAIN, self.dt_main_q, msg)
             
             if self.producer[i] != None:
                 self.producer[i].__del__()
@@ -331,36 +338,22 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.chk_USAF_off.clicked.connect(lambda: self.cal_use_parsing(self.cal_chk[7], self.cal_e_exptime[7], self.cal_e_repeat[7]))
         self.chk_parking.clicked.connect(lambda: self.cal_use_parsing(self.cal_chk[8], self.cal_e_exptime[8], self.cal_e_repeat[8]))
         
-        self.bt_utpos_prev.clicked.connect(lambda: self.motor_move(UT, PREV))
-        self.bt_utpos_next.clicked.connect(lambda: self.motor_move(UT, NEXT))
+        self.bt_utpos_prev.clicked.connect(lambda: self.move_motor_delta(UT, PREV))
+        self.bt_utpos_next.clicked.connect(lambda: self.move_motor_delta(UT, NEXT))
         
-        self.bt_utpos_set1.clicked.connect(lambda: self.motor_pos_set(UT, 1))
-        self.bt_utpos_set2.clicked.connect(lambda: self.motor_pos_set(UT, 2))
+        self.bt_utpos_set1.clicked.connect(lambda: self.motor_pos_set(UT, 0))
+        self.bt_utpos_set2.clicked.connect(lambda: self.motor_pos_set(UT, 1))
         
-        self.bt_ltpos_prev.clicked.connect(lambda: self.motor_move(LT, PREV))
-        self.bt_ltpos_next.clicked.connect(lambda: self.motor_move(LT, NEXT))
+        self.bt_ltpos_prev.clicked.connect(lambda: self.move_motor_delta(LT, PREV))
+        self.bt_ltpos_next.clicked.connect(lambda: self.move_motor_delta(LT, NEXT))
         
-        self.bt_ltpos_set1.clicked.connect(lambda: self.motor_pos_set(LT, 1))
-        self.bt_ltpos_set2.clicked.connect(lambda: self.motor_pos_set(LT, 2))
-        self.bt_ltpos_set3.clicked.connect(lambda: self.motor_pos_set(LT, 3))
-        self.bt_ltpos_set4.clicked.connect(lambda: self.motor_pos_set(LT, 4))
+        self.bt_ltpos_set1.clicked.connect(lambda: self.motor_pos_set(LT, 0))
+        self.bt_ltpos_set2.clicked.connect(lambda: self.motor_pos_set(LT, 1))
+        self.bt_ltpos_set3.clicked.connect(lambda: self.motor_pos_set(LT, 2))
+        self.bt_ltpos_set4.clicked.connect(lambda: self.motor_pos_set(LT, 3))
         
-        self.bt_utpos_prev.setEnabled(False)
-        self.e_utpos.setEnabled(False)
-        self.bt_utpos_next.setEnabled(False)
-                
-        self.bt_utpos_set1.setEnabled(False)
-        self.bt_utpos_set2.setEnabled(False)
-                
-        self.bt_ltpos_prev.setEnabled(False)
-        self.e_ltpos.setEnabled(False)
-        self.bt_ltpos_next.setEnabled(False)
-                
-        self.bt_ltpos_set1.setEnabled(False)
-        self.bt_ltpos_set2.setEnabled(False)
-        self.bt_ltpos_set3.setEnabled(False)
-        self.bt_ltpos_set4.setEnabled(False)
-        
+        self.protect_btn_ut(False)
+        self.protect_btn_lt(False)        
         
     #-------------------------------
     # dt -> main
@@ -370,8 +363,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.producer[ENG_TOOLS].connect_to_server()
         self.producer[ENG_TOOLS].define_producer()
         
-        msg = "%s %s" % (ALIVE, self.iam)
-        self.producer[ENG_TOOLS].send_message(self.iam, self.dt_main_q, msg)
+        msg = "%s %s" % (ALIVE, DT)
+        self.producer[ENG_TOOLS].send_message(MAIN, self.dt_main_q, msg)
     
          
     #-------------------------------
@@ -400,14 +393,13 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.log.send(self.iam, INFO, msg)
         
         if param[0] == ALIVE:
-            msg = "%s %s" % (ALIVE, self.iam)
-            self.producer[ENG_TOOLS].send_message(self.iam, self.dt_main_q, msg)
+            msg = "%s %s" % (ALIVE, DT)
+            self.producer[ENG_TOOLS].send_message(MAIN, self.dt_main_q, msg)
             
         elif param[0] == TEST_MODE:
-            self.simulation_mode = int(param[2])
+            self.simulation_mode = bool(param[2])
         
-        
-        
+
 
     #-------------------------------
     # dt -> sub: use hk ex
@@ -449,38 +441,70 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.log.send(self.iam, INFO, msg)
         
         # from PDU
-        if param[0] == HK_REQ_PWR_STS:
-            #self.single_exposure()
-            pass
+        if param[0] == HK_REQ_PWR_STS and param[2] == DT:
+            self.power_status[MOTOR-3] = param[MOTOR+2]
+            self.power_status[FLAT-3] = param[FLAT+2]
+            self.power_status[THAR-3] = param[THAR+2]
+                                        
+            if self.dcs_sts[H] is False or self.dcs_sts[K] is False:
+                self.bt_run.setText("RUN")
+                self.QWidgetBtnColor(self.bt_run, "white", "red")
+                self.cal_stop_clicked = False
+                
+                self.log.send(self.iam, WARNING, "Check DCS initializing")
         
-        if param[0] == DT_REQ_INITMOTOR:
+        elif param[0] == DT_REQ_INITMOTOR:
             if param[2] == "TRY":
                 msg = "%s - need to initialize" % param[1]
                 self.log.send(self.iam, INFO, msg)
             
             elif param[2] == "OK":
                 if param[1] == self.com_list[UT]:
-                    self.bt_utpos_prev.setEnabled(True)
-                    self.bt_utpos_next.setEnabled(True)
-                        
-                    self.bt_utpos_set1.setEnabled(True)
-                    self.bt_utpos_set2.setEnabled(True)
+                    self.protect_btn_ut(True)
+                    self.e_utpos.setText("0")
                 elif param[1] == self.com_list[LT]:
-                    self.bt_ltpos_prev.setEnabled(True)
-                    self.bt_ltpos_next.setEnabled(True)
-                            
-                    self.bt_ltpos_set1.setEnabled(True)
-                    self.bt_ltpos_set2.setEnabled(True)
-                    self.bt_ltpos_set3.setEnabled(True)
-                    self.bt_ltpos_set4.setEnabled(True)
+                    self.protect_btn_lt(True)
+                    self.e_ltpos.setText("0")
+            
+            if param[1] == self.com_list[UT]:
+                self.QWidgetBtnColor(self.bt_ut_motor_init, "white", "green")
+            elif param[1] == self.com_list[LT]:
+                self.QWidgetBtnColor(self.bt_lt_motor_init, "white", "green")
+                
+            self.bt_ut_motor_init.setEnabled(True)
+            self.bt_lt_motor_init.setEnabled(True)
                 
         elif param[0] == DT_REQ_MOVEMOTOR:
-            self.func_lamp(self.cal_cur)
-        
-        elif param[0] == DT_REQ_MOTORGO:
-            pass
+            if param[1] == self.com_list[UT]:
+                self.ut_moved = True
+                self.e_utpos.setText(param[2])
+            elif param[1] == self.com_list[LT]:
+                self.lt_moved = True
+                self.e_ltpos.setText(param[2])
             
-        elif param[0] == DT_REQ_MOTORBACK:
+            if self.ut_moved and self.lt_moved:
+                self.func_lamp(self.cal_cur)
+                ti.sleep(1)
+                
+                self.cal_exposure()   
+                
+                # for test
+                #self.func_lamp(self.cal_cur, OFF)
+                #self.cal_cur += 1
+                #self.cal_run_cycle()
+        
+        elif param[0] == DT_REQ_MOTORGO or param[0] == DT_REQ_MOTORBACK:
+            if param[1] == self.com_list[UT]:
+                self.protect_btn_ut(True)
+                self.e_utpos.setText(param[2])
+            elif param[1] == self.com_list[LT]:
+                self.protect_btn_lt(True)
+                self.e_ltpos.setText(param[2])
+        
+        elif param[0] == DT_REQ_SETUT:
+            pass
+        
+        elif param[0] == DT_REQ_SETLT:
             pass
 
     
@@ -491,6 +515,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.producer[DCS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.dt_dcs_ex)      
         self.producer[DCS].connect_to_server()
         self.producer[DCS].define_producer()
+        
+        for dc_idx in range(DCS_CNT):
+            self.alive_check(dc_idx, self.simulation_mode)
                 
     
     #-------------------------------
@@ -516,12 +543,10 @@ class MainWindow(Ui_Dialog, QMainWindow):
         param = cmd.split()
         dc_idx = self.dcs_list.index(param[1])
         
-        if param[0] == CMD_INITIALIZE1:
-            connected = bool(param[2])
-            self.dcs_sts[dc_idx] = connected
-            
-            self.initialize2(dc_idx, self.simulation_mode)
-            
+        if param[0] == ALIVE or param[0] == CMD_INITIALIZE1:
+            self.dcs_sts[dc_idx] = True
+            threading.Timer(self.alive_chk_interval, self.alive_check, args=(dc_idx, self.simulation_mode)).start()
+                        
         elif param[0] == CMD_INITIALIZE2:
             self.resetASIC(dc_idx, self.simulation_mode)
         
@@ -535,6 +560,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
         elif param[0] == CMD_SETDETECTOR:
             self.enable_dcs(dc_idx, True)
+            self.QWidgetBtnColor(self.bt_init[dc_idx], "white", "green")
+            self.bt_init[dc_idx].setEnabled(True)
                 
         elif param[0] == CMD_SETFSPARAM:
             
@@ -557,31 +584,59 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.progressBar[dc_idx].setValue(self.cur_prog_step[dc_idx])           
             
             # load data
-            self.load_data(dc_idx)
+            self.load_data(dc_idx, param[2])
         
             self.acquiring[dc_idx] = False
             
-            show_cur_cnt = "%d / %s" % (self.cur_cnt[dc_idx], self.e_repeat[dc_idx].text())
-            self.label_cur_num[dc_idx].setText(show_cur_cnt)
+            if self.cal_mode:
+                show_cur_cnt = "%d / %s" % (self.cur_cnt[dc_idx], self.cal_e_repeat[self.cal_cur].text())
+                self.label_cur_num[dc_idx].setText(show_cur_cnt)
+                
+                if self.cal_stop_clicked:
+                    self.bt_run.setText("RUN")
+                    self.QWidgetBtnColor(self.bt_run, "black", "white")
+                    self.cal_stop_clicked = False
+                
+                elif self.cur_cnt[dc_idx] < int(self.cal_e_repeat[self.cal_cur].text()):
+                     self.acquireramp(dc_idx, self.simulation_mode)
+                
+                else:
+                    self.cur_cnt[dc_idx] = 0
+                    self.bt_run.setText("RUN")
+                    self.QWidgetBtnColor(self.bt_run, "black", "white")
+                    self.cal_stop_clicked = False                    
             
-            if self.stop_clicked:
-                self.protect_btn(True) 
-                self.bt_take_image.setText("Continuous")
-            
-            elif self.cur_cnt[dc_idx] < int(self.e_repeat[dc_idx].text()):
-                self.acquireramp(dc_idx, self.simulation_mode)
+                    if self.acquiring[H] is False and self.acquiring[K] is False:
+                        self.func_lamp(self.cal_cur, OFF)
+                        self.cal_cur += 1
+                        self.cal_run_cycle()
                 
             else:
-                self.cur_cnt[dc_idx] = 0
-                self.protect_btn(True)
-                    
-                if int(self.e_repeat[SVC].text()) > 1 or int(self.e_repeat[H].text()) > 1 or int(self.e_repeat[K].text()) > 1:
+                show_cur_cnt = "%d / %s" % (self.cur_cnt[dc_idx], self.e_repeat[dc_idx].text())
+                self.label_cur_num[dc_idx].setText(show_cur_cnt)
+                
+                if self.stop_clicked:
+                    self.protect_btn(True) 
                     self.bt_take_image.setText("Continuous")
+                    
+                    self.QWidgetBtnColor(self.bt_take_image, "black", "white")
+                    self.stop_clicked = False
+                
+                elif self.cur_cnt[dc_idx] < int(self.e_repeat[dc_idx].text()):
+                    self.acquireramp(dc_idx, self.simulation_mode)
+                    
                 else:
-                    self.bt_take_image.setText("Take Image")
+                    self.cur_cnt[dc_idx] = 0
+                    self.protect_btn(True)
+                        
+                    if int(self.e_repeat[SVC].text()) > 1 or int(self.e_repeat[H].text()) > 1 or int(self.e_repeat[K].text()) > 1:
+                        self.bt_take_image.setText("Continuous")
+                    else:
+                        self.bt_take_image.setText("Take Image")
+                        
+                    self.QWidgetBtnColor(self.bt_take_image, "black", "white")
+                    self.stop_clicked = False
             
-            #if self.acquiring[dc_idx] == False and self.cal_mode:
-            #    self.cal_run_cycle()
         
         elif param[0] == CMD_STOPACQUISITION:
             
@@ -592,6 +647,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
     #-------------------------------
     # dcs command
     def initialize2(self, dc_idx, simul_mode):
+        if simul_mode is False and self.dcs_sts[dc_idx] is False:
+            return
+        
+        self.bt_init[dc_idx].setEnabled(False)
+        self.QWidgetBtnColor(self.bt_init[dc_idx], "yellow", "blue")
         msg = "%s %s %d" % (CMD_INITIALIZE2, self.dcs_list[dc_idx], simul_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
         
@@ -612,6 +672,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
         
     def set_fs_param(self, dc_idx, simul_mode):      
+        if simul_mode is False and self.dcs_sts[dc_idx] is False:
+            return
         
         show_cur_cnt = "%d / %s" % (self.cur_cnt[dc_idx], self.e_repeat[dc_idx].text())
         self.label_cur_num[dc_idx].setText(show_cur_cnt)   
@@ -651,8 +713,10 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
         
           
-    #def alive_check(self, dc_idx, slmul_mode):
-    #    self.send_message_to_ics(dc_idx, slmul_mode, "alive?")
+    def alive_check(self, dc_idx, simul_mode):
+        msg = "%s %s %d" % (ALIVE, self.dcs_list[dc_idx], simul_mode)
+        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
+        #print("alive check")
         
         
     def stop_acquistion(self, dc_idx, simul_mode):        
@@ -661,94 +725,88 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 
         msg = "%s %s %d" % (CMD_STOPACQUISITION, self.dcs_list[dc_idx], simul_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
-                        
-    '''                   
-    def show_image(self):
-        for dc_idx in range(DCS_CNT):
-            if self.img_new[dc_idx]:
-                self.load_data(dcs)
-                    
-            ti.sleep(1)                  
-            print(self.test_cnt, self.img_new[SVC])
-            self.test_cnt += 1
-            
-            if self.img[dc_idx] != None:
-                break
-            
-            if dcs == K:
-                dcs = SVC
-    '''
+    
         
     
-    def load_data(self, ics_idx):
+    def load_data(self, dc_idx, folder_name):
         
-        self.label_prog_sts[ics_idx].setText("TRANSFER")
+        self.label_prog_sts[dc_idx].setText("TRANSFER")
         
         try:
             filepath = ""
             if self.simulation_mode:
-                if ics_idx == SVC:
-                    filepath = WORKING_DIR + "IGRINS/demo/sc/SDCS_demo.fits"
-                elif ics_idx == H:
-                    filepath = WORKING_DIR + "IGRINS/demo/dt/SDCH_demo.fits"
-                elif ics_idx == K:
-                    filepath = WORKING_DIR + "IGRINS/demo/dt/SDCK_demo.fits"
+                if dc_idx == SVC:
+                    filepath = "%sIGRINS/Demo/SDCS_demo.fits" % WORKING_DIR
+                elif dc_idx == H:
+                    filepath = "%sIGRINS/Demo/SDCH_demo.fits" % WORKING_DIR
+                elif dc_idx == K:
+                    filepath = "%sIGRINS/Demo/SDCK_demo.fits" % WORKING_DIR
+            else:
+                if dc_idx == SVC:
+                    filepath = "%sIGRINS/dcss/Fowler/%s/Result/FowlerResult.fits" % (WORKING_DIR, folder_name)
+                elif dc_idx == H:
+                    filepath = "%sIGRINS/dcsh/Fowler/%s/Result/FowlerResult.fits" % (WORKING_DIR, folder_name)
+                elif dc_idx == K:
+                    filepath = "%sIGRINS/dcsk/Fowler/%s/Result/FowlerResult.fits" % (WORKING_DIR, folder_name)
             
             frm = fits.open(filepath)
             data = frm[0].data
-            header = frm[0].header
+            self.header[dc_idx] = frm[0].header
             _img = np.array(data, dtype = "f")
             #_img = np.flipud(np.array(data, dtype = "f"))
-            self.img[ics_idx] = _img[0:FRAME_Y, 0:FRAME_X]
+            self.img[dc_idx] = _img#[0:FRAME_Y, 0:FRAME_X]
             #self.img = _img
             
-            self.zmin, self.zmax = zs.zscale(self.img[ics_idx])
+            self.zmin, self.zmax = zs.zscale(self.img[dc_idx])
             range = "%d ~ %d" % (self.zmin, self.zmax)
             
-            if ics_idx == SVC:
+            if dc_idx == SVC:
                 self.label_zscale_range.setText(range)
             
                 self.mmin, self.mmax = np.min(self.img[SVC]), np.max(self.img[SVC])
                 self.e_mscale_min.setText("%.1f" % self.mmin)
                 self.e_mscale_max.setText("%.1f" % self.mmax)
                     
-            if self.chk_ds9[ics_idx].isChecked():
+            if self.chk_ds9[dc_idx].isChecked():
                 ds9 = WORKING_DIR + 'IGRINS/ds9'
                 subprocess.Popen([ds9, filepath])
+                
+            if self.chk_autosave[dc_idx].isChecked():
+                self.save_fits(dc_idx)
             
-            self.reload_img(ics_idx)
+            self.reload_img(dc_idx)
         
         except:
-            self.img[ics_idx] = None
-            #self.img_new[ics_idx] = False
+            self.img[dc_idx] = None
+            #self.img_new[dc_idx] = False
             self.log.send(self.iam, WARNING, "No image")
             
         
-    def reload_img(self, ics_idx):   
+    def reload_img(self, dc_idx):   
         
         try:
-            #_img = np.flipud(self.img[ics_idx])
-            #_img = np.fliplr(np.rot90(self.img[ics_idx])
+            #_img = np.flipud(self.img[dc_idx])
+            #_img = np.fliplr(np.rot90(self.img[dc_idx])
             
-            _img = self.img[ics_idx]
+            _img = self.img[dc_idx]
                             
-            if ics_idx == SVC:
+            if dc_idx == SVC:
                 min, max = 0, 0
                 if self.radioButton_zscale.isChecked():
                     min, max = self.zmin, self.zmax
                 elif self.radioButton_mscale.isChecked():
                     min, max = self.mmin, self.mmax
                                 
-            self.image_ax[ics_idx].imshow(_img, vmin=min, vmax=max, cmap='gray', origin='lower')
-            self.image_canvas[ics_idx].draw()
+            self.image_ax[dc_idx].imshow(_img, vmin=min, vmax=max, cmap='gray', origin='lower')
+            self.image_canvas[dc_idx].draw()
             
-            self.label_prog_sts[ics_idx].setText("DONE")
+            self.label_prog_sts[dc_idx].setText("DONE")
                 
         except:
-            self.img[ics_idx] = None
+            self.img[dc_idx] = None
             self.log.send(self.iam, WARNING, "No image")
             
-        #self.img_new[ics_idx] = False
+        #self.img_new[dc_idx] = False
             
             
     def enable_dcs(self, dc_idx, enable):
@@ -810,7 +868,80 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.bt_take_image.setEnabled(enable)
         for dc_idx in range(DCS_CNT):
             self.bt_init[dc_idx].setEnabled(enable)
-                        
+            
+    
+    def protect_btn_ut(self, enable):
+        self.bt_utpos_prev.setEnabled(enable)
+        self.e_utpos.setEnabled(enable)
+        self.bt_utpos_next.setEnabled(enable)
+                
+        self.bt_utpos_set1.setEnabled(enable)
+        self.bt_utpos_set2.setEnabled(enable)
+        
+    
+    def protect_btn_lt(self, enable):
+        self.bt_ltpos_prev.setEnabled(enable)
+        self.e_ltpos.setEnabled(enable)
+        self.bt_ltpos_next.setEnabled(enable)
+                
+        self.bt_ltpos_set1.setEnabled(enable)
+        self.bt_ltpos_set2.setEnabled(enable)
+        self.bt_ltpos_set3.setEnabled(enable)
+        self.bt_ltpos_set4.setEnabled(enable)
+        
+    
+    def cal_exposure(self):
+        self.set_fs_param(H, self.simulation_mode)
+        self.set_fs_param(K, self.simulation_mode)
+                
+        
+    def QWidgetEditColor(self, widget, textcolor, bgcolor=None):
+        if bgcolor == None:
+            label = "QLineEdit {color:%s}" % textcolor
+            widget.setStyleSheet(label)
+        else:
+            label = "QLineEdit {color:%s;background:%s}" % (textcolor, bgcolor)
+            widget.setStyleSheet(label)
+        
+        
+    def QWidgetCheckBoxColor(self, widget, textcolor, bgcolor=None):
+        if bgcolor == None:
+            label = "QCheckBox {color:%s}" % textcolor
+            widget.setStyleSheet(label)
+        else:
+            label = "QCheckBox {color:%s;background:%s}" % (textcolor, bgcolor)
+            widget.setStyleSheet(label)
+            
+            
+    def QWidgetBtnColor(self, widget, textcolor, bgcolor=None):
+        if bgcolor == None:
+            label = "QPushButton {color:%s}" % textcolor
+            widget.setStyleSheet(label)
+        else:
+            label = "QPushButton {color:%s;background:%s}" % (textcolor, bgcolor)
+            widget.setStyleSheet(label)
+            
+        
+    def last_seq(self, dc_idx):
+        fpath = self.e_path[dc_idx].text()
+        
+        if fpath[-1] != "/":
+            fpath += "/"
+            
+        sfiles = glob.glob(fpath + "%s_????.fits" % self.dcs_list[dc_idx])
+        print(sfiles)
+        max_seq = 0
+        if sfiles:
+            max_seq = int(max(sfiles).split("_")[1][:4])
+        else:
+            max_seq = 0
+            
+        return max_seq
+    
+    
+    def new_seq(self, dc_idx):
+        return self.last_seq(dc_idx) + 1
+                                
     #---------------------------------
     # button 
     
@@ -889,6 +1020,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
         
     def single_exposure(self):    
+        self.QWidgetBtnColor(self.bt_take_image, "yellow", "blue")
         
         if int(self.e_repeat[SVC].text()) > 1 or int(self.e_repeat[H].text()) > 1 or int(self.e_repeat[K].text()) > 1:
             self.bt_take_image.setText("Stop")
@@ -903,15 +1035,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.set_fs_param(SVC, self.simulation_mode)
         
         self.protect_btn(False)
-        '''
-        if self.radio_HK_sync.isChecked() or self.radio_whole_sync.isChecked() or self.radio_H.isChecked():
-            self.load_data(H)
-        if self.radio_HK_sync.isChecked() or self.radio_whole_sync.isChecked() or self.radio_K.isChecked():
-            self.load_data(K)
-        if self.radio_whole_sync.isChecked() or self.radio_SVC.isChecked():
-            self.load_data(SVC)
-        '''
-            
+                    
     
     def stop_acquisition(self):        
         if self.radio_HK_sync.isChecked() or self.radio_whole_sync.isChecked() or self.radio_H.isChecked():
@@ -967,11 +1091,23 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     
     def save_fits(self, dc_idx):
-        pass
+        
+        fpath = "%s" % self.e_path[dc_idx].text()
+        self.log.createFolder(fpath)
+        
+        self.cur_frame[dc_idx] = self.new_seq(dc_idx)
+        filename = "%s_%04d.fits" % (self.dcs_list[dc_idx], self.cur_frame[dc_idx])
+        self.e_savefilename[dc_idx].setText(filename)
+        
+        fpath += "/%s" % filename
+        fits.writeto(fpath, self.img[dc_idx], self.header[dc_idx], overwrite=True, output_verify="ignore")
     
     
     def open_path(self, dc_idx):
-        pass
+        loader = self.e_path[dc_idx].text()
+        folder = QFileDialog.getExistingDirectory(self, "Select Directory", loader)
+        if folder:
+            self.e_path[dc_idx].setText(folder)
     
     
     def open_calilbration(self):
@@ -979,6 +1115,10 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.setGeometry(0, 0, 1315, 700)
         else:
             self.setGeometry(0, 0, 1030, 700)
+            
+        msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, MOTOR, ON)
+        self.producer[HK_SUB].send_message(self.com_list[PDU], self.dt_sub_q, msg)
+    
     
 
     
@@ -999,41 +1139,81 @@ class MainWindow(Ui_Dialog, QMainWindow):
         repeat.setEnabled(use)
         
         
-        
     def cal_run(self):
+        btn_name = self.bt_run.text()
+        self.cal_stop_clicked = False
+        if btn_name == "STOP":
+            self.cal_stop_clicked = True
+            self.cal_mode = False
+        elif btn_name == "RUN":
+            self.cal_mode = True
+            self.cal_cur = 0
+            self.bt_run.setText("STOP")
+            self.QWidgetBtnColor(self.bt_run, "yellow", "blue")
         
-        self.cal_mode = True
-        self.cal_cur = 0
-        
-        self.cal_run_cycle()   
+            self.cal_run_cycle()   
         
             
     def cal_run_cycle(self):
         
-        for i in range(self.cal_cur, CAL_CNT):
-            if self.cal_chk[i].isChecked():
-                self.cal_cur = i
-                self.func_motor(i)   #need to check
+        cal_cnt = 0
+        for cal_cnt in range(self.cal_cur, CAL_CNT):
+            if self.cal_chk[cal_cnt].isChecked():
+                self.cal_cur = cal_cnt
+                self.func_motor(cal_cnt)   #need to check
+                if cal_cnt > 0 and self.cal_chk[cal_cnt-1].isChecked:
+                    self.QWidgetCheckBoxColor(self.cal_chk[cal_cnt-1], "black")                    
+                    self.QWidgetEditColor(self.cal_e_exptime[cal_cnt-1], "black")
+                    self.QWidgetEditColor(self.cal_e_repeat[cal_cnt-1], "black")
+                self.QWidgetCheckBoxColor(self.cal_chk[cal_cnt], "blue") 
+                self.QWidgetEditColor(self.cal_e_exptime[cal_cnt], "blue")
+                self.QWidgetEditColor(self.cal_e_repeat[cal_cnt], "blue")
                 break
+        
+        if cal_cnt >= CAL_CNT-1 or self.cal_cur >= CAL_CNT:
+            self.bt_run.setText("RUN")
+            self.QWidgetBtnColor(self.bt_run, "black", "white")
+            self.QWidgetCheckBoxColor(self.cal_chk[self.cal_cur-1], "black") 
+            self.QWidgetEditColor(self.cal_e_exptime[self.cal_cur-1], "black")
+            self.QWidgetEditColor(self.cal_e_repeat[self.cal_cur-1], "black")
+            
+            self.cal_mode = False
             
             
-    def func_lamp(self, idx):        
-        msg = "%s %s %d %d" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], FLAT, LAMP_FLAT[idx])
+    def func_lamp(self, idx, off=False):  
+        if off:
+            msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, FLAT, OFF)
+        else:
+            msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, FLAT, LAMP_FLAT[idx])
         self.producer[HK_SUB].send_message(self.com_list[PDU], self.dt_sub_q, msg)
         
-        msg = "%s %s %d %d" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], THAR, LAMP_THAR[idx])
+        if off:
+            msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, THAR, OFF)
+        else:
+            msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, THAR, LAMP_THAR[idx])
         self.producer[HK_SUB].send_message(self.com_list[PDU], self.dt_sub_q, msg)
-            
+                    
             
     def func_motor(self, idx):
+        self.ut_moved = False
         msg = "%s %s %d" % (DT_REQ_MOVEMOTOR, self.com_list[UT], MOTOR_UT[idx])
         self.producer[HK_SUB].send_message(self.com_list[UT], self.dt_sub_q, msg)
-        
+                
+        self.lt_moved = False
         msg = "%s %s %d" % (DT_REQ_MOVEMOTOR, self.com_list[LT], MOTOR_LT[idx])
         self.producer[HK_SUB].send_message(self.com_list[LT], self.dt_sub_q, msg)
         
         
     def motor_init(self, motor):
+        if motor == UT:
+            self.protect_btn_ut(False)
+            self.QWidgetBtnColor(self.bt_ut_motor_init, "yellow", "blue")
+            self.bt_ut_motor_init.setEnabled(False)
+        elif motor == LT:
+            self.protect_btn_lt(False)
+            self.QWidgetBtnColor(self.bt_lt_motor_init, "yellow", "blue")
+            self.bt_lt_motor_init.setEnabled(False)
+            
         msg = "%s %s" % (DT_REQ_INITMOTOR, self.com_list[motor])
         self.producer[HK_SUB].send_message(self.com_list[motor], self.dt_sub_q, msg)
             
@@ -1043,24 +1223,36 @@ class MainWindow(Ui_Dialog, QMainWindow):
             if direction == PREV:
                 curpos = int(self.e_utpos.text()) - int(self.e_movinginterval.text())
                 self.e_utpos.setText(str(curpos))
+                msg = "%s %s %d" % (DT_REQ_MOTORBACK, self.com_list[motor], curpos)
             else:
                 curpos = int(self.e_utpos.text()) + int(self.e_movinginterval.text())
                 self.e_utpos.setText(str(curpos))
-        else:
+                msg = "%s %s %d" % (DT_REQ_MOTORGO, self.com_list[motor], curpos)
+                
+            self.protect_btn_ut(False)
+            
+        elif motor == LT:
             if direction == PREV:
                 curpos = int(self.e_ltpos.text()) - int(self.e_movinginterval.text())
                 self.e_ltpos.setText(str(curpos))
+                msg = "%s %s %d" % (DT_REQ_MOTORBACK, self.com_list[motor], curpos)
             else:
                 curpos = int(self.e_ltpos.text()) + int(self.e_movinginterval.text())
                 self.e_ltpos.setText(str(curpos))
+                msg = "%s %s %d" % (DT_REQ_MOTORGO, self.com_list[motor], curpos)
                 
-        #msg = "%s %d %d" % (HK_FN_MOVEMOTORDELTA, motor, direction)
-        #self.send_message_to_hk(msg)
+            self.protect_btn_lt(False)
+                
+        self.producer[HK_SUB].send_message(self.com_list[motor], self.dt_sub_q, msg)
                 
     
-    def motor_pos_set(self, motor, position): #motor-UT/LT, direction-UT(1/2), LT(1-4)
-        #hkp 
-        pass
+    def motor_pos_set(self, motor, position): #motor-UT/LT, direction-UT(0/1), LT(0-3)
+        if motor == UT:
+            msg = "%s %s %d" % (DT_REQ_SETUT, self.com_list[motor], position)
+        elif motor == LT:
+            msg = "%s %s %d" % (DT_REQ_SETLT, self.com_list[motor], position)
+            
+        self.producer[HK_SUB].send_message(self.com_list[motor], self.dt_sub_q, msg)
     
     
 

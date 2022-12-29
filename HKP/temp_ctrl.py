@@ -19,9 +19,9 @@ import Libs.SetConfig as sc
 from Libs.MsgMiddleware import *
 from Libs.logger import *
 
-class temp_ctrl():
+class temp_ctrl(threading.Thread):
     
-    def __init__(self, comport, simul, gui=False):
+    def __init__(self, comport, simul=False, gui=False):
                        
         self.comport = comport
         self.iam = "tmc%d" % (int(self.comport)-10000)               
@@ -46,7 +46,7 @@ class temp_ctrl():
         self.sub_hk_ex = cfg.get(MAIN, "sub_hk_exchange")
         self.sub_hk_q = cfg.get(MAIN, "sub_hk_routing_key")
                
-        if simul == '1':
+        if bool(simul):
             self.ip = "localhost"
         else:   
             self.ip = cfg.get(HK, "device-server-ip")

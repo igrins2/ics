@@ -19,9 +19,9 @@ import Libs.SetConfig as sc
 from Libs.MsgMiddleware import *
 from Libs.logger import *
 
-class motor() :
+class motor(threading.Thread) :
     
-    def __init__(self, motor, port, simul, gui=False):
+    def __init__(self, motor, port, simul=False, gui=False):
         
         self.iam = motor  
         self.port = port 
@@ -53,11 +53,10 @@ class motor() :
         
         ip_addr = "%s-ip" % self.iam
         
-        if simul == "1":
+        if bool(simul):
             self.ip = "localhost"
         else:
             self.ip = self.cfg.get(HK, ip_addr)
-        
         self.gui = gui
         
         self.comSocket = None
@@ -67,6 +66,8 @@ class motor() :
         self.consumer = None
                 
         self.init = False
+        
+        self.curpos = 0
         
         
     
@@ -192,6 +193,7 @@ class motor() :
         while True:
             self.send_to_motor("O=0")
             if self.send_to_motor("RPA", True) == "0":
+                self.curpos = 0
                 break
             
         self.init = True
@@ -240,7 +242,6 @@ class motor() :
         curpos = ""
         while True:
             curpos = self.send_to_motor("RPA", True)
-            
             self.log.send(self.iam, INFO, " CurPos: " + curpos)
             if self.send_to_motor("RBt", True) == "0":
                 break
@@ -258,6 +259,10 @@ class motor() :
         
         cmd = ""
         desti = int(self.motor_pos[posnum])
+        
+        if abs(desti) - abs(self.curpos) < MOTOR_ERR:
+            return self.curpos
+            
         if self.iam == MOTOR_UT:
             cmd = "PT=%d" % desti
         elif self.iam == MOTOR_LT:
@@ -265,8 +270,11 @@ class motor() :
             
         self.send_to_motor(cmd)
         curpos = self.motor_go()
-        self.motor_err_correction(desti, curpos)
+        curpos = self.motor_err_correction(desti, curpos)
         self.log.send(self.iam, INFO, "Finished") 
+    
+        self.curpos = int(curpos)
+        return curpos
                 
     
     def motor_err_correction(self, desti, curpos):
@@ -285,6 +293,8 @@ class motor() :
             #self.send_to_motor("GOSUB2")
             curpos = self.motor_go()
             err = abs(desti) - abs(int(curpos))
+        
+        return curpos
 
 
     # CLI, main
@@ -312,6 +322,9 @@ class motor() :
         #self.motor_err_correction(movepos, curpos)
         
         self.log.send(self.iam, INFO, "Finished")
+        
+        self.curpos = int(curpos)
+        return curpos
         
 
 
@@ -379,10 +392,9 @@ class motor() :
         #msg = "receive: %s" % cmd
         #self.log.send(self.iam, INFO, msg)
         
-        msg = "%s %s OK" % (param[0], self.iam)
-        
         if param[0] == DT_REQ_INITMOTOR:
             self.init_motor()
+            msg = "%s %s OK" % (param[0], self.iam)
             self.producer.send_message(DT, self.sub_hk_q, msg)
         else:
             if self.init is False:
@@ -390,23 +402,34 @@ class motor() :
                 self.producer.send_message(DT, self.sub_hk_q, msg)
             
             elif param[0] == DT_REQ_MOVEMOTOR:
-                self.move_motor(int(param[2]))
+                curpos = self.move_motor(int(param[2]))
+                if self.iam == MOTOR_LT:
+                    curpos = "%s" % (int(curpos) * (-1))
+                msg = "%s %s %s" % (param[0], self.iam, curpos)
                 self.producer.send_message(DT, self.sub_hk_q, msg)
                 
             elif param[0] == DT_REQ_MOTORGO:
-                self.move_motor_delta(int(param[2]), True)
+                curpos = self.move_motor_delta(True, int(param[2]))
+                if self.iam == MOTOR_LT:
+                    curpos = "%s" % (int(curpos) * (-1))
+                msg = "%s %s %s" % (param[0], self.iam, curpos)
                 self.producer.send_message(DT, self.sub_hk_q, msg)
                 
             elif param[0] == DT_REQ_MOTORBACK:
-                self.move_motor_delta(int(param[2]), False)
+                curpos = self.move_motor_delta(False, int(param[2]))
+                if self.iam == MOTOR_LT:
+                    curpos = "%s" % (int(curpos) * (-1))
+                msg = "%s %s %s" % (param[0], self.iam, curpos)
                 self.producer.send_message(DT, self.sub_hk_q, msg)
                 
             elif param[0] == DT_REQ_SETUT:
                 self.setUT(int(param[2]))
+                msg = "%s %s OK" % (param[0], self.iam)
                 self.producer.send_message(DT, self.sub_hk_q, msg)
                 
             elif param[0] == DT_REQ_SETLT:
                 self.setLT(int(param[2]))
+                msg = "%s %s OK" % (param[0], self.iam)
                 self.producer.send_message(DT, self.sub_hk_q, msg)
 
     

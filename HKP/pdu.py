@@ -19,9 +19,9 @@ import Libs.SetConfig as sc
 from Libs.MsgMiddleware import *
 from Libs.logger import *
 
-class pdu() :
+class pdu(threading.Thread) :
     
-    def __init__(self, simul, gui=False):
+    def __init__(self, simul=False, gui=False):
         
         self.iam = "pdu"
         
@@ -49,7 +49,7 @@ class pdu() :
         self.power_str = cfg.get(HK, "pdu-list").split(',')
         self.pow_flag = [OFF for _ in range(PDU_IDX)]
         
-        if simul == "1":
+        if bool(simul):
             self.ip = "localhost"
             self.comport = int(cfg.get(HK, "pdu-port")) + 50000
         else:
@@ -151,7 +151,7 @@ class pdu() :
             self.re_connect_to_component()
         
                     
-    def power_status(self, cmd):
+    def power_status(self, cmd, commander=None):
         if not self.comStatus:
             return      
         
@@ -177,9 +177,9 @@ class pdu() :
                 pow_flag += self.pow_flag[i]
                 pow_flag += " "
                 
-            msg = "%s %s %s" % (HK_REQ_PWR_STS, self.iam, pow_flag)
+            msg = "%s %s %s %s" % (HK_REQ_PWR_STS, self.iam, commander, pow_flag)
             if self.gui: 
-                self.producer.send_message(HK, self.sub_hk_q, msg)  
+                self.producer.send_message(commander, self.sub_hk_q, msg)  
             else:
                 print(pow_flag)
         except:                  
@@ -189,7 +189,7 @@ class pdu() :
             
 
     # on/off
-    def change_power(self, idx, onoff):  # definition OnOff: ON, OFF
+    def change_power(self, idx, onoff, commander=None):  # definition OnOff: ON, OFF
         # this function is used when received PDU On/Off status and change status
         
         if not self.comStatus:
@@ -206,7 +206,7 @@ class pdu() :
         msg = " %s Button clicked"  % self.pow_flag[idx-1]
         self.log.send(self.iam, INFO, self.power_str[idx-1] + msg)
     
-        self.power_status(cmd)
+        self.power_status(cmd, commander)
             
     
     #-------------------------------
@@ -247,11 +247,11 @@ class pdu() :
            
         if param[0] == HK_REQ_PWR_STS:
             cmd = "DN0\r"   
-            self.power_status(cmd)
+            self.power_status(cmd, param[2])
             
         elif param[0] == HK_REQ_PWR_ONOFF:
-            idx = int(param[2])
-            self.change_power(idx, param[3]) 
+            idx = int(param[3])
+            self.change_power(idx, param[4], param[2]) 
                         
             
 if __name__ == "__main__":

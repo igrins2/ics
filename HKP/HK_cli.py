@@ -241,7 +241,7 @@ def start():
                     hk[motornum].connect_to_component()
                     hk[motornum].init_motor()
             except:
-                print("Please input 'UT' or 'LT'.")                   
+                print("Please input 'ut' or 'lt'.")                   
                     
         elif args[0] == "motormove":
             _args = "motor, posnum"
@@ -250,15 +250,15 @@ def start():
                 if len(args) < 2:
                     show_errmsg(_args)
                 elif args[1] == "-h" or args[1] == "--help":
-                    show_subfunc(args[0], _args, "motor:UT/LT, posnum:int(UT:0/1, LT:0-3)")
+                    show_subfunc(args[0], _args, "motor:ut/lt, posnum:int(ut:0/1, lt:0-3)")
                 elif len(args) < 3:
                     show_errmsg(_args)
                 elif (args[1] == MOTOR_UT or args[1] == MOTOR_LT) is not True:
                     show_errmsg(_args)
                 elif args[1] == MOTOR_UT and (0 <= int(args[2]) <= 1) is not True:
-                    print("Please input a number 0 or 1 for UT.")
+                    print("Please input a number 0 or 1 for ut.")
                 elif args[1] == MOTOR_LT and (0 <= int(args[2]) <= 3) is not True:
-                    print("Please input a number 0~3 for LT.")
+                    print("Please input a number 0~3 for lt.")
                 else:         
                     if args[1] == MOTOR_UT:
                         motornum = UT  
@@ -269,7 +269,7 @@ def start():
                     else:    
                         hk[motornum].move_motor(int(args[2]))
             except:
-                print("Please input a number 0 or 1 for UT and 0~3 for LT.")
+                print("Please input a number 0 or 1 for ut and 0~3 for lt.")
         
         elif args[0] == "motorgo" or args[0] == "motorback":
             _args = "motor, delta"   
@@ -312,14 +312,14 @@ def start():
                 elif args[1] == "-h" or args[1] == "--help":
                     show_subfunc(args[0], _args, "posnum:0/1")          
                 elif (0 <= int(args[1]) <= 1) is not True:  
-                    print("Please input a number 0 or 1 for UT.")
+                    print("Please input a number 0 or 1 for ut.")
                 else:
                     if hk[UT] == None:
                         print("Please execute 'initmotor' first!")
                     else:    
                         hk[UT].setUT(int(args[1]))
             except:
-                print("Please input a number 0 or 1 for UT.")
+                print("Please input a number 0 or 1 for ut.")
         
         elif args[0] == "setlt":
             _args = "posnum" 
@@ -330,14 +330,14 @@ def start():
                 elif args[1] == "-h" or args[1] == "--help":
                     show_subfunc(args[0], _args, "posnum:0-3")             
                 elif (0 <= int(args[1]) <= 3) is not True:  
-                    print("Please input a number 0-3 for LT.")
+                    print("Please input a number 0-3 for lt.")
                 else:
                     if hk[UT] == None:
                         print("Please execute 'initmotor' first!")
                     else:
                         hk[UT].setLT(int(args[1]))  
             except:
-                print("Please input a number 0-3 for LT.")
+                print("Please input a number 0-3 for lt.")
                     
                 
         elif args[0] == "exit":
