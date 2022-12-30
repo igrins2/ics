@@ -3,7 +3,7 @@
 """
 Created on Jun 28, 2022
 
-Modified on Dec 14, 2022
+Modified on Dec 29, 2022
 
 @author: hilee
 """
@@ -115,7 +115,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     def start_sub_system(self):
         
-        simul_mode = str(self.simulation)
+        simul_mode = str(int(self.simulation))
         
         comport = []
         com_list = ["tmc1", "tmc2", "tmc3", "tm", "vm", "pdu", "lt", "ut", "uploader"]

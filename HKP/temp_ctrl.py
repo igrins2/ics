@@ -2,7 +2,7 @@
 """
 Created on Nov 8, 2022
 
-Modified on Dec 14, 2022
+Modified on Dec 29, 2022
 
 @author: hilee
 """
@@ -21,7 +21,7 @@ from Libs.logger import *
 
 class temp_ctrl(threading.Thread):
     
-    def __init__(self, comport, simul=False, gui=False):
+    def __init__(self, comport, simul='0', gui=False):
                        
         self.comport = comport
         self.iam = "tmc%d" % (int(self.comport)-10000)               
@@ -46,7 +46,7 @@ class temp_ctrl(threading.Thread):
         self.sub_hk_ex = cfg.get(MAIN, "sub_hk_exchange")
         self.sub_hk_q = cfg.get(MAIN, "sub_hk_routing_key")
                
-        if bool(simul):
+        if bool(int(simul)):
             self.ip = "localhost"
         else:   
             self.ip = cfg.get(HK, "device-server-ip")
@@ -111,7 +111,8 @@ class temp_ctrl(threading.Thread):
 
            
     def close_component(self):
-        self.comSocket.close()
+        if self.comSocket != None:
+            self.comSocket.close()
         self.comStatus = False
         
         
@@ -249,6 +250,7 @@ class temp_ctrl(threading.Thread):
 if __name__ == "__main__":
     
     #sys.argv.append("10001")
+    #sys.argv.append("False")
     #if len(sys.argv) < 3:
     #    print("Please add comport")
     #    exit()

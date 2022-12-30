@@ -3,7 +3,7 @@
 """
 Created on Sep 17, 2021
 
-Modified on Dec 14, 2022
+Modified on Dec 29, 2022
 
 @author: hilee
 """
@@ -359,15 +359,21 @@ class MainWindow(Ui_Dialog, QMainWindow):
     def callback_sub(self, ch, method, properties, body):
         cmd = body.decode()
         msg = "receive: %s" % cmd
-        self.log.send(self.iam, INFO, msg)
+        if len(cmd) < 100:
+            self.log.send(self.iam, INFO, msg)
 
         param = cmd.split()
                 
         connected = True
         if param[0] == HK_REQ_COM_STS:
-            connected = bool(param[2]) 
+            connected = bool(int(param[2]))
             if connected == False:
                 self.set_alert_status_on()   
+            return
+
+        if param[0] == CMD_REQ_TEMP:
+            self.LoggingFun()
+            return
                 
         if param[1] == self.com_list[TMC1]:
             self.tempctrl_monitor(connected, TMC1)
@@ -462,8 +468,12 @@ class MainWindow(Ui_Dialog, QMainWindow):
                     
             # from VM
             elif param[1] == self.com_list[VM]:
-                self.QShowValueVM(result, "normal")
-                self.dpvalue = result     
+                if len(result) > 20:
+                    self.QShowValueVM(DEFAULT_VALUE, "warm")
+                    self.dpvalue = DEFAULT_VALUE
+                else:
+                    self.QShowValueVM(result, "normal")
+                    self.dpvalue = result     
                   
                 
         # from PDU
@@ -531,23 +541,24 @@ class MainWindow(Ui_Dialog, QMainWindow):
         value  = DEFAULT_VALUE
         if heat != None:
             value = "%.2f" % float(heat)
-            self.monitor[port][2].setText(value)
-        else:
-            self.monitor[port][2].setText("Err1")
+        self.monitor[port][2].setText(value)
+        #else:
+        #    self.monitor[port][2].setText("Err1")
         return value
     
     
     def GetValuefromTempCtrl(self, port, idx, result, limit): 
         value = DEFAULT_VALUE
+        state = "warm"
         if result != None:
             if abs(float(self.set_point[idx])-float(result)) >= limit:
                 state = "warm"   
             else:
                 state = "normal"
             value = "%.2f" % float(result)
-            self.QShowValue(port, 0, value, state)
-        else:
-            self.QShowValue(port, 0, "Err1", "warm")
+        self.QShowValue(port, 0, value, state)
+        #else:
+        #    self.QShowValue(port, 0, "Err1", "warm")
         return value               
 
 
@@ -684,9 +695,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         with futures.ThreadPoolExecutor() as executor:
             try:
-                executor.submit(self.get_value_fromVM())
                 executor.submit(self.get_value_fromTMC())
                 executor.submit(self.get_value_fromTM())
+                executor.submit(self.get_value_fromVM())
                 
             except RuntimeError as e:
                 self.log.send(self.iam, ERROR, e)
@@ -921,9 +932,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
 
     def QShowValueVM(self, text, state):
         if state == "warm":
-            self.QWidgetEditColor(self.e_vacuum, "red")
+            self.QWidgetEditColor(self.e_vacuum, "white", "red")
         else:
-            self.QWidgetEditColor(self.e_vacuum, "black")
+            self.QWidgetEditColor(self.e_vacuum, "black", "white")
         self.e_vacuum.setText(text)
         
         

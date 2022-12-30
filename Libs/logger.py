@@ -3,7 +3,7 @@
 """
 Created on Oct 26, 2022
 
-Modified on , 2022
+Modified on Dec 14, 2022
 
 @author: hilee
 """
@@ -45,5 +45,5 @@ class LOG():
             file.write(data)
             file.close()
 
-        if level != "INFO" or self.gui is False:
-            print(data)
+        #if level != "INFO" or self.gui is False:
+        print(data)

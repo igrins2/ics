@@ -103,6 +103,8 @@ DT_REQ_MOTORBACK = "MotorBack"  #motor
 DT_REQ_SETUT = "SetUT"          #motor
 DT_REQ_SETLT = "SetLT"          #motor
 
+CMD_REQ_TEMP = "ReqTempInfo"    #from DCS
+
 EXIT = "Exit"
 ALIVE = "Alive"
 

@@ -21,7 +21,7 @@ from Libs.logger import *
 
 class motor(threading.Thread) :
     
-    def __init__(self, motor, port, simul=False, gui=False):
+    def __init__(self, motor, port, simul='0', gui=False):
         
         self.iam = motor  
         self.port = port 
@@ -53,7 +53,7 @@ class motor(threading.Thread) :
         
         ip_addr = "%s-ip" % self.iam
         
-        if bool(simul):
+        if bool(int(simul)):
             self.ip = "localhost"
         else:
             self.ip = self.cfg.get(HK, ip_addr)

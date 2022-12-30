@@ -21,7 +21,7 @@ from Libs.logger import *
 
 class pdu(threading.Thread) :
     
-    def __init__(self, simul=False, gui=False):
+    def __init__(self, simul='0', gui=False):
         
         self.iam = "pdu"
         
@@ -49,7 +49,7 @@ class pdu(threading.Thread) :
         self.power_str = cfg.get(HK, "pdu-list").split(',')
         self.pow_flag = [OFF for _ in range(PDU_IDX)]
         
-        if bool(simul):
+        if bool(int(simul)):
             self.ip = "localhost"
             self.comport = int(cfg.get(HK, "pdu-port")) + 50000
         else:

@@ -21,7 +21,7 @@ from Libs.logger import *
 
 class monitor(threading.Thread) :
     
-    def __init__(self, comport, simul=False, gui=False):  
+    def __init__(self, comport, simul='0', gui=False):  
         
         self.iam = ""
         self.comport = comport
@@ -50,7 +50,7 @@ class monitor(threading.Thread) :
         self.sub_hk_ex = cfg.get(MAIN, 'sub_hk_exchange')
         self.sub_hk_q = cfg.get(MAIN, 'sub_hk_routing_key')
                 
-        if bool(simul):
+        if bool(int(simul)):
             self.ip = "localhost"
         else:
             self.ip = cfg.get(HK, "device-server-ip")
@@ -167,7 +167,8 @@ class monitor(threading.Thread) :
             info = res0.decode()
                     
             log = "recv <<< %s" % info[:-2]
-            self.log.send(self.iam, INFO, log)   
+            if len(info) < 20:
+                self.log.send(self.iam, INFO, log)   
                                             
             if self.iam == "tm":
                 if info.find('\r\n') < 0:

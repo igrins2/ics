@@ -1,7 +1,7 @@
 """
 ... from uploader.py from IGRINS
 
-Modified on Dec 15, 2022
+Modified on Dec 29, 2022
 
 @author: hilee, JJLee
 """
@@ -39,7 +39,7 @@ FieldNames = [('date', str), ('time', str),
 
 class uploader(threading.Thread):
     
-    def __init__(self, simul):
+    def __init__(self, simul='0'):
         
         self.iam = "uploader"
         
@@ -68,7 +68,7 @@ class uploader(threading.Thread):
         
         self.consumer = None
         
-        self.simul = bool(simul)
+        self.simul = bool(int(simul))
         #self.connect_to_server_hk_q()
         
     
@@ -164,7 +164,7 @@ class uploader(threading.Thread):
 
         if param[0] == HK_REQ_UPLOAD_DB:
             db = param[2:]
-            if self.simul is True:
+            if self.simul:
                 print("uploaded virtual firebase database...")
             else:
                 self.start_upload_to_firebase(db)

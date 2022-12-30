@@ -3,7 +3,7 @@
 """
 Created on Jun 28, 2022
 
-Modified on Dec 16, 2022
+Modified on Dec 30, 2022
 
 @author: hilee
 """
@@ -142,7 +142,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.e_movinginterval.setText("1")        
         
-        self.simulation_mode = True     #from EngTools
+        self.simulation_mode = False     #from EngTools
         
         self.cal_mode = False
         
@@ -297,15 +297,15 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.e_FS_number[K].textChanged.connect(lambda: self.judge_param(K)) 
         self.e_repeat[K].textChanged.connect(lambda: self.change_name(K)) 
         
-        self.bt_init[SVC].clicked.connect(lambda: self.initialize2(SVC, self.simulation_mode))    
+        self.bt_init[SVC].clicked.connect(lambda: self.initialize2(SVC))    
         self.bt_save[SVC].clicked.connect(lambda: self.save_fits(SVC))
         self.bt_path[SVC].clicked.connect(lambda: self.open_path(SVC))
         
-        self.bt_init[H].clicked.connect(lambda: self.initialize2(H, self.simulation_mode))    
+        self.bt_init[H].clicked.connect(lambda: self.initialize2(H))    
         self.bt_save[H].clicked.connect(lambda: self.save_fits(H))
         self.bt_path[H].clicked.connect(lambda: self.open_path(H))
         
-        self.bt_init[K].clicked.connect(lambda: self.initialize2(K, self.simulation_mode))    
+        self.bt_init[K].clicked.connect(lambda: self.initialize2(K))    
         self.bt_save[K].clicked.connect(lambda: self.save_fits(K))
         self.bt_path[K].clicked.connect(lambda: self.open_path(K))
             
@@ -397,7 +397,10 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.producer[ENG_TOOLS].send_message(MAIN, self.dt_main_q, msg)
             
         elif param[0] == TEST_MODE:
-            self.simulation_mode = bool(param[2])
+            self.simulation_mode = bool(int(param[2]))
+
+            for dc_idx in range(DCS_CNT):
+                self.alive_check(dc_idx)
         
 
 
@@ -515,10 +518,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.producer[DCS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.dt_dcs_ex)      
         self.producer[DCS].connect_to_server()
         self.producer[DCS].define_producer()
-        
-        for dc_idx in range(DCS_CNT):
-            self.alive_check(dc_idx, self.simulation_mode)
-                
+                        
     
     #-------------------------------
     # dcs -> dt
@@ -542,21 +542,27 @@ class MainWindow(Ui_Dialog, QMainWindow):
 
         param = cmd.split()
         dc_idx = self.dcs_list.index(param[1])
+
+        if param[2] == "TRY":
+            self.dcs_sts[dc_idx] = False
+            self.QWidgetBtnColor(self.bt_init[dc_idx], "white", "red")
+            return
         
         if param[0] == ALIVE or param[0] == CMD_INITIALIZE1:
             self.dcs_sts[dc_idx] = True
-            threading.Timer(self.alive_chk_interval, self.alive_check, args=(dc_idx, self.simulation_mode)).start()
+            threading.Timer(self.alive_chk_interval, self.alive_check, args=(dc_idx,)).start()
+            return
                         
-        elif param[0] == CMD_INITIALIZE2:
-            self.resetASIC(dc_idx, self.simulation_mode)
+        if param[0] == CMD_INITIALIZE2:
+            self.resetASIC(dc_idx)
         
         elif param[0] == CMD_RESETASIC:
             #downloadMCD
-            self.downloadMCD(dc_idx, self.simulation_mode)
+            self.downloadMCD(dc_idx)
             
         elif param[0] == CMD_DOWNLOAD:
             #setdetector
-            self.set_detector(dc_idx, self.simulation_mode, MUX_TYPE, self.output_channel)
+            self.set_detector(dc_idx, self.output_channel)
             
         elif param[0] == CMD_SETDETECTOR:
             self.enable_dcs(dc_idx, True)
@@ -564,12 +570,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.bt_init[dc_idx].setEnabled(True)
                 
         elif param[0] == CMD_SETFSPARAM:
-            
             #self.img_new[dc_idx] = False
             
             #acquire
             self.acquiring[dc_idx] = True
-            self.acquireramp(dc_idx, self.simulation_mode)
+            self.acquireramp(dc_idx)
 
         elif param[0] == CMD_ACQUIRERAMP:
             
@@ -598,7 +603,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                     self.cal_stop_clicked = False
                 
                 elif self.cur_cnt[dc_idx] < int(self.cal_e_repeat[self.cal_cur].text()):
-                     self.acquireramp(dc_idx, self.simulation_mode)
+                     self.acquireramp(dc_idx)
                 
                 else:
                     self.cur_cnt[dc_idx] = 0
@@ -623,7 +628,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                     self.stop_clicked = False
                 
                 elif self.cur_cnt[dc_idx] < int(self.e_repeat[dc_idx].text()):
-                    self.acquireramp(dc_idx, self.simulation_mode)
+                    self.acquireramp(dc_idx)
                     
                 else:
                     self.cur_cnt[dc_idx] = 0
@@ -640,90 +645,99 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         elif param[0] == CMD_STOPACQUISITION:
             
+            end_time = ti.strftime("%Y-%m-%d %H:%M:%S", ti.localtime())
+            self.label_prog_time[dc_idx].setText(self.label_prog_time[dc_idx].text() + " / " + end_time)
+                        
+            #self.cur_prog_step[dc_idx] = 100
+            #self.progressBar[dc_idx].setValue(self.cur_prog_step[dc_idx]) 
+
             self.protect_btn(True)                    
-            self.bt_take_image.setText("Take Image")    
+            self.bt_take_image.setText("Take Image")  
+            self.QWidgetBtnColor(self.bt_take_image, "black", "white")
+            self.stop_clicked = False  
         
         
     #-------------------------------
     # dcs command
-    def initialize2(self, dc_idx, simul_mode):
-        if simul_mode is False and self.dcs_sts[dc_idx] is False:
+    def initialize2(self, dc_idx):
+        if self.simulation_mode is False and self.dcs_sts[dc_idx] is False:
             return
         
         self.bt_init[dc_idx].setEnabled(False)
         self.QWidgetBtnColor(self.bt_init[dc_idx], "yellow", "blue")
-        msg = "%s %s %d" % (CMD_INITIALIZE2, self.dcs_list[dc_idx], simul_mode)
+        msg = "%s %s %d" % (CMD_INITIALIZE2, self.dcs_list[dc_idx], self.simulation_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
         
         
-    def resetASIC(self, dc_idx, simul_mode):
-        msg = "%s %s %d" % (CMD_RESETASIC, self.dcs_list[dc_idx], simul_mode)
+    def resetASIC(self, dc_idx):
+        msg = "%s %s %d" % (CMD_RESETASIC, self.dcs_list[dc_idx], self.simulation_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
         
         
-    def downloadMCD(self, dc_idx, simul_mode):
-        msg = "%s %s %d" % (CMD_DOWNLOAD, self.dcs_list[dc_idx], simul_mode)
+    def downloadMCD(self, dc_idx):
+        msg = "%s %s %d" % (CMD_DOWNLOAD, self.dcs_list[dc_idx], self.simulation_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
                 
     
-    def set_detector(self, dc_idx, simul_mode, type, channel):
-        msg = "%s %s %d %d" % (CMD_SETDETECTOR, self.dcs_list[dc_idx], MUX_TYPE, channel)
+    def set_detector(self, dc_idx, channel):
+        msg = "%s %s %d %d %d" % (CMD_SETDETECTOR, self.dcs_list[dc_idx], self.simulation_mode, MUX_TYPE, channel)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
             
         
-    def set_fs_param(self, dc_idx, simul_mode):      
-        if simul_mode is False and self.dcs_sts[dc_idx] is False:
+    def set_fs_param(self, dc_idx):      
+        if self.simulation_mode is False and self.dcs_sts[dc_idx] is False:
             return
         
         show_cur_cnt = "%d / %s" % (self.cur_cnt[dc_idx], self.e_repeat[dc_idx].text())
         self.label_cur_num[dc_idx].setText(show_cur_cnt)   
         
         #fsmode        
-        msg = "%s %s %d" % (CMD_SETFSMODE, self.dcs_list[dc_idx], simul_mode)
+        msg = "%s %s %d %d" % (CMD_SETFSMODE, self.dcs_list[dc_idx], self.simulation_mode, FOWLER_MODE)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
         
         #setparam
-        msg = "%s %s %d 1 1 1 %f 1" % (CMD_SETFSPARAM, self.dcs_list[dc_idx], simul_mode, float(self.e_exptime[dc_idx].text()))
+        _exptime = float(self.e_exptime[dc_idx].text())
+        _FS_number = int(self.e_FS_number[dc_idx].text())
+        _fowlerTime = _exptime - T_frame * _FS_number
+        self.cal_waittime = T_br + (T_frame + _fowlerTime + (2 * T_frame * _FS_number))
+
+        msg = "%s %s %d %f 1 1 1 %f 1" % (CMD_SETFSPARAM, self.dcs_list[dc_idx], self.simulation_mode, _exptime, _fowlerTime)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
             
     
-    def acquireramp(self, dc_idx, simul_mode):  
-        
+    def acquireramp(self, dc_idx):          
         start_time = ti.strftime("%Y-%m-%d %H:%M:%S", ti.localtime())       
         
         self.label_prog_sts[dc_idx].setText("START")
         self.label_prog_time[dc_idx].setText(start_time)
         
         # progress bar 
-        _exptime = float(self.e_exptime[dc_idx].text())
-        _FS_number = int(self.e_FS_number[dc_idx].text())
-        _fowlerTime = _exptime - T_frame * _FS_number
-        self.cal_waittime = T_br + (T_frame + _fowlerTime + (2 * T_frame * _FS_number))
-         
         self.cur_prog_step[dc_idx] = 0
         self.progressBar[dc_idx].setValue(self.cur_prog_step[dc_idx])        
-        self.show_progressbar(dc_idx)
+        #self.show_progressbar(dc_idx)
+        threading.Timer(0.001, self.show_progressbar, args=(dc_idx,)).start()
         
         # elapsed                
         self.elapsed[dc_idx] = ti.time()
         self.label_prog_elapsed[dc_idx].setText("0.0")      
-        self.show_elapsed(dc_idx)  
-             
-        msg = "%s %s %d" % (CMD_ACQUIRERAMP, self.dcs_list[dc_idx], simul_mode)
+        #self.show_elapsed(dc_idx)  
+        threading.Timer(0.001, self.show_elapsed, args=(dc_idx,)).start()
+
+        msg = "%s %s %d" % (CMD_ACQUIRERAMP, self.dcs_list[dc_idx], self.simulation_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
         
           
-    def alive_check(self, dc_idx, simul_mode):
-        msg = "%s %s %d" % (ALIVE, self.dcs_list[dc_idx], simul_mode)
+    def alive_check(self, dc_idx):
+        msg = "%s %s %d" % (ALIVE, self.dcs_list[dc_idx], self.simulation_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
         #print("alive check")
         
         
-    def stop_acquistion(self, dc_idx, simul_mode):        
+    def stop_acquistion(self, dc_idx):        
         if self.cur_prog_step[dc_idx] == 0:
             return
                 
-        msg = "%s %s %d" % (CMD_STOPACQUISITION, self.dcs_list[dc_idx], simul_mode)
+        msg = "%s %s %d" % (CMD_STOPACQUISITION, self.dcs_list[dc_idx], self.simulation_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
     
         
@@ -834,7 +848,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
             
     def show_elapsed(self, dc_idx):
-        if self.cur_prog_step[dc_idx] >= 100:
+        if self.cur_prog_step[dc_idx] >= 100 or self.stop_clicked is False:
             return
         
         msg = "%.3f sec" % (ti.time() - self.elapsed[dc_idx])
@@ -862,10 +876,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.radio_H.setEnabled(enable)
         self.radio_K.setEnabled(enable)
         
-        if enable is False and self.bt_take_image.text() == "Stop":
-            self.bt_take_image.setEnabled(True)
-        else:
-            self.bt_take_image.setEnabled(enable)
+        #if enable is False and self.bt_take_image.text() == "Stop":
+        #    self.bt_take_image.setEnabled(True)
+        #else:
+        #    self.bt_take_image.setEnabled(enable)
+
         for dc_idx in range(DCS_CNT):
             self.bt_init[dc_idx].setEnabled(enable)
             
@@ -891,8 +906,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     
     def cal_exposure(self):
-        self.set_fs_param(H, self.simulation_mode)
-        self.set_fs_param(K, self.simulation_mode)
+        self.set_fs_param(H)
+        self.set_fs_param(K)
                 
         
     def QWidgetEditColor(self, widget, textcolor, bgcolor=None):
@@ -1028,22 +1043,22 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.bt_take_image.setText("Abort")
                     
         if self.radio_HK_sync.isChecked() or self.radio_whole_sync.isChecked() or self.radio_H.isChecked():
-            self.set_fs_param(H, self.simulation_mode)            
+            self.set_fs_param(H)            
         if self.radio_HK_sync.isChecked() or self.radio_whole_sync.isChecked() or self.radio_K.isChecked():
-            self.set_fs_param(K, self.simulation_mode)
+            self.set_fs_param(K)
         if self.radio_whole_sync.isChecked() or self.radio_SVC.isChecked():
-            self.set_fs_param(SVC, self.simulation_mode)
+            self.set_fs_param(SVC)
         
         self.protect_btn(False)
                     
     
     def stop_acquisition(self):        
         if self.radio_HK_sync.isChecked() or self.radio_whole_sync.isChecked() or self.radio_H.isChecked():
-            self.stop_acquistion(H, self.simulation_mode)
+            self.stop_acquistion(H)
         if self.radio_HK_sync.isChecked() or self.radio_whole_sync.isChecked() or self.radio_K.isChecked():
-            self.stop_acquistion(K, self.simulation_mode)
+            self.stop_acquistion(K)
         if self.radio_whole_sync.isChecked() or self.radio_SVC.isChecked():
-            self.stop_acquistion(SVC, self.simulation_mode)
+            self.stop_acquistion(SVC)
                     
     
     def judge_exp_time(self, dc_idx):
@@ -1088,6 +1103,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.bt_take_image.setText("Continuous")
         else:
             self.bt_take_image.setText("Take Image")
+        self.QWidgetBtnColor(self.bt_take_image, "black", "white")
+        self.stop_clicked = False
         
     
     def save_fits(self, dc_idx):

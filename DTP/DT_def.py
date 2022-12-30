@@ -28,6 +28,8 @@ ERROR = "ERROR"
 
 PDU_IDX = 8
 
+FOWLER_MODE = 3
+
 SERV_CONNECT_CNT = 4 #Inst.sequencer / EngTools / DCS / hk Sub
 INST_SEQ = 0
 ENG_TOOLS = 1
