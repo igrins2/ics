@@ -367,9 +367,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         connected = True
         if param[0] == HK_REQ_COM_STS:
             connected = bool(int(param[2]))
-            if connected == False:
+            if connected is False:
                 self.set_alert_status_on()   
-            return
+            #return
 
         if param[0] == CMD_REQ_TEMP:
             self.LoggingFun()
@@ -395,14 +395,18 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
         if param[0] == HK_REQ_GETSETPOINT:      
             port = int(param[2])   
+            if connected is False: 
+                result = DEFAULT_VALUE
+            else:
+                result = param[3]
             if param[1] == self.com_list[TMC1]:
-                self.set_point[port-1] = "%.2f" % float(param[3])
+                self.set_point[port-1] = "%.2f" % float(result)
                 self.monitor[port-1][1].setText(self.set_point[port-1])
             if param[1] == self.com_list[TMC2]:
-                self.set_point[port+1] = "%.2f" % float(param[3])
+                self.set_point[port+1] = "%.2f" % float(result)
                 self.monitor[port+1][1].setText(self.set_point[port+1])
             if param[1] == self.com_list[TMC3]:
-                self.set_point[4] = "%.2f" % float(param[3])
+                self.set_point[4] = "%.2f" % float(result)
                 self.monitor[5][1].setText(self.set_point[4])
                 
             self.save_setpoint(self.set_point)
@@ -410,7 +414,10 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
         elif param[0] == HK_REQ_GETHEATINGPOWER:     
             port = int(param[2])
-            heat = param[3]
+            if connected is False: 
+                heat = DEFAULT_VALUE
+            else:
+                heat = param[3]
             if param[1] == self.com_list[TMC1]:
                 if port == 1:
                     self.heatlabel[label_list[0]] = self.GetHeatValuefromTempCtrl(TMC1_A, heat)
@@ -427,8 +434,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
         elif param[0] == HK_REQ_GETVALUE:
             port = param[2]
-            result = param[3]
-            
+            if connected is False: 
+                result = DEFAULT_VALUE
+            else:
+                result = param[3]
+
             # from TMC
             if param[1] == self.com_list[TMC1]:
                 result = "%.2f" % float(result)
@@ -468,12 +478,12 @@ class MainWindow(Ui_Dialog, QMainWindow):
                     
             # from VM
             elif param[1] == self.com_list[VM]:
-                if len(result) > 20:
+                if len(result) > 20 or result == DEFAULT_VALUE:
                     self.QShowValueVM(DEFAULT_VALUE, "warm")
                     self.dpvalue = DEFAULT_VALUE
                 else:
                     self.QShowValueVM(result, "normal")
-                    self.dpvalue = result     
+                    self.dpvalue = result   
                   
                 
         # from PDU
@@ -551,7 +561,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         value = DEFAULT_VALUE
         state = "warm"
         if result != None:
-            if abs(float(self.set_point[idx])-float(result)) >= limit:
+            if abs(float(self.set_point[idx])-float(result)) >= limit or result == DEFAULT_VALUE:
                 state = "warm"   
             else:
                 state = "normal"
@@ -620,6 +630,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                             
         self.get_pwr_sts()
             
+        '''
         for idx in range(PDU_IDX):
             if idx < 2:
                 if self.power_status[idx] == OFF:
@@ -627,6 +638,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             else:
                 if self.power_status[idx] == ON:
                     self.power_onoff(idx+1)
+        '''
                     
         if periodic:
             self.Periodic()

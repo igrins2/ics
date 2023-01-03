@@ -397,11 +397,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.producer[ENG_TOOLS].send_message(MAIN, self.dt_main_q, msg)
             
         elif param[0] == TEST_MODE:
-            self.simulation_mode = bool(int(param[2]))
-
-            for dc_idx in range(DCS_CNT):
-                self.alive_check(dc_idx)
-        
+            self.simulation_mode = bool(int(param[2]))        
 
 
     #-------------------------------
@@ -411,6 +407,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.producer[HK_SUB] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.dt_sub_ex)      
         self.producer[HK_SUB].connect_to_server()
         self.producer[HK_SUB].define_producer()
+
     
          
     #-------------------------------
@@ -518,6 +515,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.producer[DCS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.dt_dcs_ex)      
         self.producer[DCS].connect_to_server()
         self.producer[DCS].define_producer()
+
+        for dc_idx in range(DCS_CNT):
+            threading.Timer(1, self.alive_check, args=(dc_idx,)).start()
                         
     
     #-------------------------------
@@ -694,18 +694,19 @@ class MainWindow(Ui_Dialog, QMainWindow):
         #fsmode        
         msg = "%s %s %d %d" % (CMD_SETFSMODE, self.dcs_list[dc_idx], self.simulation_mode, FOWLER_MODE)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
-        
+
         #setparam
         _exptime = float(self.e_exptime[dc_idx].text())
         _FS_number = int(self.e_FS_number[dc_idx].text())
         _fowlerTime = _exptime - T_frame * _FS_number
         self.cal_waittime = T_br + (T_frame + _fowlerTime + (2 * T_frame * _FS_number))
 
-        msg = "%s %s %d %f 1 1 1 %f 1" % (CMD_SETFSPARAM, self.dcs_list[dc_idx], self.simulation_mode, _exptime, _fowlerTime)
+        msg = "%s %s %d %.3f 1 1 1 %.3f 1" % (CMD_SETFSPARAM, self.dcs_list[dc_idx], self.simulation_mode, _exptime, _fowlerTime)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
             
     
-    def acquireramp(self, dc_idx):          
+    def acquireramp(self, dc_idx):     
+        print(dc_idx)     
         start_time = ti.strftime("%Y-%m-%d %H:%M:%S", ti.localtime())       
         
         self.label_prog_sts[dc_idx].setText("START")
@@ -727,7 +728,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
         
           
-    def alive_check(self, dc_idx):
+    def alive_check(self, dc_idx):  
         msg = "%s %s %d" % (ALIVE, self.dcs_list[dc_idx], self.simulation_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
         #print("alive check")
