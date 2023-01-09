@@ -159,8 +159,8 @@ class uploader(threading.Thread):
         if param[1] != self.iam:
             return
         
-        #msg = "receive: %s" % cmd
-        #self.log.send(self.iam, INFO, msg)
+        msg = "receive: %s" % cmd
+        self.log.send(self.iam, INFO, msg)
 
         if param[0] == HK_REQ_UPLOAD_DB:
             db = param[2:]

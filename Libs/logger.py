@@ -41,9 +41,9 @@ class LOG():
                 
         msg = "[%s:%s] %s" % (iam, level, message)    
         data = ti.strftime("%Y-%m-%d %H:%M:%S", ti.localtime()) + ": " + msg + "\n"
-        if level != "DEBUG":    
-            file.write(data)
-            file.close()
+        #if level != "DEBUG":    
+        file.write(data)
+        file.close()
 
-        #if level != "INFO" or self.gui is False:
-        print(data)
+        if level != "INFO" or self.gui is False:
+            print(data)
