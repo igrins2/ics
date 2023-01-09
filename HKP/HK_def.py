@@ -85,8 +85,10 @@ PRESSED = 1
 HK_REQ_COM_STS = "ComPortStatus"
 
 HK_REQ_GETSETPOINT = "GetSetPoint"  #temp_ctrl
-HK_REQ_GETHEATINGPOWER = "GetHeatingPower"  #temp_ctrl
-HK_REQ_GETVALUE = "GetValue"    #temp_ctrl, tm, vm
+HK_START_MONITORING = "StartMonitoring" #temp_ctrl, tm, vm
+HK_STOP_MONITORING = "StopMonitoring"   #temp_ctrl, tm, vm
+
+HK_REQ_GETVALUE = "GetValue"  #temp_ctrl, tm, vm
 
 HK_REQ_MANUAL_CMD = "SendManualCommand" #temp_ctrl, tm
 
@@ -94,6 +96,7 @@ HK_REQ_PWR_STS = "PowerStatus"  #pdu
 HK_REQ_PWR_ONOFF = "PowerOnOff" #pdu
 
 HK_REQ_UPLOAD_DB = "UploadDB"   #uploader
+HK_REQ_UPLOAD_STS = "UploadDBStatus"    #uploader
 
 DT_REQ_INITMOTOR = "InitMotor"  #motor  
 DT_REQ_MOVEMOTOR = "MoveMotor"  #motor

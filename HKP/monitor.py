@@ -56,6 +56,10 @@ class monitor(threading.Thread) :
             self.ip = cfg.get(HK, "device-server-ip")
         
         self.gui = gui
+        self.monit = False
+        
+        self.value = [DEFAULT_VALUE, DEFAULT_VALUE, DEFAULT_VALUE, DEFAULT_VALUE, DEFAULT_VALUE, DEFAULT_VALUE, DEFAULT_VALUE, DEFAULT_VALUE]
+        self.vm = DEFAULT_VALUE
         
         self.comSocket = None
         self.comStatus = False
@@ -97,8 +101,7 @@ class monitor(threading.Thread) :
             msg = "disconnected"
             self.log.send(self.iam, ERROR, msg)
             
-            th = threading.Timer(1, self.re_connect_to_component)
-            th.start()
+            threading.Timer(1, self.re_connect_to_component).start()
 
             
         msg = "%s %s %d" % (HK_REQ_COM_STS, self.iam, self.comStatus)   
@@ -126,7 +129,7 @@ class monitor(threading.Thread) :
     def get_value_fromTM(self, port=0):
         cmd = "KRDG? %s" % port
         cmd += "\r\n"
-        self.socket_send(HK_REQ_GETVALUE, cmd, port)
+        return self.socket_send(cmd)
         
         
     # VM-Monitorig
@@ -134,27 +137,11 @@ class monitor(threading.Thread) :
         #PR1 - MicroPirani, PR2/PR5 - Cold Cathode, PR3 - both (3 digits), PR4 - both (4 digits)
         cmd = "@253PR3?;FF"
         cmd += "\r\n"
-        self.socket_send(HK_REQ_GETVALUE, cmd)
+        return self.socket_send(cmd)
             
     
-    def socket_send(self, param, cmd, port=0):
-        '''
-        if not self.comStatus:
-            return
-        
-        if self.gui:
-            send_th = threading.Thread(target=self.handle_com, args=(param, cmd, port))
-            send_th.daemon = True
-            send_th.start()
-        else:
-            self.handle_com(param, cmd, port)
-        
-        
-    # Socket function        
-    def handle_com(self, param, cmd, port):
-        '''
+    def socket_send(self, cmd):
         try:         
-            
             #send
             self.comSocket.send(cmd.encode())
             #self.comSocket.sendall(cmd.encode())
@@ -184,19 +171,25 @@ class monitor(threading.Thread) :
                                 break
                         except:
                             continue
-            
-                msg = "%s %s %s %s" % (param, self.iam, port, info[:-2])
                 
+                return info[:-2]
             else:
-                msg = "%s %s 0 %s" % (param, self.iam, info[7:-3])
-               
-            if self.gui: 
-                self.producer.send_message(HK, self.sub_hk_q, msg)     
+                return info[7:-3]
+            
         except:
             self.comStatus = False
             self.log.send(self.iam, ERROR, "communication error") 
             self.re_connect_to_component()
-
+            
+                    
+    def start_monitoring(self):
+        if self.iam == "tm":
+            self.value = (self.get_value_fromTM().split(","))
+        elif self.iam == "vm":
+            self.vm = self.get_value_fromVM()    
+        
+        if self.monit:
+            threading.Timer(10, self.start_monitoring).start()
     
     #-------------------------------
     # sub -> hk    
@@ -205,7 +198,6 @@ class monitor(threading.Thread) :
         self.producer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.sub_hk_ex)      
         self.producer.connect_to_server()
         self.producer.define_producer()
-        
         
         
     #-------------------------------
@@ -223,26 +215,40 @@ class monitor(threading.Thread) :
     def callback_hk(self, ch, method, properties, body):
         cmd = body.decode()
         param = cmd.split()
+        
+        if param[0] == HK_START_MONITORING:
+            self.monit = True
+            threading.Timer(0.1, self.start_monitoring).start()
+            return
+        elif param[0] == HK_STOP_MONITORING:
+            self.monit = False
+            return
                     
         if len(param) < 2:
             return
         if param[1] != self.iam:
             return
-        if not self.comStatus:
-            return
+        #if not self.comStatus:
+        #    return
         
         #msg = "receive: %s" % cmd
         #self.log.send(self.iam, INFO, msg)
         
-        if param[0] == HK_REQ_GETVALUE and param[1] == "tm":
-            self.get_value_fromTM(param[2])      
-        
-        elif param[0] == HK_REQ_GETVALUE and param[1] == "vm":
-            self.get_value_fromVM()    
+        if param[0] == HK_REQ_GETVALUE:
+            if self.iam == "tm":
+                msg = "%s %s" % (param[0], self.iam)
+                for i in range(TM_CNT):
+                    msg += " "
+                    msg += self.value[i]
+            elif self.iam == "vm":
+                msg = "%s %s %s" % (param[0], self.iam, self.vm)
+            self.producer.send_message(HK, self.sub_hk_q, msg)    
             
-        elif param[0] == HK_REQ_MANUAL_CMD and param[1] == self.iam:
+        elif param[0] == HK_REQ_MANUAL_CMD:            
             cmd = "%s %s\r\n" % (param[2], param[3])
-            self.socket_send(HK_REQ_MANUAL_CMD, cmd, param[3])           
+            value = self.socket_send(cmd)
+            msg = "%s %s %s" % (param[0], self.iam, value) 
+            self.producer.send_message(HK, self.sub_hk_q, msg) 
             
  
             

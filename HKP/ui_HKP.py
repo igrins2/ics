@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'HKPrSQAXw.ui'
+## Form generated from reading UI file 'HKPTcqkPr.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.3.0
 ##
@@ -655,6 +655,15 @@ class Ui_Dialog(object):
         self.line.setGeometry(QRect(7, 490, 671, 20))
         self.line.setFrameShape(QFrame.HLine)
         self.line.setFrameShadow(QFrame.Sunken)
+        self.sts_updated_2 = QLabel(Dialog)
+        self.sts_updated_2.setObjectName(u"sts_updated_2")
+        self.sts_updated_2.setGeometry(QRect(450, 30, 191, 21))
+        self.sts_updated_2.setFont(font)
+        self.sts_updated_2.setAlignment(Qt.AlignRight|Qt.AlignTrailing|Qt.AlignVCenter)
+        self.sts_uploading_sts = QLabel(Dialog)
+        self.sts_uploading_sts.setObjectName(u"sts_uploading_sts")
+        self.sts_uploading_sts.setGeometry(QRect(650, 30, 20, 20))
+        self.sts_uploading_sts.setFont(font6)
 
         self.retranslateUi(Dialog)
 
@@ -758,5 +767,7 @@ class Ui_Dialog(object):
         self.e_sendto.setText(QCoreApplication.translate("Dialog", u"command", None))
         self.e_recv.setText("")
         self.label_14.setText(QCoreApplication.translate("Dialog", u"Receive:", None))
+        self.sts_updated_2.setText(QCoreApplication.translate("Dialog", u"WebApp Uploading Status", None))
+        self.sts_uploading_sts.setText(QCoreApplication.translate("Dialog", u"\u26ab", None))
     # retranslateUi
 

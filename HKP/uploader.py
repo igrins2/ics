@@ -56,6 +56,8 @@ class uploader(threading.Thread):
         
         self.hk_sub_ex = cfg.get(MAIN, "hk_sub_exchange")     
         self.hk_sub_q = cfg.get(MAIN, "hk_sub_routing_key")
+        self.sub_hk_ex = cfg.get(MAIN, 'sub_hk_exchange')
+        self.sub_hk_q = cfg.get(MAIN, 'sub_hk_routing_key')
                 
         firebase = self.get_firebase()
         self.db = firebase.database()
@@ -137,8 +139,19 @@ class uploader(threading.Thread):
     def push_hk_entry(self, entry):
         self.db.child("BasicHK").push(entry)
         
+        msg = "%s %s" % (HK_REQ_UPLOAD_STS, self.iam)   
+        self.producer.send_message(HK, self.sub_hk_q, msg)
+        
         
     #-------------------------------
+    # sub -> hk    
+    def connect_to_server_sub_ex(self):
+        # RabbitMQ connect        
+        self.producer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.sub_hk_ex)      
+        self.producer.connect_to_server()
+        self.producer.define_producer()
+        
+        
     def connect_to_server_hk_q(self):
         # RabbitMQ connect
         self.consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_sub_ex)      
@@ -168,12 +181,14 @@ class uploader(threading.Thread):
                 print("uploaded virtual firebase database...")
             else:
                 self.start_upload_to_firebase(db)
+                
             
 
 if __name__ == "__main__":
     
     fb = uploader(sys.argv[1])
     
+    fb.connect_to_server_sub_ex()
     fb.connect_to_server_hk_q()
     
     

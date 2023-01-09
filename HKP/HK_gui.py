@@ -155,7 +155,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.consumer = [None for _ in range(SERV_CONNECT_CNT)]
         
         self.uploade_start = 0
-        #self.thread = []
+        self.uploade_status = False
+        self.uploader_monitor()
                 
         self.sending_email_mode = False
         self.bt_start.setText("email sending: On")
@@ -364,17 +365,18 @@ class MainWindow(Ui_Dialog, QMainWindow):
 
         param = cmd.split()
                 
+        if param[0] == CMD_REQ_TEMP:
+            self.LoggingFun()
+
+        elif param[0] == HK_REQ_UPLOAD_STS:
+            self.uploade_status = True
+        
         connected = True
         if param[0] == HK_REQ_COM_STS:
             connected = bool(int(param[2]))
             if connected is False:
                 self.set_alert_status_on()   
-            #return
 
-        if param[0] == CMD_REQ_TEMP:
-            self.LoggingFun()
-            return
-                
         if param[1] == self.com_list[TMC1]:
             self.tempctrl_monitor(connected, TMC1)
             
@@ -394,97 +396,86 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.pdu_monitor(connected)                
             
         if param[0] == HK_REQ_GETSETPOINT:      
-            port = int(param[2])   
-            if connected is False: 
-                result = DEFAULT_VALUE
-            else:
-                result = param[3]
             if param[1] == self.com_list[TMC1]:
-                self.set_point[port-1] = "%.2f" % float(result)
-                self.monitor[port-1][1].setText(self.set_point[port-1])
-            if param[1] == self.com_list[TMC2]:
-                self.set_point[port+1] = "%.2f" % float(result)
-                self.monitor[port+1][1].setText(self.set_point[port+1])
-            if param[1] == self.com_list[TMC3]:
-                self.set_point[4] = "%.2f" % float(result)
+                self.set_point[0] = "%.2f" % float(param[2])
+                self.monitor[0][1].setText(self.set_point[0])
+                self.set_point[1] = "%.2f" % float(param[3])
+                self.monitor[1][1].setText(self.set_point[1])
+            elif param[1] == self.com_list[TMC2]:
+                self.set_point[2] = "%.2f" % float(param[2])
+                self.monitor[2][1].setText(self.set_point[2])
+                self.set_point[3] = "%.2f" % float(param[3])
+                self.monitor[3][1].setText(self.set_point[3])
+            elif param[1] == self.com_list[TMC3]:
+                self.set_point[4] = "%.2f" % float(param[2])
                 self.monitor[5][1].setText(self.set_point[4])
                 
             self.save_setpoint(self.set_point)
             #self.log.send(self.iam, DEBUG, self.set_point)
             
-        elif param[0] == HK_REQ_GETHEATINGPOWER:     
-            port = int(param[2])
-            if connected is False: 
-                heat = DEFAULT_VALUE
-            else:
-                heat = param[3]
-            if param[1] == self.com_list[TMC1]:
-                if port == 1:
-                    self.heatlabel[label_list[0]] = self.GetHeatValuefromTempCtrl(TMC1_A, heat)
-                if port == 2:
-                    self.heatlabel[label_list[1]] = self.GetHeatValuefromTempCtrl(TMC1_B, heat)
-            if param[1] == self.com_list[TMC2]:
-                if port == 1:
-                    self.heatlabel[label_list[2]] = self.GetHeatValuefromTempCtrl(TMC2_A, heat)
-                if port == 2:
-                    self.heatlabel[label_list[3]] = self.GetHeatValuefromTempCtrl(TMC2_B, heat)
-            if param[1] == self.com_list[TMC3]:
-                self.heatlabel[label_list[5]] = self.GetHeatValuefromTempCtrl(TMC3_B, heat)       
-
-            
-        elif param[0] == HK_REQ_GETVALUE:
-            port = param[2]
-            if connected is False: 
-                result = DEFAULT_VALUE
-            else:
-                result = param[3]
-
+        elif param[0] == HK_REQ_GETVALUE:    
             # from TMC
             if param[1] == self.com_list[TMC1]:
-                result = "%.2f" % float(result)
-                if port == "A":
-                    self.dtvalue[label_list[0]] = self.GetValuefromTempCtrl(TMC1_A, 0, result, 1.0)
-                if port == "B":
-                    self.dtvalue[label_list[1]] = self.GetValuefromTempCtrl(TMC1_B, 1, result, 0.1)
+                value = "%.2f" % float(param[2])
+                self.dtvalue[label_list[0]] = self.GetValuefromTempCtrl(TMC1_A, 0, value, 1.0)
+                value = "%.2f" % float(param[3])
+                self.dtvalue[label_list[1]] = self.GetValuefromTempCtrl(TMC1_B, 1, value, 0.1)
+                
+                heat = "%.2f" % float(param[4])
+                self.heatlabel[label_list[0]] = self.GetHeatValuefromTempCtrl(TMC1_A, heat)
+                heat = "%.2f" % float(param[5])
+                self.heatlabel[label_list[1]] = self.GetHeatValuefromTempCtrl(TMC1_B, heat)
+                
             elif param[1] == self.com_list[TMC2]:
-                result = "%.2f" % float(result)
-                if port == "A":
-                    self.dtvalue[label_list[2]] = self.GetValuefromTempCtrl(TMC2_A, 2, result, 0.1)
-                if port == "B":
-                    self.dtvalue[label_list[3]] = self.GetValuefromTempCtrl(TMC2_B, 3, result, 0.1)
+                value = "%.2f" % float(param[2])
+                self.dtvalue[label_list[2]] = self.GetValuefromTempCtrl(TMC2_A, 2, value, 0.1)
+                value = "%.2f" % float(param[3])
+                self.dtvalue[label_list[3]] = self.GetValuefromTempCtrl(TMC2_B, 3, value, 0.1)
+            
+                heat = "%.2f" % float(param[4])
+                self.heatlabel[label_list[2]] = self.GetHeatValuefromTempCtrl(TMC2_A, heat)
+                heat = "%.2f" % float(param[5])
+                self.heatlabel[label_list[3]] = self.GetHeatValuefromTempCtrl(TMC2_B, heat)
+                    
             elif param[1] == self.com_list[TMC3]:  
-                result = "%.2f" % float(result)  
-                if port == "A":     
-                    self.QShowValue(TMC3_A, 0, result, "normal")
-                    self.dtvalue[label_list[4]] = result
-                if port == "B":
-                    self.dtvalue[label_list[5]] = self.GetValuefromTempCtrl(TMC3_B, 4, result, 0.1)
+                if param[2] == DEFAULT_VALUE:
+                    value = param[2]
+                    state = "warm"
+                else:
+                    value = "%.2f" % float(param[2])
+                    state = "normal"     
+                self.QShowValue(TMC3_A, 0, value, state)
+                
+                self.dtvalue[label_list[4]] = value
+                value = "%.2f" % float(param[3])
+                self.dtvalue[label_list[5]] = self.GetValuefromTempCtrl(TMC3_B, 4, value, 0.1)
+            
+                heat = "%.2f" % float(param[4])
+                self.heatlabel[label_list[5]] = self.GetHeatValuefromTempCtrl(TMC3_B, heat)       
 
             # from TM
             elif param[1] == self.com_list[TM]:
                 # for all
-                p = int(port)
-                if p == 0:
-                    result = result.split(',')
-                    for i in range(TM_CNT):
-                        value = "%.2f" % float(result[i])
-                        self.QShowValue(TM_1+i, 0, value, "normal")
-                        self.dtvalue[label_list[TM_1+i]] = value
-                # for each
-                else:
-                    result = "%.2f" % float(result)
-                    self.QShowValue(TM_1+p-1, 0, result, "normal")
-                    self.dtvalue[label_list[TM_1+p-1]] = result 
+                for i in range(TM_CNT):
+                    if param[2+i] == DEFAULT_VALUE:
+                        value = param[2+i]
+                        state = "warm"
+                    else:
+                        value = "%.2f" % float(param[2+i])
+                        state = "normal"
+                    self.QShowValue(TM_1+i, 0, value, state)
+                    self.dtvalue[label_list[TM_1+i]] = value
                     
             # from VM
             elif param[1] == self.com_list[VM]:
-                if len(result) > 20 or result == DEFAULT_VALUE:
-                    self.QShowValueVM(DEFAULT_VALUE, "warm")
-                    self.dpvalue = DEFAULT_VALUE
+                if len(param) > 20 or param[2] == DEFAULT_VALUE:
+                    value = DEFAULT_VALUE
+                    state = "warm"
                 else:
-                    self.QShowValueVM(result, "normal")
-                    self.dpvalue = result   
-                  
+                    value = param[2]
+                    state = "normal"
+                self.QShowValueVM(value, state)
+                self.dpvalue = value                     
                 
         # from PDU
         elif param[0] == HK_REQ_PWR_STS:
@@ -507,6 +498,14 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     #-------------------------------
     # com sts monitoring
+    
+    def uploader_monitor(self):
+        clr = "gray"
+        if self.uploade_status:
+            clr = "green"
+        self.QWidgetLabelColor(self.sts_uploading_sts, clr) 
+        
+        
     def tempctrl_monitor(self, con, idx):
         clr = "gray"
         if con:
@@ -536,6 +535,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             clr = "red"
         self.QWidgetLabelColor(self.sts_pdu, clr) 
         
+       
         
     #-------------------------------
     # control and show 
@@ -548,27 +548,25 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     
     def GetHeatValuefromTempCtrl(self, port, heat): 
-        value  = DEFAULT_VALUE
-        if heat != None:
+        if heat != None or heat == DEFAULT_VALUE:
             value = "%.2f" % float(heat)
+        else:
+            value = "Err1"
         self.monitor[port][2].setText(value)
-        #else:
-        #    self.monitor[port][2].setText("Err1")
-        return value
+        return heat
     
     
-    def GetValuefromTempCtrl(self, port, idx, result, limit): 
-        value = DEFAULT_VALUE
+    def GetValuefromTempCtrl(self, port, idx, value, limit): 
         state = "warm"
-        if result != None:
-            if abs(float(self.set_point[idx])-float(result)) >= limit or result == DEFAULT_VALUE:
+        if value != None:
+            if abs(float(self.set_point[idx])-float(value)) >= limit or value == DEFAULT_VALUE:
                 state = "warm"   
             else:
                 state = "normal"
-            value = "%.2f" % float(result)
+            value = "%.2f" % float(value)
+        else:
+            value = "Err1"
         self.QShowValue(port, 0, value, state)
-        #else:
-        #    self.QShowValue(port, 0, "Err1", "warm")
         return value               
 
 
@@ -630,7 +628,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
                             
         self.get_pwr_sts()
             
-        '''
         for idx in range(PDU_IDX):
             if idx < 2:
                 if self.power_status[idx] == OFF:
@@ -638,7 +635,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
             else:
                 if self.power_status[idx] == ON:
                     self.power_onoff(idx+1)
-        '''
                     
         if periodic:
             self.Periodic()
@@ -648,6 +644,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     def Periodic(self):
         if self.periodicbtn == PRESSED:
+            self.producer[HK_SUB].send_message("", self.hk_sub_q, HK_STOP_MONITORING)
+
             self.periodicbtn = NOT_PRESSED
             self.bt_pause.setText("Periodic Monitoring")
             self.QWidgetBtnColor(self.bt_pause, "black", "white")
@@ -662,7 +660,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
             self.log.send(self.iam, INFO, "[cancel] " + str(datetime.datetime.now()))
             
-        elif self.periodicbtn == NOT_PRESSED:            
+        elif self.periodicbtn == NOT_PRESSED:      
+            self.producer[HK_SUB].send_message("", self.hk_sub_q, HK_START_MONITORING)
+                  
             self.periodicbtn = PRESSED
             self.bt_pause.setText("Pause")
             self.QWidgetBtnColor(self.bt_pause, "white", "green")
@@ -795,9 +795,13 @@ class MainWindow(Ui_Dialog, QMainWindow):
         upload = ti.time() - self.uploade_start
         #print("Logging time:", upload)
         if upload >= LOGGING_INTERVAL:
+            self.uploade_status = False
+            
             str_log = "    ".join([updated_datetime] + list(map(str, hk_entries)))     
             msg = "%s %s %s" % (HK_REQ_UPLOAD_DB, self.com_list[UPLOADER], str_log)
             self.producer[HK_SUB].send_message(self.com_list[UPLOADER], self.hk_sub_q, msg)
+            
+            threading.Timer(3, self.uploader_monitor).start()
             
             self.uploade_start = ti.time()
         
@@ -805,7 +809,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         log_date, log_time = updated_datetime.split()
         hk_dict = hk_entries_to_dict(log_date, log_time, hk_entries)
         hk_dict.update(self.dtvalue_from_label.as_dict())
-        
+              
         
         
         

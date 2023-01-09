@@ -100,8 +100,7 @@ class pdu(threading.Thread) :
             msg = "disconnected"
             self.log.send(self.iam, ERROR, msg)
             
-            th = threading.Timer(1, self.re_connect_to_component)
-            th.start()
+            threading.Timer(1, self.re_connect_to_component).start()
                         
         msg = "%s %s %d" % (HK_REQ_COM_STS, self.iam, self.comStatus)   
         if self.gui:

@@ -65,7 +65,8 @@ class MsgMiddleware():
         
     
     def send_message(self, target, _routing_key, _message): 
-        if target == "tmc1" or target == "pdu" or target == "vm":
+        #if target == "tmc1" or target == "pdu" or target == "vm":
+        if target == "pdu":
             ti.sleep(0.7)
         else:
             ti.sleep(0.2)

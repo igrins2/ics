@@ -52,12 +52,18 @@ class temp_ctrl(threading.Thread):
             self.ip = cfg.get(HK, "device-server-ip")
  
         self.gui = gui
+        self.monit = False
+        
+        self.setpoint = [DEFAULT_VALUE, DEFAULT_VALUE]
+        self.value = [DEFAULT_VALUE, DEFAULT_VALUE]
+        self.heat = [DEFAULT_VALUE, DEFAULT_VALUE]
         
         self.comSocket = None
         self.comStatus = False
         
         self.producer = None
         self.consumer = None
+        
                 
         
     def __del__(self):
@@ -91,8 +97,10 @@ class temp_ctrl(threading.Thread):
             msg = "disconnected"
             self.log.send(self.iam, ERROR, msg)
             
-            th = threading.Timer(3, self.re_connect_to_component)
-            th.start()
+            self.value = [DEFAULT_VALUE, DEFAULT_VALUE]
+            self.heat = [DEFAULT_VALUE, DEFAULT_VALUE]
+            
+            threading.Timer(3, self.re_connect_to_component).start()
             
         msg = "%s %s %d" % (HK_REQ_COM_STS, self.iam, self.comStatus)   
         if self.gui:
@@ -120,43 +128,27 @@ class temp_ctrl(threading.Thread):
     def get_setpoint(self, port):
         cmd = "SETP? %d" % port
         cmd += "\r\n"
-        self.socket_send(HK_REQ_GETSETPOINT, str(port), cmd)
+        return self.socket_send(cmd)
             
 
     # TMC-Heating Value
     def get_heating_power(self, port):
         cmd = "HTR? %d" % port
         cmd += "\r\n"
-        self.socket_send(HK_REQ_GETHEATINGPOWER, str(port), cmd)
+        return self.socket_send(cmd)
     
     
     # TMC-Monitorig
     def get_value(self, port):  
         cmd = "KRDG? " + port
         cmd += "\r\n"
-        self.socket_send(HK_REQ_GETVALUE, port, cmd)
+        return self.socket_send(cmd)
 
 
-    def socket_send(self, param, port, cmd):
-        '''
-        if not self.comStatus:
-            return
-        
-        if self.gui:
-            send_th = threading.Thread(target=self.handle_com, args=(param, port, cmd))
-            send_th.daemon = True
-            send_th.start()
-        else:
-            self.handle_com(param, port, cmd)
-        
-
-    # Socket function        
-    def handle_com(self, param, port, cmd):
-        '''
+    def socket_send(self, cmd):
         try:    
             #send     
             self.comSocket.send(cmd.encode())
-            #self.comSocket.sendall(cmd.encode())
             
             log = "send >>> %s" % cmd[:-2]
             self.log.send(self.iam, INFO, log)
@@ -182,17 +174,23 @@ class temp_ctrl(threading.Thread):
                     except:
                         continue
 
-                return
-            
-            msg = "%s %s %s %s" % (param, self.iam, port, info[:-2]) 
-            if self.gui: 
-                self.producer.send_message(HK, self.sub_hk_q, msg)
+            return info[:-2]
             
         except:
             self.comStatus = False
             self.log.send(self.iam, ERROR, "communication error") 
             self.re_connect_to_component()
+            
+    
+    def start_monitoring(self):
+        self.value[0] = self.get_value("A")  
+        self.value[1] = self.get_value("B")     
+        if self.iam != "tmc3":
+            self.heat[0] = self.get_heating_power(1)
+        self.heat[1] = self.get_heating_power(2)
         
+        if self.monit:
+            threading.Timer(10, self.start_monitoring).start()
     
      #-------------------------------
     # sub -> hk    
@@ -219,32 +217,47 @@ class temp_ctrl(threading.Thread):
         cmd = body.decode()
         param = cmd.split()
                 
+        if param[0] == HK_START_MONITORING:
+            self.monit = True
+            threading.Timer(0.1, self.start_monitoring).start()
+            return
+        elif param[0] == HK_STOP_MONITORING:
+            self.monit = False
+            return
+            
         if len(param) < 2:
             return      
         if param[1] != self.iam:
             return
-        if not self.comStatus:
-            return
+        #if not self.comStatus:
+        #    return
         
         #msg = "receive: %s" % cmd
         #self.log.send(self.iam, INFO, msg)
                 
         if param[0] == HK_REQ_GETSETPOINT:
             if self.iam != "tmc3":
-                self.get_setpoint(1)
-            self.get_setpoint(2)
+                self.setpoint[0] = self.get_setpoint(1)
+            self.setpoint[1] = self.get_setpoint(2)
+            
+            if self.iam != "tmc3":
+                msg = "%s %s %s %s" % (param[0], self.iam, self.setpoint[0], self.setpoint[1]) 
+            else:
+                msg = "%s %s %s" % (param[0], self.iam, self.setpoint[1])
+            self.producer.send_message(HK, self.sub_hk_q, msg)
             
         elif param[0] == HK_REQ_GETVALUE:
-            #self.get_value(param[2])  
-            self.get_value("A")  
-            self.get_value("B")     
             if self.iam != "tmc3":
-                self.get_heating_power(1)
-            self.get_heating_power(2)
+                msg = "%s %s %s %s %s %s" % (param[0], self.iam, self.value[0], self.value[1], self.heat[0], self.heat[1]) 
+            else:
+                msg = "%s %s %s %s %s" % (param[0], self.iam, self.value[0], self.value[1], self.heat[1]) 
+            self.producer.send_message(HK, self.sub_hk_q, msg)            
         
         elif param[0] == HK_REQ_MANUAL_CMD:
             cmd = "%s %s\r\n" % (param[2], param[3])
-            self.socket_send(HK_REQ_MANUAL_CMD, param[3], cmd)
+            value = self.socket_send(cmd)
+            msg = "%s %s %s" % (param[0], self.iam, value) 
+            self.producer.send_message(HK, self.sub_hk_q, msg)  
 
 
 if __name__ == "__main__":
