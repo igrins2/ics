@@ -360,7 +360,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     def callback_sub(self, ch, method, properties, body):
         cmd = body.decode()
         msg = "receive: %s" % cmd
-        if len(cmd) < 100:
+        if len(cmd) < 50:
             self.log.send(self.iam, INFO, msg)
 
         param = cmd.split()
@@ -439,11 +439,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
                     
             elif param[1] == self.com_list[TMC3]:  
                 if param[2] == DEFAULT_VALUE:
-                    value = param[2]
                     state = "warm"
                 else:
-                    value = "%.2f" % float(param[2])
                     state = "normal"     
+
+                value = "%.2f" % float(param[2])
                 self.QShowValue(TMC3_A, 0, value, state)
                 
                 self.dtvalue[label_list[4]] = value
@@ -458,17 +458,16 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 # for all
                 for i in range(TM_CNT):
                     if param[2+i] == DEFAULT_VALUE:
-                        value = param[2+i]
                         state = "warm"
                     else:
-                        value = "%.2f" % float(param[2+i])
                         state = "normal"
+                    value = "%.2f" % float(param[2+i])
                     self.QShowValue(TM_1+i, 0, value, state)
                     self.dtvalue[label_list[TM_1+i]] = value
                     
             # from VM
             elif param[1] == self.com_list[VM]:
-                if len(param) > 20 or param[2] == DEFAULT_VALUE:
+                if len(param[2]) > 10 or param[2] == DEFAULT_VALUE:
                     value = DEFAULT_VALUE
                     state = "warm"
                 else:
@@ -548,24 +547,18 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     
     def GetHeatValuefromTempCtrl(self, port, heat): 
-        if heat != None or heat == DEFAULT_VALUE:
-            value = "%.2f" % float(heat)
-        else:
-            value = "Err1"
+        value = "%.2f" % float(heat)
         self.monitor[port][2].setText(value)
         return heat
     
     
     def GetValuefromTempCtrl(self, port, idx, value, limit): 
         state = "warm"
-        if value != None:
-            if abs(float(self.set_point[idx])-float(value)) >= limit or value == DEFAULT_VALUE:
-                state = "warm"   
-            else:
-                state = "normal"
-            value = "%.2f" % float(value)
+        if abs(float(self.set_point[idx])-float(value)) >= limit or value == DEFAULT_VALUE:
+            state = "warm"   
         else:
-            value = "Err1"
+            state = "normal"
+        value = "%.2f" % float(value)
         self.QShowValue(port, 0, value, state)
         return value               
 

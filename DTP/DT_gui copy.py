@@ -153,6 +153,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.consumer = [None for _ in range(SERV_CONNECT_CNT)]       
         
         self.img = [None for _ in range(DCS_CNT)]
+        #self.img_new = [False for _ in range(DCS_CNT)]
         
         self.output_channel = 32
         
@@ -515,7 +516,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.producer[DCS].connect_to_server()
         self.producer[DCS].define_producer()
 
-        threading.Timer(10, self.alive_check).start()
+        for dc_idx in range(DCS_CNT):
+            threading.Timer(1, self.alive_check, args=(dc_idx,)).start()
                         
     
     #-------------------------------
@@ -541,21 +543,39 @@ class MainWindow(Ui_Dialog, QMainWindow):
         param = cmd.split()
         dc_idx = self.dcs_list.index(param[1])
 
-        if len(param) > 2 and param[2] == "TRY":
+        if param[2] == "TRY":
             self.dcs_sts[dc_idx] = False
             self.QWidgetBtnColor(self.bt_init[dc_idx], "white", "red")
             return
         
         if param[0] == ALIVE or param[0] == CMD_INITIALIZE1:
             self.dcs_sts[dc_idx] = True
-            threading.Timer(self.alive_chk_interval, self.alive_check).start()
+            threading.Timer(self.alive_chk_interval, self.alive_check, args=(dc_idx,)).start()
             return
                         
         if param[0] == CMD_INITIALIZE2:
+            self.resetASIC(dc_idx)
+        
+        elif param[0] == CMD_RESETASIC:
+            #downloadMCD
+            self.downloadMCD(dc_idx)
+            
+        elif param[0] == CMD_DOWNLOAD:
+            #setdetector
+            self.set_detector(dc_idx, self.output_channel)
+            
+        elif param[0] == CMD_SETDETECTOR:
             self.enable_dcs(dc_idx, True)
             self.QWidgetBtnColor(self.bt_init[dc_idx], "white", "green")
             self.bt_init[dc_idx].setEnabled(True)
                 
+        elif param[0] == CMD_SETFSPARAM:
+            #self.img_new[dc_idx] = False
+            
+            #acquire
+            self.acquiring[dc_idx] = True
+            self.acquireramp(dc_idx)
+
         elif param[0] == CMD_ACQUIRERAMP:
             
             self.cur_cnt[dc_idx] += 1
@@ -649,23 +669,22 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
         
         
-    #def resetASIC(self, dc_idx):
-    #    msg = "%s %s %d" % (CMD_RESETASIC, self.dcs_list[dc_idx], self.simulation_mode)
-    #    self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
+    def resetASIC(self, dc_idx):
+        msg = "%s %s %d" % (CMD_RESETASIC, self.dcs_list[dc_idx], self.simulation_mode)
+        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
         
         
-    #def downloadMCD(self, dc_idx):
-    #    msg = "%s %s %d" % (CMD_DOWNLOAD, self.dcs_list[dc_idx], self.simulation_mode)
-    #    self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
+    def downloadMCD(self, dc_idx):
+        msg = "%s %s %d" % (CMD_DOWNLOAD, self.dcs_list[dc_idx], self.simulation_mode)
+        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
                 
     
-    #def set_detector(self, dc_idx, channel):
-    #    msg = "%s %s %d %d %d" % (CMD_SETDETECTOR, self.dcs_list[dc_idx], self.simulation_mode, MUX_TYPE, channel)
-    #    self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
+    def set_detector(self, dc_idx, channel):
+        msg = "%s %s %d %d %d" % (CMD_SETDETECTOR, self.dcs_list[dc_idx], self.simulation_mode, MUX_TYPE, channel)
+        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
             
         
-    def set_fs_param(self, dc_idx):     
-
+    def set_fs_param(self, dc_idx):      
         if self.simulation_mode is False and self.dcs_sts[dc_idx] is False:
             return
         
@@ -684,9 +703,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
 
         msg = "%s %s %d %.3f 1 1 1 %.3f 1" % (CMD_SETFSPARAM, self.dcs_list[dc_idx], self.simulation_mode, _exptime, _fowlerTime)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
-
-        self.acquiring[dc_idx] = True
-        self.acquireramp(dc_idx)
             
     
     def acquireramp(self, dc_idx):     
@@ -707,12 +723,14 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.label_prog_elapsed[dc_idx].setText("0.0")      
         #self.show_elapsed(dc_idx)  
         threading.Timer(0.001, self.show_elapsed, args=(dc_idx,)).start()
+
+        msg = "%s %s %d" % (CMD_ACQUIRERAMP, self.dcs_list[dc_idx], self.simulation_mode)
+        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
         
           
-    def alive_check(self):  
-
-        msg = "%s %d" % (ALIVE, self.simulation_mode)
-        self.producer[DCS].send_message("", self.dt_dcs_q, msg)
+    def alive_check(self, dc_idx):  
+        msg = "%s %s %d" % (ALIVE, self.dcs_list[dc_idx], self.simulation_mode)
+        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
         #print("alive check")
         
         
@@ -775,6 +793,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         except:
             self.img[dc_idx] = None
+            #self.img_new[dc_idx] = False
             self.log.send(self.iam, WARNING, "No image")
             
         
@@ -801,7 +820,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         except:
             self.img[dc_idx] = None
             self.log.send(self.iam, WARNING, "No image")
-                        
+            
+        #self.img_new[dc_idx] = False
+            
             
     def enable_dcs(self, dc_idx, enable):
         self.radio_exptime[dc_idx].setEnabled(enable)

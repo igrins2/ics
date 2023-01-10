@@ -180,6 +180,8 @@ class temp_ctrl(threading.Thread):
             self.comStatus = False
             self.log.send(self.iam, ERROR, "communication error") 
             self.re_connect_to_component()
+
+            return DEFAULT_VALUE
             
     
     def start_monitoring(self):
