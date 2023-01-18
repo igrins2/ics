@@ -397,17 +397,17 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
         if param[0] == HK_REQ_GETSETPOINT:      
             if param[1] == self.com_list[TMC1]:
-                self.set_point[0] = "%.2f" % float(param[2])
+                self.set_point[0] = self.judge_value(param[2])
                 self.monitor[0][1].setText(self.set_point[0])
-                self.set_point[1] = "%.2f" % float(param[3])
+                self.set_point[1] = self.judge_value(param[3])
                 self.monitor[1][1].setText(self.set_point[1])
             elif param[1] == self.com_list[TMC2]:
-                self.set_point[2] = "%.2f" % float(param[2])
+                self.set_point[2] = self.judge_value(param[2])
                 self.monitor[2][1].setText(self.set_point[2])
-                self.set_point[3] = "%.2f" % float(param[3])
+                self.set_point[3] = self.judge_value(param[3])
                 self.monitor[3][1].setText(self.set_point[3])
             elif param[1] == self.com_list[TMC3]:
-                self.set_point[4] = "%.2f" % float(param[2])
+                self.set_point[4] = self.judge_value(param[2])
                 self.monitor[5][1].setText(self.set_point[4])
                 
             self.save_setpoint(self.set_point)
@@ -416,25 +416,25 @@ class MainWindow(Ui_Dialog, QMainWindow):
         elif param[0] == HK_REQ_GETVALUE:    
             # from TMC
             if param[1] == self.com_list[TMC1]:
-                value = "%.2f" % float(param[2])
+                value = self.judge_value(param[2])
                 self.dtvalue[label_list[0]] = self.GetValuefromTempCtrl(TMC1_A, 0, value, 1.0)
-                value = "%.2f" % float(param[3])
+                value = self.judge_value(param[3])
                 self.dtvalue[label_list[1]] = self.GetValuefromTempCtrl(TMC1_B, 1, value, 0.1)
                 
-                heat = "%.2f" % float(param[4])
+                heat = self.judge_value(param[4])
                 self.heatlabel[label_list[0]] = self.GetHeatValuefromTempCtrl(TMC1_A, heat)
-                heat = "%.2f" % float(param[5])
+                heat = self.judge_value(param[5])
                 self.heatlabel[label_list[1]] = self.GetHeatValuefromTempCtrl(TMC1_B, heat)
                 
             elif param[1] == self.com_list[TMC2]:
-                value = "%.2f" % float(param[2])
+                value = self.judge_value(param[2])
                 self.dtvalue[label_list[2]] = self.GetValuefromTempCtrl(TMC2_A, 2, value, 0.1)
-                value = "%.2f" % float(param[3])
+                value = self.judge_value(param[3])
                 self.dtvalue[label_list[3]] = self.GetValuefromTempCtrl(TMC2_B, 3, value, 0.1)
             
-                heat = "%.2f" % float(param[4])
+                heat = self.judge_value(param[4])
                 self.heatlabel[label_list[2]] = self.GetHeatValuefromTempCtrl(TMC2_A, heat)
-                heat = "%.2f" % float(param[5])
+                heat = self.judge_value(param[5])
                 self.heatlabel[label_list[3]] = self.GetHeatValuefromTempCtrl(TMC2_B, heat)
                     
             elif param[1] == self.com_list[TMC3]:  
@@ -443,14 +443,14 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 else:
                     state = "normal"     
 
-                value = "%.2f" % float(param[2])
+                value = self.judge_value(param[2])
                 self.QShowValue(TMC3_A, 0, value, state)
                 
                 self.dtvalue[label_list[4]] = value
-                value = "%.2f" % float(param[3])
+                value = self.judge_value(param[3])
                 self.dtvalue[label_list[5]] = self.GetValuefromTempCtrl(TMC3_B, 4, value, 0.1)
             
-                heat = "%.2f" % float(param[4])
+                heat = self.judge_value(param[4])
                 self.heatlabel[label_list[5]] = self.GetHeatValuefromTempCtrl(TMC3_B, heat)       
 
             # from TM
@@ -461,7 +461,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                         state = "warm"
                     else:
                         state = "normal"
-                    value = "%.2f" % float(param[2+i])
+                    value = self.judge_value(param[2+i])
                     self.QShowValue(TM_1+i, 0, value, state)
                     self.dtvalue[label_list[TM_1+i]] = value
                     
@@ -547,7 +547,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     
     def GetHeatValuefromTempCtrl(self, port, heat): 
-        value = "%.2f" % float(heat)
+        value = self.judge_value(heat)
         self.monitor[port][2].setText(value)
         return heat
     
@@ -558,9 +558,18 @@ class MainWindow(Ui_Dialog, QMainWindow):
             state = "warm"   
         else:
             state = "normal"
-        value = "%.2f" % float(value)
+        value = self.judge_value(value)
         self.QShowValue(port, 0, value, state)
         return value               
+
+    
+    def judge_value(self, input):
+        if input != DEFAULT_VALUE:
+            value = "%.2f" % float(input)
+        else:
+            value = input
+
+        return value
 
 
     #-----------------------------
@@ -653,7 +662,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
             self.log.send(self.iam, INFO, "[cancel] " + str(datetime.datetime.now()))
             
-        elif self.periodicbtn == NOT_PRESSED:      
+        elif self.periodicbtn == NOT_PRESSED:   
+            self.get_setpoint()
+               
             self.producer[HK_SUB].send_message("", self.hk_sub_q, HK_START_MONITORING)
                   
             self.periodicbtn = PRESSED
@@ -676,8 +687,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.ost=ti.time()
             
             self.get_pwr_sts()
-    
-            self.get_setpoint()
+
             self.GetValue()
             
             self.st=ti.time()
@@ -794,14 +804,14 @@ class MainWindow(Ui_Dialog, QMainWindow):
             msg = "%s %s %s" % (HK_REQ_UPLOAD_DB, self.com_list[UPLOADER], str_log)
             self.producer[HK_SUB].send_message(self.com_list[UPLOADER], self.hk_sub_q, msg)
             
-            threading.Timer(3, self.uploader_monitor).start()
-            
             self.uploade_start = ti.time()
         
         # update log_time with Z0
         log_date, log_time = updated_datetime.split()
         hk_dict = hk_entries_to_dict(log_date, log_time, hk_entries)
         hk_dict.update(self.dtvalue_from_label.as_dict())
+
+        threading.Timer(3, self.uploader_monitor).start()
               
         
         

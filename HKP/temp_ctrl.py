@@ -100,7 +100,7 @@ class temp_ctrl(threading.Thread):
             self.value = [DEFAULT_VALUE, DEFAULT_VALUE]
             self.heat = [DEFAULT_VALUE, DEFAULT_VALUE]
             
-            threading.Timer(3, self.re_connect_to_component).start()
+            threading.Timer(1, self.re_connect_to_component).start()
             
         msg = "%s %s %d" % (HK_REQ_COM_STS, self.iam, self.comStatus)   
         if self.gui:
@@ -146,6 +146,9 @@ class temp_ctrl(threading.Thread):
 
 
     def socket_send(self, cmd):
+        if self.comStatus is False:
+            return
+
         try:    
             #send     
             self.comSocket.send(cmd.encode())
@@ -161,35 +164,43 @@ class temp_ctrl(threading.Thread):
             self.log.send(self.iam, INFO, log)   
             
             if info.find('\r\n') < 0 or info.find('+') < 0:                
-                for i in range(10):
+                for i in range(5):
                     try:
                         res0 = self.comSocket.recv(REBUFSIZE)
-                        info = res0.decode()
+                        info_buffer = res0.decode()
 
-                        log = "recv <<< %s (again)" % info[:-2]
+                        log = "recv <<< %s (again)" % info_buffer[:-2]
                         self.log.send(self.iam, INFO, log)
 
-                        if info.find('\r\n') >= 0:
+                        if info_buffer.find('\r\n') >= 0:
                             break
                     except:
                         continue
 
-            return info[:-2]
+                return DEFAULT_VALUE
+
+            else:
+                return info[:-2]
             
         except:
+
             self.comStatus = False
             self.log.send(self.iam, ERROR, "communication error") 
-            self.re_connect_to_component()
+            threading.Timer(1, self.re_connect_to_component).start()
 
             return DEFAULT_VALUE
             
     
     def start_monitoring(self):
-        self.value[0] = self.get_value("A")  
+        self.value[0] = self.get_value("A")
+        ti.sleep(0.5)  
         self.value[1] = self.get_value("B")     
+        ti.sleep(0.5)
         if self.iam != "tmc3":
             self.heat[0] = self.get_heating_power(1)
+            ti.sleep(0.5)
         self.heat[1] = self.get_heating_power(2)
+        ti.sleep(0.5)
         
         if self.monit:
             threading.Timer(10, self.start_monitoring).start()
@@ -221,7 +232,7 @@ class temp_ctrl(threading.Thread):
                 
         if param[0] == HK_START_MONITORING:
             self.monit = True
-            threading.Timer(0.1, self.start_monitoring).start()
+            self.start_monitoring()
             return
         elif param[0] == HK_STOP_MONITORING:
             self.monit = False
@@ -240,6 +251,7 @@ class temp_ctrl(threading.Thread):
         if param[0] == HK_REQ_GETSETPOINT:
             if self.iam != "tmc3":
                 self.setpoint[0] = self.get_setpoint(1)
+                ti.sleep(0.5)
             self.setpoint[1] = self.get_setpoint(2)
             
             if self.iam != "tmc3":

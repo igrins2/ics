@@ -37,7 +37,7 @@ FieldNames = [('date', str), ('time', str),
               ('shieldtop', float), ('air', float), 
               ('alert_status', str)]
 
-class uploader(threading.Thread):
+class uploader():
     
     def __init__(self, simul='0'):
         
@@ -137,10 +137,14 @@ class uploader(threading.Thread):
     
     
     def push_hk_entry(self, entry):
-        self.db.child("BasicHK").push(entry)
+        try:
+            self.db.child("BasicHK").push(entry)
         
-        msg = "%s %s" % (HK_REQ_UPLOAD_STS, self.iam)   
-        self.producer.send_message(HK, self.sub_hk_q, msg)
+            msg = "%s %s" % (HK_REQ_UPLOAD_STS, self.iam)   
+            self.producer.send_message(HK, self.sub_hk_q, msg)
+        
+        except:
+            self.log.send(self.iam, WARNING, "Upload fail")
         
         
     #-------------------------------

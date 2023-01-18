@@ -145,7 +145,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.simulation_mode = False     #from EngTools
         
         self.cal_mode = False
-        
+
         self.dcs_sts = [False for _ in range(DCS_CNT)]
         self.acquiring = [False for _ in range(DCS_CNT)]
                 
@@ -157,6 +157,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.output_channel = 32
         
         self.cur_cnt = [0 for _ in range(DCS_CNT)]
+        self.measure_T = [0 for _ in range(DCS_CNT)]
         self.header = [None for _ in range(DCS_CNT)]
         
         self.sel_mode = MODE_HK
@@ -175,6 +176,22 @@ class MainWindow(Ui_Dialog, QMainWindow):
         for i in range(CAL_CNT):
             self.cal_use_parsing(self.cal_chk[i], self.cal_e_exptime[i], self.cal_e_repeat[i])         
                 
+        self.prog_timer = [None for _ in range(DCS_CNT)]
+        self.elapsed_timer = [None for _ in range(DCS_CNT)]
+
+        for idx in range(DCS_CNT):
+            self.prog_timer[idx] = QTimer(self)
+            self.elapsed_timer[idx] = QTimer(self)
+            self.elapsed_timer[idx].setInterval(0.001)
+            
+        self.prog_timer[SVC].timeout.connect(lambda: self.show_progressbar(SVC))
+        self.prog_timer[H].timeout.connect(lambda: self.show_progressbar(H))
+        self.prog_timer[K].timeout.connect(lambda: self.show_progressbar(K))
+
+        self.elapsed_timer[SVC].timeout.connect(lambda: self.show_elapsed(SVC))
+        self.elapsed_timer[H].timeout.connect(lambda: self.show_elapsed(H))
+        self.elapsed_timer[K].timeout.connect(lambda: self.show_elapsed(K))
+
         # progress bar     
         self.cur_prog_step = [0 for _ in range(DCS_CNT)]
         
@@ -189,12 +206,13 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.connect_to_server_sub_q()
         
         self.connect_to_server_dt_ex()
-        self.connect_to_server_dcs_q()
-                            
+        self.connect_to_server_dcs_q() 
+
+        #ti.sleep(5)
+        self.alive_check()                          
         
         
-    def closeEvent(self, event: QCloseEvent) -> None:
-               
+    def closeEvent(self, event: QCloseEvent) -> None:               
         self.log.send(self.iam, INFO, "Closing %s : " % sys.argv[0])
         self.log.send(self.iam, INFO, "This may take several seconds waiting for threads to close")
             
@@ -249,7 +267,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.label_prog_elapsed = [self.label_prog_elapsed_svc, self.label_prog_elapsed_H, self.label_prog_elapsed_K]
         self.label_cur_num = [self.label_cur_num_svc, self.label_cur_num_H, self.label_cur_num_K]
         self.progressBar = [self.progressBar_svc, self.progressBar_H, self.progressBar_K]
-        
+
+        self.sts_com = [self.sts_svc, self.sts_H, self.sts_K]
         self.bt_init = [self.bt_init_SVC, self.bt_init_H, self.bt_init_K]
         self.chk_ds9 = [self.chk_ds9_svc, self.chk_ds9_H, self.chk_ds9_K]
         self.chk_autosave = [self.checkBox_autosave_svc, self.checkBox_autosave_H, self.checkBox_autosave_K]
@@ -262,6 +281,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         for i in range(DCS_CNT):
             
+            self.QWidgetLabelColor(self.sts_com[i], "gray")
+
             self.radio_exptime[i].setChecked(True)
             
             self.e_exptime[i].setEnabled(False)
@@ -514,9 +535,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.producer[DCS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.dt_dcs_ex)      
         self.producer[DCS].connect_to_server()
         self.producer[DCS].define_producer()
-
-        threading.Timer(10, self.alive_check).start()
-                        
     
     #-------------------------------
     # dcs -> dt
@@ -529,6 +547,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         th = threading.Thread(target=self.consumer[DCS].start_consumer)
         th.daemon = True
         th.start()
+        
             
             
     #-------------------------------
@@ -548,16 +567,14 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         if param[0] == ALIVE or param[0] == CMD_INITIALIZE1:
             self.dcs_sts[dc_idx] = True
-            threading.Timer(self.alive_chk_interval, self.alive_check).start()
             return
                         
         if param[0] == CMD_INITIALIZE2:
             self.enable_dcs(dc_idx, True)
             self.QWidgetBtnColor(self.bt_init[dc_idx], "white", "green")
             self.bt_init[dc_idx].setEnabled(True)
-                
-        elif param[0] == CMD_ACQUIRERAMP:
-            
+
+        elif param[0] == CMD_SETFSPARAM:            
             self.cur_cnt[dc_idx] += 1
             
             self.label_prog_sts[dc_idx].setText("END")
@@ -565,11 +582,16 @@ class MainWindow(Ui_Dialog, QMainWindow):
             end_time = ti.strftime("%Y-%m-%d %H:%M:%S", ti.localtime())
             self.label_prog_time[dc_idx].setText(self.label_prog_time[dc_idx].text() + " / " + end_time)
                         
+            #self.prog_timer[dc_idx].stop()
             self.cur_prog_step[dc_idx] = 100
             self.progressBar[dc_idx].setValue(self.cur_prog_step[dc_idx])           
+
+            #self.elapsed_timer[dc_idx].stop()
+
+            self.measure_T[dc_idx] = float(param[2])
             
             # load data
-            self.load_data(dc_idx, param[2])
+            self.load_data(dc_idx, param[3])
         
             self.acquiring[dc_idx] = False
             
@@ -583,7 +605,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                     self.cal_stop_clicked = False
                 
                 elif self.cur_cnt[dc_idx] < int(self.cal_e_repeat[self.cal_cur].text()):
-                     self.acquireramp(dc_idx)
+                     self.set_fs_param(dc_idx)
                 
                 else:
                     self.cur_cnt[dc_idx] = 0
@@ -608,7 +630,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                     self.stop_clicked = False
                 
                 elif self.cur_cnt[dc_idx] < int(self.e_repeat[dc_idx].text()):
-                    self.acquireramp(dc_idx)
+                    self.set_fs_param(dc_idx)
                     
                 else:
                     self.cur_cnt[dc_idx] = 0
@@ -628,9 +650,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
             end_time = ti.strftime("%Y-%m-%d %H:%M:%S", ti.localtime())
             self.label_prog_time[dc_idx].setText(self.label_prog_time[dc_idx].text() + " / " + end_time)
                         
-            #self.cur_prog_step[dc_idx] = 100
-            #self.progressBar[dc_idx].setValue(self.cur_prog_step[dc_idx]) 
-
             self.protect_btn(True)                    
             self.bt_take_image.setText("Take Image")  
             self.QWidgetBtnColor(self.bt_take_image, "black", "white")
@@ -647,21 +666,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.QWidgetBtnColor(self.bt_init[dc_idx], "yellow", "blue")
         msg = "%s %s %d" % (CMD_INITIALIZE2, self.dcs_list[dc_idx], self.simulation_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
-        
-        
-    #def resetASIC(self, dc_idx):
-    #    msg = "%s %s %d" % (CMD_RESETASIC, self.dcs_list[dc_idx], self.simulation_mode)
-    #    self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
-        
-        
-    #def downloadMCD(self, dc_idx):
-    #    msg = "%s %s %d" % (CMD_DOWNLOAD, self.dcs_list[dc_idx], self.simulation_mode)
-    #    self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
-                
-    
-    #def set_detector(self, dc_idx, channel):
-    #    msg = "%s %s %d %d %d" % (CMD_SETDETECTOR, self.dcs_list[dc_idx], self.simulation_mode, MUX_TYPE, channel)
-    #    self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
             
         
     def set_fs_param(self, dc_idx):     
@@ -671,54 +675,60 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         show_cur_cnt = "%d / %s" % (self.cur_cnt[dc_idx], self.e_repeat[dc_idx].text())
         self.label_cur_num[dc_idx].setText(show_cur_cnt)   
-        
-        #fsmode        
-        msg = "%s %s %d %d" % (CMD_SETFSMODE, self.dcs_list[dc_idx], self.simulation_mode, FOWLER_MODE)
-        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
 
         #setparam
         _exptime = float(self.e_exptime[dc_idx].text())
         _FS_number = int(self.e_FS_number[dc_idx].text())
         _fowlerTime = _exptime - T_frame * _FS_number
         self.cal_waittime = T_br + (T_frame + _fowlerTime + (2 * T_frame * _FS_number))
-
-        msg = "%s %s %d %.3f 1 1 1 %.3f 1" % (CMD_SETFSPARAM, self.dcs_list[dc_idx], self.simulation_mode, _exptime, _fowlerTime)
-        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
-
-        self.acquiring[dc_idx] = True
-        self.acquireramp(dc_idx)
             
-    
-    def acquireramp(self, dc_idx):     
-        print(dc_idx)     
         start_time = ti.strftime("%Y-%m-%d %H:%M:%S", ti.localtime())       
         
         self.label_prog_sts[dc_idx].setText("START")
         self.label_prog_time[dc_idx].setText(start_time)
         
         # progress bar 
+        self.prog_timer[dc_idx].setInterval(int(self.cal_waittime*10))        
         self.cur_prog_step[dc_idx] = 0
-        self.progressBar[dc_idx].setValue(self.cur_prog_step[dc_idx])        
-        #self.show_progressbar(dc_idx)
-        threading.Timer(0.001, self.show_progressbar, args=(dc_idx,)).start()
+        self.progressBar[dc_idx].setValue(self.cur_prog_step[dc_idx])    
+        self.prog_timer[dc_idx].start()    
         
         # elapsed                
         self.elapsed[dc_idx] = ti.time()
-        self.label_prog_elapsed[dc_idx].setText("0.0")      
-        #self.show_elapsed(dc_idx)  
-        threading.Timer(0.001, self.show_elapsed, args=(dc_idx,)).start()
-        
+        self.label_prog_elapsed[dc_idx].setText("0.0")    
+        self.elapsed_timer[dc_idx].start()
+
+        msg = "%s %s %d %.3f 1 1 1 %.3f 1" % (CMD_SETFSPARAM, self.dcs_list[dc_idx], self.simulation_mode, _exptime, _fowlerTime)
+        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
+
+        self.acquiring[dc_idx] = True
+
           
     def alive_check(self):  
 
+        for idx in range(DCS_CNT):
+            self.dcs_sts[idx] = False
+        
         msg = "%s %d" % (ALIVE, self.simulation_mode)
         self.producer[DCS].send_message("", self.dt_dcs_q, msg)
         #print("alive check")
+
+        threading.Timer(self.alive_chk_interval, self.alive_check).start()
+        threading.Timer(3, self.show_alive_sts).start()
         
+    
+    def show_alive_sts(self):
+        for idx in range(DCS_CNT):
+            if self.dcs_sts[idx]:
+                self.QWidgetLabelColor(self.sts_com[idx], "green")
+            else:
+                self.QWidgetLabelColor(self.sts_com[idx], "gray")
+
         
     def stop_acquistion(self, dc_idx):        
-        if self.cur_prog_step[dc_idx] == 0:
-            return
+        if self.cur_prog_step[dc_idx] > 0:
+            self.prog_timer[dc_idx].stop()
+            self.elapsed_timer[dc_idx].stop()
                 
         msg = "%s %s %d" % (CMD_STOPACQUISITION, self.dcs_list[dc_idx], self.simulation_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
@@ -828,25 +838,23 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
             
     def show_elapsed(self, dc_idx):
-        if self.cur_prog_step[dc_idx] >= 100 or self.stop_clicked is False:
+        cur_elapsed = ti.time() - self.elapsed[dc_idx]
+        if (self.measure_T[dc_idx] > 0 and cur_elapsed >= self.measure_T[dc_idx]) or self.stop_clicked:
+            self.elapsed_timer[dc_idx].stop()
             return
         
         msg = "%.3f sec" % (ti.time() - self.elapsed[dc_idx])
         self.label_prog_elapsed[dc_idx].setText(msg)
-        
-        threading.Timer(0.001, self.show_elapsed, args=(dc_idx,)).start()
-                
-        
+
+
     def show_progressbar(self, dc_idx):
-        if self.cur_prog_step[dc_idx] >= 100:
+        if self.cur_prog_step[dc_idx] >= 100 or self.stop_clicked:
+            self.prog_timer[dc_idx].stop()
             #self.log.send(self.iam, INFO, "progress bar end!!!")
             return
         
         self.cur_prog_step[dc_idx] += 1
-        self.progressBar[dc_idx].setValue(self.cur_prog_step[dc_idx])       
-        #self.log.send(self.iam, DEBUG, self.cur_prog_step[dc_idx])
-        
-        threading.Timer(int(self.cal_waittime*10), self.show_progressbar, args=(dc_idx,)).start()
+        self.progressBar[dc_idx].setValue(self.cur_prog_step[dc_idx])
 
 
     def protect_btn(self, enable):
@@ -1116,7 +1124,14 @@ class MainWindow(Ui_Dialog, QMainWindow):
         msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, MOTOR, ON)
         self.producer[HK_SUB].send_message(self.com_list[PDU], self.dt_sub_q, msg)
     
-    
+
+    def QWidgetLabelColor(self, widget, textcolor, bgcolor=None):
+        if bgcolor == None:
+            label = "QLabel {color:%s}" % textcolor
+            widget.setStyleSheet(label)
+        else:
+            label = "QLabel {color:%s;background:%s}" % (textcolor, bgcolor)
+            widget.setStyleSheet(label)    
 
     
     #-------------------------------------------------

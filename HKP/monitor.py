@@ -141,6 +141,9 @@ class monitor(threading.Thread) :
             
     
     def socket_send(self, cmd):
+        if self.comStatus is False:
+            return
+
         try:         
             #send
             self.comSocket.send(cmd.encode())
@@ -179,7 +182,7 @@ class monitor(threading.Thread) :
         except:
             self.comStatus = False
             self.log.send(self.iam, ERROR, "communication error") 
-            self.re_connect_to_component()
+            threading.Timer(1, self.re_connect_to_component).start()
 
             return DEFAULT_VALUE
             
@@ -220,7 +223,7 @@ class monitor(threading.Thread) :
         
         if param[0] == HK_START_MONITORING:
             self.monit = True
-            threading.Timer(0.1, self.start_monitoring).start()
+            self.start_monitoring()
             return
         elif param[0] == HK_STOP_MONITORING:
             self.monit = False
