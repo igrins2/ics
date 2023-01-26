@@ -64,6 +64,7 @@ class temp_ctrl(threading.Thread):
         self.producer = None
         self.consumer = None
         
+        self.wait_time = 2
                 
         
     def __del__(self):
@@ -89,6 +90,8 @@ class temp_ctrl(threading.Thread):
             
             msg = "connected"
             self.log.send(self.iam, INFO, msg)
+
+            #self.th_monitoring.start()
             
         except:
             self.comSocket = None
@@ -100,7 +103,8 @@ class temp_ctrl(threading.Thread):
             self.value = [DEFAULT_VALUE, DEFAULT_VALUE]
             self.heat = [DEFAULT_VALUE, DEFAULT_VALUE]
             
-            threading.Timer(1, self.re_connect_to_component).start()
+            self.re_connect_to_component()
+            #threading.Timer(1, self.re_connect_to_component).start()
             
         msg = "%s %s %d" % (HK_REQ_COM_STS, self.iam, self.comStatus)   
         if self.gui:
@@ -108,7 +112,7 @@ class temp_ctrl(threading.Thread):
               
     
     def re_connect_to_component(self):
-        #self.th.cancel()
+        #self.th_monitoring.cancel()
         
         msg = "trying to connect again"
         self.log.send(self.iam, WARNING, msg)
@@ -186,24 +190,30 @@ class temp_ctrl(threading.Thread):
 
             self.comStatus = False
             self.log.send(self.iam, ERROR, "communication error") 
-            threading.Timer(1, self.re_connect_to_component).start()
+            self.re_connect_to_component()
+            #threading.Timer(1, self.re_connect_to_component).start()
 
             return DEFAULT_VALUE
             
     
     def start_monitoring(self):
+        if self.monit is False:
+            return
+            
         self.value[0] = self.get_value("A")
-        ti.sleep(0.5)  
+        ti.sleep(self.wait_time)  
         self.value[1] = self.get_value("B")     
-        ti.sleep(0.5)
+        ti.sleep(self.wait_time)
         if self.iam != "tmc3":
             self.heat[0] = self.get_heating_power(1)
-            ti.sleep(0.5)
+            ti.sleep(self.wait_time)
         self.heat[1] = self.get_heating_power(2)
-        ti.sleep(0.5)
-        
-        if self.monit:
-            threading.Timer(10, self.start_monitoring).start()
+        ti.sleep(self.wait_time)
+
+        ti.sleep(10)
+        threading.Thread(target=self.start_monitoring).start()
+        #threading.Timer(10, self.start_monitoring).start()
+
     
      #-------------------------------
     # sub -> hk    
@@ -251,7 +261,7 @@ class temp_ctrl(threading.Thread):
         if param[0] == HK_REQ_GETSETPOINT:
             if self.iam != "tmc3":
                 self.setpoint[0] = self.get_setpoint(1)
-                ti.sleep(0.5)
+                ti.sleep(1)
             self.setpoint[1] = self.get_setpoint(2)
             
             if self.iam != "tmc3":
@@ -261,6 +271,13 @@ class temp_ctrl(threading.Thread):
             self.producer.send_message(HK, self.sub_hk_q, msg)
             
         elif param[0] == HK_REQ_GETVALUE:
+
+            for i in range(2):
+                if self.value[i] == None:
+                    self.value[i] = DEFAULT_VALUE
+                if self.heat[i] == None:
+                    self.heat[i] = DEFAULT_VALUE
+
             if self.iam != "tmc3":
                 msg = "%s %s %s %s %s %s" % (param[0], self.iam, self.value[0], self.value[1], self.heat[0], self.heat[1]) 
             else:
@@ -275,39 +292,12 @@ class temp_ctrl(threading.Thread):
 
 
 if __name__ == "__main__":
-    
-    #sys.argv.append("10001")
-    #sys.argv.append("False")
-    #if len(sys.argv) < 3:
-    #    print("Please add comport")
-    #    exit()
-    
+        
     proc = temp_ctrl(sys.argv[1], sys.argv[2], True)
-    #proc = temp_ctrl(sys.argv[1])
     
     proc.connect_to_server_sub_ex()
     proc.connect_to_server_hk_q()
     
     proc.connect_to_component()
 
-    '''
-    delay = 0
-    for i in range(1):
-        proc.get_setpoint(1)
-        ti.sleep(delay)
-        proc.get_setpoint(2)
-        ti.sleep(delay)
-        proc.get_heating_power(1)
-        ti.sleep(delay)
-        proc.get_heating_power(2)
-        ti.sleep(delay)
-        
-        proc.get_value("A")
-        ti.sleep(delay)
-        proc.get_value("B")
-        ti.sleep(delay)
-        
-    proc.__del__()
-    '''
     
-        

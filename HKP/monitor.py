@@ -66,6 +66,8 @@ class monitor(threading.Thread) :
         
         self.producer = None
         self.consumer = None
+
+        
                 
         
     
@@ -93,6 +95,8 @@ class monitor(threading.Thread) :
             
             msg = "connected"
             self.log.send(self.iam, INFO, msg)
+
+            #self.th_monitoring.start()
             
         except:
             self.comSocket = None
@@ -101,7 +105,9 @@ class monitor(threading.Thread) :
             msg = "disconnected"
             self.log.send(self.iam, ERROR, msg)
             
-            threading.Timer(1, self.re_connect_to_component).start()
+            ti.sleep(1)
+            self.re_connect_to_component()
+            #threading.Timer(1, self.re_connect_to_component).start()
 
             
         msg = "%s %s %d" % (HK_REQ_COM_STS, self.iam, self.comStatus)   
@@ -110,7 +116,8 @@ class monitor(threading.Thread) :
                  
     
     def re_connect_to_component(self):
-        #self.th.cancel()
+
+        #self.th_monitoring.cancel()
         
         msg = "trying to connect again"
         self.log.send(self.iam, WARNING, msg)
@@ -182,19 +189,25 @@ class monitor(threading.Thread) :
         except:
             self.comStatus = False
             self.log.send(self.iam, ERROR, "communication error") 
-            threading.Timer(1, self.re_connect_to_component).start()
+            ti.sleep(1)
+            self.re_connect_to_component()
+            #threading.Timer(1, self.re_connect_to_component).start()
 
             return DEFAULT_VALUE
             
                     
     def start_monitoring(self):
+        if self.monit is False:
+            return
+
         if self.iam == "tm":
             self.value = (self.get_value_fromTM().split(","))
         elif self.iam == "vm":
             self.vm = self.get_value_fromVM()    
-        
-        if self.monit:
-            threading.Timer(10, self.start_monitoring).start()
+
+        ti.sleep(10)
+        threading.Thread(target=self.start_monitoring).start()
+        #threading.Timer(10, self.start_monitoring).start()
     
     #-------------------------------
     # sub -> hk    
@@ -259,25 +272,11 @@ class monitor(threading.Thread) :
             
 if __name__ == "__main__":
     
-    #sys.argv.append("10005")
-    #if len(sys.argv) < 2:
-    #    print("Please add comport")
-    #    exit()
-    
     proc = monitor(sys.argv[1], sys.argv[2], True)
-    #proc = monitor(sys.argv[1])
         
     proc.connect_to_server_sub_ex()
     proc.connect_to_server_hk_q()
     
     proc.connect_to_component()
     
-    #proc.get_value_fromVM()
-    '''
-    delay = 0.1
-    for i in range(1):
-        proc.get_value_fromTM(0)
-        ti.sleep(delay)
     
-    del proc
-    '''

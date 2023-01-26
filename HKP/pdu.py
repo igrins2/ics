@@ -100,7 +100,8 @@ class pdu(threading.Thread) :
             msg = "disconnected"
             self.log.send(self.iam, ERROR, msg)
             
-            threading.Timer(1, self.re_connect_to_component).start()
+            self.re_connect_to_component()
+            #threading.Timer(1, self.re_connect_to_component).start()
                         
         msg = "%s %s %d" % (HK_REQ_COM_STS, self.iam, self.comStatus)   
         if self.gui:
@@ -147,7 +148,8 @@ class pdu(threading.Thread) :
             self.log.send(self.iam, ERROR, "powctr init is error")
                    
             self.comStatus = False
-            threading.Timer(1, self.re_connect_to_component).start()
+            self.re_connect_to_component()
+            #threading.Timer(1, self.re_connect_to_component).start()
         
                     
     def power_status(self, cmd, commander=None):
@@ -184,7 +186,8 @@ class pdu(threading.Thread) :
         except:                  
             self.comStatus = False
             self.log.send(self.iam, ERROR, "communication error")
-            threading.Timer(1, self.re_connect_to_component).start()
+            self.re_connect_to_component()
+            #threading.Timer(1, self.re_connect_to_component).start()
             
 
     # on/off

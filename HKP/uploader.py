@@ -37,7 +37,7 @@ FieldNames = [('date', str), ('time', str),
               ('shieldtop', float), ('air', float), 
               ('alert_status', str)]
 
-class uploader():
+class uploader(threading.Thread):
     
     def __init__(self, simul='0'):
         
@@ -117,8 +117,8 @@ class uploader():
 
         else:
             HK_dict["utc_upload"] = datetime.datetime.now(pytz.utc).isoformat()                
-            self.push_hk_entry(HK_dict)
-            self.log.send(self.iam, INFO, HK_dict)
+            if self.push_hk_entry(HK_dict):
+                self.log.send(self.iam, INFO, HK_dict)
 
 
     def read_item_to_upload(self, HK_list):
@@ -142,9 +142,13 @@ class uploader():
         
             msg = "%s %s" % (HK_REQ_UPLOAD_STS, self.iam)   
             self.producer.send_message(HK, self.sub_hk_q, msg)
+
+            return True
         
         except:
             self.log.send(self.iam, WARNING, "Upload fail")
+
+            return False
         
         
     #-------------------------------

@@ -360,7 +360,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     def callback_sub(self, ch, method, properties, body):
         cmd = body.decode()
         msg = "receive: %s" % cmd
-        if len(cmd) < 50:
+        if len(cmd) < 80:
             self.log.send(self.iam, INFO, msg)
 
         param = cmd.split()
@@ -689,7 +689,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.get_pwr_sts()
 
             self.GetValue()
-            
+
+            timer = QTimer(self)
+            timer.singleShot(self.Period*1000, self.PeriodicFunc)
+
+            '''
             self.st=ti.time()
             if (self.st-self.ost)>=float(self.Period)+0.00005 :
                 self.tsh=(self.st-self.ost)-float(self.Period)
@@ -704,6 +708,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             else:
                 self.log.send(self.iam, ERROR, "periodic is being called with negative time({}). Using default of 10s".format(_t))
                 timer.singleShot(_t, self.PeriodicFunc)        
+            '''
         
             
     def GetValue(self):
@@ -811,7 +816,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         hk_dict = hk_entries_to_dict(log_date, log_time, hk_entries)
         hk_dict.update(self.dtvalue_from_label.as_dict())
 
-        threading.Timer(3, self.uploader_monitor).start()
+        ti.sleep(3)
+        self.uploader_monitor()
+        #threading.Timer(3, self.uploader_monitor).start()
               
         
         
