@@ -210,7 +210,8 @@ class temp_ctrl(threading.Thread):
         self.heat[1] = self.get_heating_power(2)
         ti.sleep(self.wait_time)
 
-        ti.sleep(10)
+        #_t = 10 - self.wait_time*4
+        #ti.sleep(_t)
         threading.Thread(target=self.start_monitoring).start()
         #threading.Timer(10, self.start_monitoring).start()
 

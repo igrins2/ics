@@ -675,6 +675,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
             self.chk_alert.setEnabled(True)
             
+            self.st_time = ti.time()
             self.PeriodicFunc()
             
             self.uploade_start = ti.time()
@@ -683,32 +684,27 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
     def PeriodicFunc(self):
         
-        if self.periodicbtn == PRESSED:
-            self.ost=ti.time()
-            
-            self.get_pwr_sts()
+        if self.periodicbtn == PRESSED: 
 
+            timer = QTimer(self)
+            _t = ti.time() - self.st_time
+            if _t < self.Period:
+                timer.singleShot(500, self.PeriodicFunc)
+                return
+
+            self.st_time = ti.time()
+
+            self.get_pwr_sts()
             self.GetValue()
 
-            timer = QTimer(self)
-            timer.singleShot(self.Period*1000, self.PeriodicFunc)
-
-            '''
-            self.st=ti.time()
-            if (self.st-self.ost)>=float(self.Period)+0.00005 :
-                self.tsh=(self.st-self.ost)-float(self.Period)
-            else :
-                self.tsh=0.00000
-            self.ost=self.st
+            self.st = ti.time()            
     
-            _t = int((float(self.Period)-(ti.time()-self.st)-self.tsh)*1000)
             timer = QTimer(self)
-            if _t > 0:
-                timer.singleShot(_t, self.PeriodicFunc)
-            else:
-                self.log.send(self.iam, ERROR, "periodic is being called with negative time({}). Using default of 10s".format(_t))
-                timer.singleShot(_t, self.PeriodicFunc)        
-            '''
+            timer.singleShot(500, self.PeriodicFunc)
+            self.log.send(self.iam, INFO, "PeriodicFunc")
+
+            timer = QTimer(self)
+            timer.singleShot(2000, self.LoggingFun)            
         
             
     def GetValue(self):
@@ -724,10 +720,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
             except Exception as e:
                 self.log.send(self.iam, ERROR, e)
                     
-        timer = QTimer(self)
-        timer.singleShot(2000, self.LoggingFun)
-
         self.send_alert_if_needed()
+        
                
         
     def get_setpoint(self):        
@@ -816,9 +810,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         hk_dict = hk_entries_to_dict(log_date, log_time, hk_entries)
         hk_dict.update(self.dtvalue_from_label.as_dict())
 
-        ti.sleep(3)
-        self.uploader_monitor()
-        #threading.Timer(3, self.uploader_monitor).start()
+        timer = QTimer()
+        timer.singleShot(1000, self.uploader_monitor)
               
         
         

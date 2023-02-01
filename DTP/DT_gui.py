@@ -143,6 +143,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.e_movinginterval.setText("1")        
         
         self.simulation_mode = False     #from EngTools
+        self.mode = SINGLE_MODE
+        self.continous = False
         
         self.cal_mode = False
 
@@ -175,22 +177,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
            
         for i in range(CAL_CNT):
             self.cal_use_parsing(self.cal_chk[i], self.cal_e_exptime[i], self.cal_e_repeat[i])         
-                
+        
         self.prog_timer = [None for _ in range(DCS_CNT)]
         self.elapsed_timer = [None for _ in range(DCS_CNT)]
-
-        for idx in range(DCS_CNT):
-            self.prog_timer[idx] = QTimer(self)
-            self.elapsed_timer[idx] = QTimer(self)
-            self.elapsed_timer[idx].setInterval(0.001)
-            
-        self.prog_timer[SVC].timeout.connect(lambda: self.show_progressbar(SVC))
-        self.prog_timer[H].timeout.connect(lambda: self.show_progressbar(H))
-        self.prog_timer[K].timeout.connect(lambda: self.show_progressbar(K))
-
-        self.elapsed_timer[SVC].timeout.connect(lambda: self.show_elapsed(SVC))
-        self.elapsed_timer[H].timeout.connect(lambda: self.show_elapsed(H))
-        self.elapsed_timer[K].timeout.connect(lambda: self.show_elapsed(K))
 
         # progress bar     
         self.cur_prog_step = [0 for _ in range(DCS_CNT)]
@@ -565,16 +554,17 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.QWidgetBtnColor(self.bt_init[dc_idx], "white", "red")
             return
         
-        if param[0] == ALIVE or param[0] == CMD_INITIALIZE1:
+        if param[0] == ALIVE:
             self.dcs_sts[dc_idx] = True
+            self.show_alive_sts()
             return
                         
-        if param[0] == CMD_INITIALIZE2:
+        if param[0] == CMD_INITIALIZE2_ICS:
             self.enable_dcs(dc_idx, True)
             self.QWidgetBtnColor(self.bt_init[dc_idx], "white", "green")
             self.bt_init[dc_idx].setEnabled(True)
 
-        elif param[0] == CMD_SETFSPARAM:            
+        elif param[0] == CMD_SETFSPARAM_ICS:            
             self.cur_cnt[dc_idx] += 1
             
             self.label_prog_sts[dc_idx].setText("END")
@@ -598,20 +588,22 @@ class MainWindow(Ui_Dialog, QMainWindow):
             if self.cal_mode:
                 show_cur_cnt = "%d / %s" % (self.cur_cnt[dc_idx], self.cal_e_repeat[self.cal_cur].text())
                 self.label_cur_num[dc_idx].setText(show_cur_cnt)
-                
+
                 if self.cal_stop_clicked:
+                    self.cur_cnt[dc_idx] = 0
                     self.bt_run.setText("RUN")
                     self.QWidgetBtnColor(self.bt_run, "black", "white")
-                    self.cal_stop_clicked = False
-                
+                    self.cal_stop_clicked = False 
+                                
                 elif self.cur_cnt[dc_idx] < int(self.cal_e_repeat[self.cal_cur].text()):
-                     self.set_fs_param(dc_idx)
+                    self.continous = True
+                    self.bt_take_image.click()
                 
                 else:
                     self.cur_cnt[dc_idx] = 0
                     self.bt_run.setText("RUN")
                     self.QWidgetBtnColor(self.bt_run, "black", "white")
-                    self.cal_stop_clicked = False                    
+                    self.cal_stop_clicked = False                   
             
                     if self.acquiring[H] is False and self.acquiring[K] is False:
                         self.func_lamp(self.cal_cur, OFF)
@@ -623,28 +615,31 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 self.label_cur_num[dc_idx].setText(show_cur_cnt)
                 
                 if self.stop_clicked:
+                    self.cur_cnt[dc_idx] = 0
                     self.protect_btn(True) 
                     self.bt_take_image.setText("Continuous")
                     
                     self.QWidgetBtnColor(self.bt_take_image, "black", "white")
                     self.stop_clicked = False
-                
+                    self.enable_dcs(dc_idx, True)
+
                 elif self.cur_cnt[dc_idx] < int(self.e_repeat[dc_idx].text()):
-                    self.set_fs_param(dc_idx)
-                    
+                    self.continous = True
+                    self.bt_take_image.click()
+                
                 else:
                     self.cur_cnt[dc_idx] = 0
-                    self.protect_btn(True)
-                        
-                    if int(self.e_repeat[SVC].text()) > 1 or int(self.e_repeat[H].text()) > 1 or int(self.e_repeat[K].text()) > 1:
+                    self.protect_btn(True) 
+                                            
+                    if self.mode == CONT_MODE:
                         self.bt_take_image.setText("Continuous")
                     else:
                         self.bt_take_image.setText("Take Image")
                         
                     self.QWidgetBtnColor(self.bt_take_image, "black", "white")
                     self.stop_clicked = False
-            
-        
+                    self.enable_dcs(dc_idx, True)
+
         elif param[0] == CMD_STOPACQUISITION:
             
             end_time = ti.strftime("%Y-%m-%d %H:%M:%S", ti.localtime())
@@ -654,6 +649,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.bt_take_image.setText("Take Image")  
             self.QWidgetBtnColor(self.bt_take_image, "black", "white")
             self.stop_clicked = False  
+            self.enable_dcs(dc_idx, True)
         
         
     #-------------------------------
@@ -664,7 +660,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.bt_init[dc_idx].setEnabled(False)
         self.QWidgetBtnColor(self.bt_init[dc_idx], "yellow", "blue")
-        msg = "%s %s %d" % (CMD_INITIALIZE2, self.dcs_list[dc_idx], self.simulation_mode)
+        msg = "%s %s %d" % (CMD_INITIALIZE2_ICS, self.dcs_list[dc_idx], self.simulation_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
             
         
@@ -672,6 +668,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
 
         if self.simulation_mode is False and self.dcs_sts[dc_idx] is False:
             return
+
+        self.enable_dcs(dc_idx, False)
         
         show_cur_cnt = "%d / %s" % (self.cur_cnt[dc_idx], self.e_repeat[dc_idx].text())
         self.label_cur_num[dc_idx].setText(show_cur_cnt)   
@@ -686,20 +684,31 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.label_prog_sts[dc_idx].setText("START")
         self.label_prog_time[dc_idx].setText(start_time)
-        
+
         # progress bar 
-        self.prog_timer[dc_idx].setInterval(int(self.cal_waittime*10))        
+        self.prog_timer[dc_idx] = QTimer(self)
+        self.prog_timer[dc_idx].setInterval(int(self.cal_waittime*10))   
+        self.prog_timer[dc_idx].timeout.connect(lambda: self.show_progressbar(dc_idx))    
+
         self.cur_prog_step[dc_idx] = 0
         self.progressBar[dc_idx].setValue(self.cur_prog_step[dc_idx])    
         self.prog_timer[dc_idx].start()    
         
-        # elapsed                
+        # elapsed               
+        self.elapsed_timer[dc_idx] = QTimer(self) 
+        self.elapsed_timer[dc_idx].setInterval(0.001)
+        self.elapsed_timer[dc_idx].timeout.connect(lambda: self.show_elapsed(dc_idx))
+
         self.elapsed[dc_idx] = ti.time()
         self.label_prog_elapsed[dc_idx].setText("0.0")    
         self.elapsed_timer[dc_idx].start()
 
-        msg = "%s %s %d %.3f 1 1 1 %.3f 1" % (CMD_SETFSPARAM, self.dcs_list[dc_idx], self.simulation_mode, _exptime, _fowlerTime)
+        if self.cur_cnt[dc_idx] == 0:
+            msg = "%s %s %d %.3f 1 1 1 %.3f 1" % (CMD_SETFSPARAM_ICS, self.dcs_list[dc_idx], self.simulation_mode, _exptime, _fowlerTime)
+        else:
+            msg = "%s %s %d" % (CMD_ACQUIRERAMP_ICS, self.dcs_list[dc_idx], self.simulation_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
+
 
         self.acquiring[dc_idx] = True
 
@@ -713,8 +722,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.producer[DCS].send_message("", self.dt_dcs_q, msg)
         #print("alive check")
 
-        threading.Timer(self.alive_chk_interval, self.alive_check).start()
-        threading.Timer(3, self.show_alive_sts).start()
+        timer = QTimer()
+        timer.singleShot(self.alive_chk_interval*1000, self.alive_check)
         
     
     def show_alive_sts(self):
@@ -797,13 +806,15 @@ class MainWindow(Ui_Dialog, QMainWindow):
             _img = self.img[dc_idx]
                             
             if dc_idx == SVC:
-                min, max = 0, 0
+                _min, _max = 0, 0
                 if self.radioButton_zscale.isChecked():
-                    min, max = self.zmin, self.zmax
+                    _min, _max = self.zmin, self.zmax
                 elif self.radioButton_mscale.isChecked():
-                    min, max = self.mmin, self.mmax
+                    _min, _max = self.mmin, self.mmax
+            else:
+                _min, _max = self.zmin, self.zmax
                                 
-            self.image_ax[dc_idx].imshow(_img, vmin=min, vmax=max, cmap='gray', origin='lower')
+            self.image_ax[dc_idx].imshow(_img, vmin=_min, vmax=_max, cmap='gray', origin='lower')
             self.image_canvas[dc_idx].draw()
             
             self.label_prog_sts[dc_idx].setText("DONE")
@@ -839,7 +850,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
     def show_elapsed(self, dc_idx):
         cur_elapsed = ti.time() - self.elapsed[dc_idx]
-        if (self.measure_T[dc_idx] > 0 and cur_elapsed >= self.measure_T[dc_idx]) or self.stop_clicked:
+        if self.measure_T[dc_idx] > 0 and cur_elapsed >= self.measure_T[dc_idx] or (self.mode == SINGLE_MODE and self.stop_clicked):
             self.elapsed_timer[dc_idx].stop()
             return
         
@@ -848,7 +859,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
 
 
     def show_progressbar(self, dc_idx):
-        if self.cur_prog_step[dc_idx] >= 100 or self.stop_clicked:
+        if self.cur_prog_step[dc_idx] >= 100 or (self.mode == SINGLE_MODE and self.stop_clicked):
             self.prog_timer[dc_idx].stop()
             #self.log.send(self.iam, INFO, "progress bar end!!!")
             return
@@ -1012,14 +1023,26 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         
     def btn_click(self):
-        btn_name = self.bt_take_image.text()
-        self.stop_clicked = False
-        if btn_name == "Stop":
-            self.stop_clicked = True
-        elif btn_name == "Abort":
-            self.stop_acquisition()
+        if self.mode == CONT_MODE:
+            if self.continous:
+                self.single_exposure()
+                self.continous = False
+            else:
+                btn_name = self.bt_take_image.text()
+                self.stop_clicked = False
+                if btn_name == "Stop":
+                    self.stop_clicked = True
+                else:
+                    self.single_exposure()
         else:
-            self.single_exposure()
+            btn_name = self.bt_take_image.text()
+            self.stop_clicked = False
+            if btn_name == "Stop":
+                self.stop_clicked = True
+            elif btn_name == "Abort":
+                self.stop_acquisition()
+            else:
+                self.single_exposure()
             
         
     def single_exposure(self):    
@@ -1089,8 +1112,10 @@ class MainWindow(Ui_Dialog, QMainWindow):
     def change_name(self, dc_idx):
         if int(self.e_repeat[dc_idx].text()) > 1:
             self.bt_take_image.setText("Continuous")
+            self.mode = CONT_MODE
         else:
             self.bt_take_image.setText("Take Image")
+            self.mode = SINGLE_MODE
         self.QWidgetBtnColor(self.bt_take_image, "black", "white")
         self.stop_clicked = False
         
