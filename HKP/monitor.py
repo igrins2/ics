@@ -256,8 +256,12 @@ class monitor(threading.Thread) :
             if self.iam == "tm":
                 msg = "%s %s" % (param[0], self.iam)
                 for i in range(TM_CNT):
-                    msg += " "
-                    msg += self.value[i]
+                    try:
+                        msg += " "
+                        msg += self.value[i]
+                    except:
+                        msg += DEFAULT_VALUE
+                        
             elif self.iam == "vm":
                 msg = "%s %s %s" % (param[0], self.iam, self.vm)
             self.producer.send_message(HK, self.sub_hk_q, msg)    
