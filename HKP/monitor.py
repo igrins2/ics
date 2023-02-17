@@ -76,12 +76,14 @@ class monitor(threading.Thread) :
         self.log.send(self.iam, DEBUG, msg)
         
         for th in threading.enumerate():
-            self.log.send(self.iam, DEBUG, th.name + " exit.")
+            self.log.send(self.iam, INFO, th.name + " exit.")
             
         self.close_component()
         
         if self.gui:
-            self.producer.__del__()                    
+            self.producer.__del__()      
+
+        self.log.send(self.iam, DEBUG, "Closed!")              
                     
         
 
@@ -101,6 +103,7 @@ class monitor(threading.Thread) :
         except:
             self.comSocket = None
             self.comStatus = False
+            self.monit = False
             
             msg = "disconnected"
             self.log.send(self.iam, ERROR, msg)
@@ -112,7 +115,7 @@ class monitor(threading.Thread) :
             
         msg = "%s %s %d" % (HK_REQ_COM_STS, self.iam, self.comStatus)   
         if self.gui:
-            self.producer.send_message(HK, self.sub_hk_q, msg)        
+            self.producer.send_message(self.sub_hk_q, msg)        
                  
     
     def re_connect_to_component(self):
@@ -265,13 +268,13 @@ class monitor(threading.Thread) :
                         
             elif self.iam == "vm":
                 msg = "%s %s %s" % (param[0], self.iam, self.vm)
-            self.producer.send_message(HK, self.sub_hk_q, msg)    
+            self.producer.send_message(self.sub_hk_q, msg)    
             
         elif param[0] == HK_REQ_MANUAL_CMD:            
             cmd = "%s %s\r\n" % (param[2], param[3])
             value = self.socket_send(cmd)
             msg = "%s %s %s" % (param[0], self.iam, value) 
-            self.producer.send_message(HK, self.sub_hk_q, msg) 
+            self.producer.send_message(self.sub_hk_q, msg) 
             
  
             

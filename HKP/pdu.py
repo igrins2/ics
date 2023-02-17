@@ -73,12 +73,14 @@ class pdu(threading.Thread) :
         self.log.send(self.iam, DEBUG, msg)
                 
         for th in threading.enumerate():
-            self.log.send(self.iam, DEBUG, th.name + " exit.")
+            self.log.send(self.iam, INFO, th.name + " exit.")
             
         self.close_component()
         
         if self.gui:
-            self.producer.__del__()                    
+            self.producer.__del__()
+
+        self.log.send(self.iam, DEBUG, "Closed!")                    
             
                     
         
@@ -105,7 +107,7 @@ class pdu(threading.Thread) :
                         
         msg = "%s %s %d" % (HK_REQ_COM_STS, self.iam, self.comStatus)   
         if self.gui:
-            self.producer.send_message(HK, self.sub_hk_q, msg) 
+            self.producer.send_message(self.sub_hk_q, msg) 
                  
     
     def re_connect_to_component(self):
@@ -181,7 +183,7 @@ class pdu(threading.Thread) :
                 
             msg = "%s %s %s %s" % (HK_REQ_PWR_STS, self.iam, commander, pow_flag)
             if self.gui: 
-                self.producer.send_message(commander, self.sub_hk_q, msg)  
+                self.producer.send_message(self.sub_hk_q, msg)  
             else:
                 print(pow_flag)
         except:                  

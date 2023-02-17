@@ -6,11 +6,11 @@ PYTHONBIN=/home/ics/miniconda3/envs/igos2n/bin/python
 
 case "$1" in
         obs)
-	    (cd ObsApp; $PYTHONBIN ObsApp_gui.py)
+	    (cd ObsApp; $PYTHONBIN ObsApp_gui.py 0)
             ;;
          
         eng)
-	    (cd ObsApp; $PYTHONBIN ObsApp_gui.py)
+	    (cd EngTools; $PYTHONBIN EngTools_gui.py)
             ;;
          
         obs-simul)

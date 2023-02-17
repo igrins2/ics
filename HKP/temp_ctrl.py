@@ -64,7 +64,7 @@ class temp_ctrl(threading.Thread):
         self.producer = None
         self.consumer = None
         
-        self.wait_time = 2
+        self.wait_time = 1
                 
         
     def __del__(self):
@@ -72,12 +72,14 @@ class temp_ctrl(threading.Thread):
         self.log.send(self.iam, DEBUG, msg)
         
         for th in threading.enumerate():
-            self.log.send(self.iam, DEBUG, th.name + " exit.")
+            self.log.send(self.iam, INFO, th.name + " exit.")
             
         self.close_component()
         
         if self.gui:           
-            self.producer.__del__()                    
+            self.producer.__del__()   
+
+        self.log.send(self.iam, DEBUG, "Closed!")                 
         
         
     def connect_to_component(self):
@@ -96,6 +98,7 @@ class temp_ctrl(threading.Thread):
         except:
             self.comSocket = None
             self.comStatus = False
+            self.monit = False
             
             msg = "disconnected"
             self.log.send(self.iam, ERROR, msg)
@@ -104,11 +107,12 @@ class temp_ctrl(threading.Thread):
             self.heat = [DEFAULT_VALUE, DEFAULT_VALUE]
             
             self.re_connect_to_component()
+            
             #threading.Timer(1, self.re_connect_to_component).start()
             
         msg = "%s %s %d" % (HK_REQ_COM_STS, self.iam, self.comStatus)   
         if self.gui:
-            self.producer.send_message(HK, self.sub_hk_q, msg) 
+            self.producer.send_message(self.sub_hk_q, msg) 
               
     
     def re_connect_to_component(self):
@@ -270,7 +274,7 @@ class temp_ctrl(threading.Thread):
                 msg = "%s %s %s %s" % (param[0], self.iam, self.setpoint[0], self.setpoint[1]) 
             else:
                 msg = "%s %s %s" % (param[0], self.iam, self.setpoint[1])
-            self.producer.send_message(HK, self.sub_hk_q, msg)
+            self.producer.send_message(self.sub_hk_q, msg)
             
         elif param[0] == HK_REQ_GETVALUE:
 
@@ -284,13 +288,13 @@ class temp_ctrl(threading.Thread):
                 msg = "%s %s %s %s %s %s" % (param[0], self.iam, self.value[0], self.value[1], self.heat[0], self.heat[1]) 
             else:
                 msg = "%s %s %s %s %s" % (param[0], self.iam, self.value[0], self.value[1], self.heat[1]) 
-            self.producer.send_message(HK, self.sub_hk_q, msg)            
+            self.producer.send_message(self.sub_hk_q, msg)            
         
         elif param[0] == HK_REQ_MANUAL_CMD:
             cmd = "%s %s\r\n" % (param[2], param[3])
             value = self.socket_send(cmd)
             msg = "%s %s %s" % (param[0], self.iam, value) 
-            self.producer.send_message(HK, self.sub_hk_q, msg)  
+            self.producer.send_message(self.sub_hk_q, msg)  
 
 
 if __name__ == "__main__":

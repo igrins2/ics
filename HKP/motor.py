@@ -76,12 +76,14 @@ class motor(threading.Thread) :
         self.log.send(self.iam, DEBUG, msg)
         
         for th in threading.enumerate():
-            self.log.send(self.iam, DEBUG, th.name + " exit.")
+            self.log.send(self.iam, INFO, th.name + " exit.")
             
         self.close_component()
                     
         if self.gui:
-            self.producer.__del__()                    
+            self.producer.__del__()   
+
+        self.log.send(self.iam, DEBUG, "Closed!")                 
             
         
     def connect_to_component(self):
@@ -107,7 +109,7 @@ class motor(threading.Thread) :
                         
         msg = "%s %s %d" % (HK_REQ_COM_STS, self.iam, self.comStatus)   
         if self.gui:
-            self.producer.send_message(DT, self.sub_hk_q, msg)
+            self.producer.send_message(self.sub_hk_q, msg)
                              
     
     def re_connect_to_component(self):
@@ -396,42 +398,42 @@ class motor(threading.Thread) :
         if param[0] == DT_REQ_INITMOTOR:
             self.init_motor()
             msg = "%s %s OK" % (param[0], self.iam)
-            self.producer.send_message(DT, self.sub_hk_q, msg)
+            self.producer.send_message(self.sub_hk_q, msg)
         else:
             if self.init is False:
                 msg = "%s %s TRY" % (DT_REQ_INITMOTOR, self.iam)
-                self.producer.send_message(DT, self.sub_hk_q, msg)
+                self.producer.send_message(self.sub_hk_q, msg)
             
             elif param[0] == DT_REQ_MOVEMOTOR:
                 curpos = self.move_motor(int(param[2]))
                 if self.iam == MOTOR_LT:
                     curpos = "%s" % (int(curpos) * (-1))
                 msg = "%s %s %s" % (param[0], self.iam, curpos)
-                self.producer.send_message(DT, self.sub_hk_q, msg)
+                self.producer.send_message(self.sub_hk_q, msg)
                 
             elif param[0] == DT_REQ_MOTORGO:
                 curpos = self.move_motor_delta(True, int(param[2]))
                 if self.iam == MOTOR_LT:
                     curpos = "%s" % (int(curpos) * (-1))
                 msg = "%s %s %s" % (param[0], self.iam, curpos)
-                self.producer.send_message(DT, self.sub_hk_q, msg)
+                self.producer.send_message(self.sub_hk_q, msg)
                 
             elif param[0] == DT_REQ_MOTORBACK:
                 curpos = self.move_motor_delta(False, int(param[2]))
                 if self.iam == MOTOR_LT:
                     curpos = "%s" % (int(curpos) * (-1))
                 msg = "%s %s %s" % (param[0], self.iam, curpos)
-                self.producer.send_message(DT, self.sub_hk_q, msg)
+                self.producer.send_message(self.sub_hk_q, msg)
                 
             elif param[0] == DT_REQ_SETUT:
                 self.setUT(int(param[2]))
                 msg = "%s %s OK" % (param[0], self.iam)
-                self.producer.send_message(DT, self.sub_hk_q, msg)
+                self.producer.send_message(self.sub_hk_q, msg)
                 
             elif param[0] == DT_REQ_SETLT:
                 self.setLT(int(param[2]))
                 msg = "%s %s OK" % (param[0], self.iam)
-                self.producer.send_message(DT, self.sub_hk_q, msg)
+                self.producer.send_message(self.sub_hk_q, msg)
 
     
 if __name__ == "__main__":

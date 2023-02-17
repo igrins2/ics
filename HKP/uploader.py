@@ -79,7 +79,9 @@ class uploader(threading.Thread):
         self.log.send(self.iam, DEBUG, msg)
         
         for th in threading.enumerate():
-            self.log.send(self.iam, DEBUG, th.name + " exit.")
+            self.log.send(self.iam, INFO, th.name + " exit.")
+
+        self.log.send(self.iam, DEBUG, "Closed!")
                                     
 
     def get_firebase(self):
@@ -141,7 +143,7 @@ class uploader(threading.Thread):
             self.db.child("BasicHK").push(entry)
         
             msg = "%s %s" % (HK_REQ_UPLOAD_STS, self.iam)   
-            self.producer.send_message(HK, self.sub_hk_q, msg)
+            self.producer.send_message(self.sub_hk_q, msg)
 
             return True
         

@@ -184,32 +184,29 @@ class MainWindow(Ui_Dialog, QMainWindow):
 
         
     def closeEvent(self, event: QCloseEvent) -> None:
-        
-        #self.periodicbtn = PRESSED
-        #self.Periodic()
-        self.producer[HK_SUB].send_message("", self.hk_sub_q, HK_STOP_MONITORING)
-        
+
+        self.producer[HK_SUB].send_message(self.hk_sub_q, HK_STOP_MONITORING)
         ti.sleep(2)
         
-        self.log.send(self.iam, INFO, "Closing %s : " % sys.argv[0])
-        self.log.send(self.iam, INFO, "This may take several seconds waiting for threads to close")
+        self.log.send(self.iam, DEBUG, "Closing %s : " % sys.argv[0])
+        self.log.send(self.iam, DEBUG, "This may take several seconds waiting for threads to close")
             
         for idx in range(PDU_IDX):
             if self.power_status[idx] == ON:
                 self.power_onoff(idx+1)               
                             
         for th in threading.enumerate():
-            self.log.send(self.iam, DEBUG, th.name + " exit.")
-                    
-        self.log.send(self.iam, INFO, "Closed!")        
+            self.log.send(self.iam, INFO, th.name + " exit.")       
                                 
         msg = "%s %s" % (EXIT, HK)
-        self.producer[ENG_TOOLS].send_message(MAIN, self.hk_main_q, msg)
+        self.producer[ENG_TOOLS].send_message(self.hk_main_q, msg)
         
         for i in range(2):
             if self.producer[i] != None:
                 self.producer[i].__del__()
         self.producer[HK_SUB] = None
+
+        self.log.send(self.iam, DEBUG, "Closed!") 
                 
         return super().closeEvent(event)
     
@@ -310,7 +307,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.producer[ENG_TOOLS].define_producer()
         
         msg = "%s %s" % (ALIVE, HK)
-        self.producer[ENG_TOOLS].send_message(MAIN, self.hk_main_q, msg)
+        self.producer[ENG_TOOLS].send_message(self.hk_main_q, msg)
     
          
     #-------------------------------
@@ -337,7 +334,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         if param[0] == ALIVE:
             msg = "%s %s" % (ALIVE, HK)
-            self.producer[ENG_TOOLS].send_message(MAIN, self.hk_main_q, msg)
+            self.producer[ENG_TOOLS].send_message(self.hk_main_q, msg)
         
         
     #-------------------------------
@@ -449,7 +446,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], HK, idx, OFF)
         else:
             msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], HK, idx, ON)
-        self.producer[HK_SUB].send_message(self.com_list[PDU], self.hk_sub_q, msg) 
+        self.producer[HK_SUB].send_message(self.hk_sub_q, msg, True) 
         
         
 
@@ -459,7 +456,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         else:
             target = "tmc%d" % idx
         msg = "%s %s %s" % (HK_REQ_MANUAL_CMD, target, self.e_sendto.text())
-        self.producer[HK_SUB].send_message(target, self.hk_sub_q, msg)
+        self.producer[HK_SUB].send_message(self.hk_sub_q, msg)
         
         
     def toggle_alert(self):
@@ -516,7 +513,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     def Periodic(self):
         if self.periodicbtn == PRESSED:
-            self.producer[HK_SUB].send_message("", self.hk_sub_q, HK_STOP_MONITORING)
+            self.producer[HK_SUB].send_message(self.hk_sub_q, HK_STOP_MONITORING)
 
             self.periodicbtn = NOT_PRESSED
             self.bt_pause.setText("Periodic Monitoring")
@@ -535,7 +532,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         elif self.periodicbtn == NOT_PRESSED:   
             self.get_setpoint()
                
-            self.producer[HK_SUB].send_message("", self.hk_sub_q, HK_START_MONITORING)
+            self.producer[HK_SUB].send_message(self.hk_sub_q, HK_START_MONITORING)
                   
             self.periodicbtn = PRESSED
             self.bt_pause.setText("Pause")
@@ -557,9 +554,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         if self.producer[HK_SUB] == None:
             return
         
-        timer = QTimer(self)
         _t = ti.time() - self.st_time
         if _t < self.Period:
+            timer = QTimer(self)
             timer.singleShot(500, self.PeriodicFunc)
             return
 
@@ -599,28 +596,28 @@ class MainWindow(Ui_Dialog, QMainWindow):
         # bench, Grating, SVC, Detector K, Detector H 
         for i in range(3):  
             msg = "%s %s" % (HK_REQ_GETSETPOINT, self.com_list[i])
-            self.producer[HK_SUB].send_message(self.com_list[i], self.hk_sub_q, msg)
+            self.producer[HK_SUB].send_message(self.hk_sub_q, msg)
         
                     
     def get_value_fromTMC(self):
         for i in range(3):
             msg = "%s %s" % (HK_REQ_GETVALUE, self.com_list[i])
-            self.producer[HK_SUB].send_message(self.com_list[i], self.hk_sub_q, msg) 
+            self.producer[HK_SUB].send_message(self.hk_sub_q, msg) 
 
     
     def get_value_fromTM(self):
         msg = "%s %s 0" % (HK_REQ_GETVALUE, self.com_list[TM])
-        self.producer[HK_SUB].send_message(self.com_list[TM], self.hk_sub_q, msg) 
+        self.producer[HK_SUB].send_message(self.hk_sub_q, msg) 
             
             
     def get_value_fromVM(self):
         msg = "%s %s" % (HK_REQ_GETVALUE, self.com_list[VM])
-        self.producer[HK_SUB].send_message(self.com_list[VM], self.hk_sub_q, msg) 
+        self.producer[HK_SUB].send_message(self.hk_sub_q, msg) 
         
     
     def get_pwr_sts(self):
         msg = "%s %s %s" % (HK_REQ_PWR_STS, self.com_list[PDU], HK)
-        self.producer[HK_SUB].send_message(self.com_list[PDU], self.hk_sub_q, msg) 
+        self.producer[HK_SUB].send_message(self.hk_sub_q, msg, True) 
         
         
     def LoggingFun(self):     
@@ -672,7 +669,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
             str_log = "    ".join([updated_datetime] + list(map(str, hk_entries)))     
             msg = "%s %s %s" % (HK_REQ_UPLOAD_DB, self.com_list[UPLOADER], str_log)
-            self.producer[HK_SUB].send_message(self.com_list[UPLOADER], self.hk_sub_q, msg)
+            self.producer[HK_SUB].send_message(self.hk_sub_q, msg)
             
             self.uploade_start = ti.time()
         

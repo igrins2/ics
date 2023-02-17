@@ -75,23 +75,20 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         for i in range(COM_CNT):
             if self.proc_sub[i] != None:
-                print(self.proc_sub[i].pid)
                 self.proc_sub[i].terminate()
                 self.log.send(self.iam, INFO, str(self.proc_sub[i].pid) + " exit")
         
         for i in range(2):
             if self.proc[i] != None:
-                print(self.proc[i].pid)
                 self.proc[i].terminate()
                 self.log.send(self.iam, INFO, str(self.proc[i].pid) + " exit")
                 
         if self.proc_simul != None:
-            print(self.proc_simul.pid)
             self.proc_simul.terminate()
             self.log.send(self.iam, INFO, str(self.proc_simul.pid) + " exit")
                 
         for th in threading.enumerate():
-            self.log.send(self.iam, DEBUG, th.name + " exit.")
+            self.log.send(self.iam, INFO, th.name + " exit.")
                     
         if self.producer != None:
             self.producer.__del__()
@@ -177,7 +174,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 self.bt_runDTP.setEnabled(False)
             
                 msg = "%s %s %d" % (TEST_MODE, DT, self.simulation)
-                self.producer.send_message(DT, self.main_gui_q, msg)
+                self.producer.send_message(self.main_gui_q, msg)
 
         elif param[0] == EXIT:        
             if param[1] == HK:
@@ -197,9 +194,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
         for i in range(COM_CNT):
             if self.proc_sub[i] != None:
                 if self.proc_sub[i].poll() == None:
-                    #print(self.proc_sub[i].pid)
-                    #ti.sleep(20)
-                    #self.proc_sub[i].terminate()
                     self.proc_sub[i].kill()
                     self.proc_sub[i] = None
         
@@ -227,7 +221,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.bt_runDTP.setEnabled(True)   
         
         msg = "%s %s %d" % (TEST_MODE, DT, self.simulation)
-        self.producer.send_message(DT, self.main_gui_q, msg)  
+        self.producer.send_message(self.main_gui_q, msg)  
         
         
     def run_HKP(self):
@@ -248,7 +242,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.radio_real.setEnabled(False)
         
         msg = "%s %s %d" % (TEST_MODE, DT, self.simulation)
-        self.producer.send_message(DT, self.main_gui_q, msg)     
+        self.producer.send_message(self.main_gui_q, msg)     
         
     
     def send_to_GMP(self):

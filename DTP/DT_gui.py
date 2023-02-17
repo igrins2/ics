@@ -201,25 +201,25 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         
     def closeEvent(self, event: QCloseEvent) -> None:               
-        self.log.send(self.iam, INFO, "Closing %s : " % sys.argv[0])
-        self.log.send(self.iam, INFO, "This may take several seconds waiting for threads to close")
+        self.log.send(self.iam, DEBUG, "Closing %s : " % sys.argv[0])
+        self.log.send(self.iam, DEBUG, "This may take several seconds waiting for threads to close")
             
         for idx in range(PDU_IDX):
             msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, idx+1, OFF)
-            self.producer[HK_SUB].send_message(self.com_list[PDU], self.dt_sub_q, msg) 
+            self.producer[HK_SUB].send_message(self.dt_sub_q, msg, True) 
                         
         for th in threading.enumerate():
-            self.log.send(self.iam, DEBUG, th.name + " exit.")
-                
-        self.log.send(self.iam, INFO, "Closed!")
-                                    
+            self.log.send(self.iam, INFO, th.name + " exit.")
+                                                    
         for i in range(SERV_CONNECT_CNT):                
             if i == ENG_TOOLS:
                 msg = "%s %s" % (EXIT, DT)
-                self.producer[ENG_TOOLS].send_message(MAIN, self.dt_main_q, msg)
+                self.producer[ENG_TOOLS].send_message(self.dt_main_q, msg)
             
             if self.producer[i] != None:
                 self.producer[i].__del__()
+
+        self.log.send(self.iam, DEBUG, "Closed!") 
                 
         return super().closeEvent(event)          
 
@@ -372,7 +372,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.producer[ENG_TOOLS].define_producer()
         
         msg = "%s %s" % (ALIVE, DT)
-        self.producer[ENG_TOOLS].send_message(MAIN, self.dt_main_q, msg)
+        self.producer[ENG_TOOLS].send_message(self.dt_main_q, msg)
     
          
     #-------------------------------
@@ -402,7 +402,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         if param[0] == ALIVE:
             msg = "%s %s" % (ALIVE, DT)
-            self.producer[ENG_TOOLS].send_message(MAIN, self.dt_main_q, msg)
+            self.producer[ENG_TOOLS].send_message(self.dt_main_q, msg)
             
         elif param[0] == TEST_MODE:
             self.simulation_mode = bool(int(param[2]))        
@@ -660,7 +660,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.bt_init[dc_idx].setEnabled(False)
         self.QWidgetBtnColor(self.bt_init[dc_idx], "yellow", "blue")
         msg = "%s %s %d" % (CMD_INITIALIZE2_ICS, self.dcs_list[dc_idx], self.simulation_mode)
-        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
+        self.producer[DCS].send_message(self.dt_dcs_q, msg)
             
         
     def set_fs_param(self, dc_idx):     
@@ -706,7 +706,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             msg = "%s %s %d %.3f 1 %d 1 %.3f 1" % (CMD_SETFSPARAM_ICS, self.dcs_list[dc_idx], self.simulation_mode, _exptime, _FS_number, _fowlerTime)
         else:
             msg = "%s %s %d" % (CMD_ACQUIRERAMP_ICS, self.dcs_list[dc_idx], self.simulation_mode)
-        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
+        self.producer[DCS].send_message(self.dt_dcs_q, msg)
 
 
         self.acquiring[dc_idx] = True
@@ -718,11 +718,12 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.dcs_sts[idx] = False
         
         msg = "%s %d" % (ALIVE, self.simulation_mode)
-        self.producer[DCS].send_message("", self.dt_dcs_q, msg)
+        self.producer[DCS].send_message(self.dt_dcs_q, msg)
         #print("alive check")
 
-        timer = QTimer()
-        timer.singleShot(self.alive_chk_interval*1000, self.alive_check)
+        #timer = QTimer()
+        #timer.singleShot(self.alive_chk_interval*1000, self.alive_check)
+        threading.Timer(self.alive_chk_interval, self.alive_check).start()
         
     
     def show_alive_sts(self):
@@ -739,7 +740,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.elapsed_timer[dc_idx].stop()
                 
         msg = "%s %s %d" % (CMD_STOPACQUISITION, self.dcs_list[dc_idx], self.simulation_mode)
-        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
+        self.producer[DCS].send_message(self.dt_dcs_q, msg)
     
         
     
@@ -1146,7 +1147,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.setGeometry(0, 0, 1030, 700)
             
         msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, MOTOR, ON)
-        self.producer[HK_SUB].send_message(self.com_list[PDU], self.dt_sub_q, msg)
+        self.producer[HK_SUB].send_message(self.dt_sub_q, msg, True)
     
 
     def QWidgetLabelColor(self, widget, textcolor, bgcolor=None):
@@ -1221,23 +1222,23 @@ class MainWindow(Ui_Dialog, QMainWindow):
             msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, FLAT, OFF)
         else:
             msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, FLAT, LAMP_FLAT[idx])
-        self.producer[HK_SUB].send_message(self.com_list[PDU], self.dt_sub_q, msg)
+        self.producer[HK_SUB].send_message(self.dt_sub_q, msg, True)
         
         if off:
             msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, THAR, OFF)
         else:
             msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, THAR, LAMP_THAR[idx])
-        self.producer[HK_SUB].send_message(self.com_list[PDU], self.dt_sub_q, msg)
+        self.producer[HK_SUB].send_message(self.dt_sub_q, msg, True)
                     
             
     def func_motor(self, idx):
         self.ut_moved = False
         msg = "%s %s %d" % (DT_REQ_MOVEMOTOR, self.com_list[UT], MOTOR_UT[idx])
-        self.producer[HK_SUB].send_message(self.com_list[UT], self.dt_sub_q, msg)
+        self.producer[HK_SUB].send_message(self.dt_sub_q, msg)
                 
         self.lt_moved = False
         msg = "%s %s %d" % (DT_REQ_MOVEMOTOR, self.com_list[LT], MOTOR_LT[idx])
-        self.producer[HK_SUB].send_message(self.com_list[LT], self.dt_sub_q, msg)
+        self.producer[HK_SUB].send_message(self.dt_sub_q, msg)
         
         
     def motor_init(self, motor):
@@ -1251,7 +1252,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.bt_lt_motor_init.setEnabled(False)
             
         msg = "%s %s" % (DT_REQ_INITMOTOR, self.com_list[motor])
-        self.producer[HK_SUB].send_message(self.com_list[motor], self.dt_sub_q, msg)
+        self.producer[HK_SUB].send_message(self.dt_sub_q, msg)
             
 
     def move_motor_delta(self, motor, direction): #motor-UT/LT, direction-prev, next
@@ -1279,7 +1280,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 
             self.protect_btn_lt(False)
                 
-        self.producer[HK_SUB].send_message(self.com_list[motor], self.dt_sub_q, msg)
+        self.producer[HK_SUB].send_message(self.dt_sub_q, msg)
                 
     
     def motor_pos_set(self, motor, position): #motor-UT/LT, direction-UT(0/1), LT(0-3)
@@ -1288,7 +1289,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         elif motor == LT:
             msg = "%s %s %d" % (DT_REQ_SETLT, self.com_list[motor], position)
             
-        self.producer[HK_SUB].send_message(self.com_list[motor], self.dt_sub_q, msg)
+        self.producer[HK_SUB].send_message(self.dt_sub_q, msg)
     
     
 

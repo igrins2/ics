@@ -32,9 +32,10 @@ class MsgMiddleware():
     def __del__(self):
         
         for th in threading.enumerate():
-            print(th.name + f"{th.name} exit.")
+            pass
+            #print(th.name + f"{th.name} exit.")
             
-        print(f"'{self.iam}' closed rabbitmq queue and connections")
+        #print(f"'{self.iam}' closed rabbitmq queue and connections")
       
         try:
             if self.connection.is_open:
@@ -64,9 +65,9 @@ class MsgMiddleware():
             raise
         
     
-    def send_message(self, target, _routing_key, _message): 
+    def send_message(self, _routing_key, _message, slow = True): 
         #if target == "tmc1" or target == "pdu" or target == "vm":
-        if target == "pdu":
+        if slow:
             ti.sleep(0.7)
         else:
             ti.sleep(0.2)

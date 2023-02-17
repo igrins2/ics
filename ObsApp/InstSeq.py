@@ -59,9 +59,7 @@ class Inst_Seq(threading.Thread):
         self.exptime_obs = 0.0
         self.exptime_svc = 0.0
         self.FS_number = 0
-        
-        self.ready_ObsApp = False
-        
+                
         # 0 - SVC, 1 - H, 2 - K
         self.acquiring = [False for _ in range(DC_CNT)]
         
@@ -73,13 +71,16 @@ class Inst_Seq(threading.Thread):
         self.connect_to_server_dt_ex()
         self.connect_to_server_dcs_q()
         
+        self.proc_simul = None
         if bool(int(simul)):
             cmd = "%sworkspace/ics/igos2_simul/run_hk_simulator.py" % WORKING_DIR
             self.proc_simul = subprocess.Popen(["python", cmd])
             
             ti.sleep(3)
             
-        self.start_sub_system(simul)   
+        self.start_sub_system(simul) 
+        
+        self.producer[OBS_APP].send_message(self.InstSeq_ObsApp_q, READY) 
          
         
     def __del__(self):
@@ -88,26 +89,20 @@ class Inst_Seq(threading.Thread):
         
         for i in range(COM_CNT):
             if self.proc_sub[i] != None:
-                print(self.proc_sub[i].pid)
                 self.proc_sub[i].terminate()
                 self.log.send(self.iam, INFO, str(self.proc_sub[i].pid) + " exit")                
 
-        #if self.proc_ObsApp != None:
-        #    print(self.proc_ObsApp.pid)
-        #    self.proc_ObsApp.terminate()
-        #    self.log.send(self.iam, INFO, str(self.proc_ObsApp.pid) + " exit")
-            
         if self.proc_simul != None:
-            print(self.proc_simul.pid)
             self.proc_simul.terminate()
             self.log.send(self.iam, INFO, str(self.proc_simul.pid) + " exit")        
                 
         for th in threading.enumerate():
-            self.log.send(self.iam, DEBUG, th.name + " exit.")
+            self.log.send(self.iam, INFO, th.name + " exit.")
             
         for i in range(2):
             self.producer[i].__del__()  
 
+        self.log.send(self.iam, DEBUG, "Closed!") 
         
     
     def start_sub_system(self, simul):
@@ -165,8 +160,6 @@ class Inst_Seq(threading.Thread):
     
         param = cmd.split()
         
-        #if param[0] == READY:
-        #    self.producer[OBS_APP].send_message("", self.InstSeq_ObsApp_q, READY)
         if param[0] == EXIT:
             self.__del__()          
         
@@ -211,12 +204,12 @@ class Inst_Seq(threading.Thread):
             self.acquiring[dc_idx] = False
             if dc_idx == SVC:
                 msg = "%s %s" % (CMD_COMPLETED, self.dcs_list[SVC])
-                self.producer[OBS_APP].send_message(self.dcs_list[SVC], self.InstSeq_ObsApp_q, msg)
+                self.producer[OBS_APP].send_message(self.InstSeq_ObsApp_q, msg)
                 
             else:
                 if self.acquiring[H] == False and self.acquiring[K] == False:
                     msg = "%s %s" % (CMD_COMPLETED, "all")
-                    self.producer[OBS_APP].send_message(self.dcs_list[SVC], self.InstSeq_ObsApp_q, msg)
+                    self.producer[OBS_APP].send_message(self.InstSeq_ObsApp_q, msg)
                 
                 
             
@@ -228,7 +221,7 @@ class Inst_Seq(threading.Thread):
         if dc_idx == DC_CNT:
             target = "all"
         msg = "%s %s %d" % (CMD_INITIALIZE2_ICS, target, self.simulation_mode)
-        self.producer[DCS].send_message(target, self.InstSeq_dcs_q, msg)
+        self.producer[DCS].send_message(self.InstSeq_dcs_q, msg)
         
         
     def set_exp(self, dc_idx):      
@@ -241,7 +234,7 @@ class Inst_Seq(threading.Thread):
                   
         _fowlerTime = _exptime - T_frame * self.FS_number
         msg = "%s %s %d %.3f 1 %d 1 %.3f 1" % (CMD_SETFSPARAM_ICS, self.dcs_list[dc_idx], self.simulation_mode, _exptime, self.FS_number, _fowlerTime)
-        self.producer[DCS].send_message(target, self.InstSeq_dcs_q, msg)
+        self.producer[DCS].send_message(self.InstSeq_dcs_q, msg)
 
         
     def start_acquisition(self, dc_idx):
@@ -253,7 +246,7 @@ class Inst_Seq(threading.Thread):
                 self.acquiring[i] = True
         
         msg = "%s %s %d" % (CMD_ACQUIRERAMP_ICS, target, self.simulation_mode)
-        self.producer[DCS].send_message(self.dcs_list[dc_idx], self.InstSeq_dcs_q, msg)
+        self.producer[DCS].send_message(self.InstSeq_dcs_q, msg)
         
         
     def save_fits_cube(self):

@@ -168,6 +168,7 @@ def start():
                         else:
                             if hk[TM] == None:
                                 hk[TM] = monitor("10004")
+                                hk[TM].connect_to_component()
                             hk[TM].get_value_fromTM(int(args[2]))
             except:
                 print("Please input 'A' or 'B' port for index 1~3 and 0~8 port for index 4.")                                                
