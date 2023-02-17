@@ -34,7 +34,6 @@ import Libs.SetConfig as sc
 from Libs.MsgMiddleware import *
 from Libs.logger import *
 
-import subprocess
 
 import time as ti
 
@@ -68,7 +67,7 @@ class DtvalueFromLabel:
             
 class MainWindow(Ui_Dialog, QMainWindow):
     
-    def __init__(self, autostart=False):
+    def __init__(self):
         super().__init__()
         
         self.iam = HK     
@@ -77,7 +76,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.log.send(self.iam, INFO, "start")
         
         self.setupUi(self)
-        self.setWindowTitle("Housekeeping Package 0.3")
+        self.setWindowTitle("Housekeeping Package 1.0")
         
         # load ini file
         self.ini_file = WORKING_DIR + "IGRINS/Config/IGRINS.ini"
@@ -151,8 +150,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
             if i != 4:
                 self.heatlabel[label_list[i]] = DEFAULT_VALUE
                 
-        self.producer = [None for _ in range(SERV_CONNECT_CNT)]
-        self.consumer = [None for _ in range(SERV_CONNECT_CNT)]
+        # 0 - ENG_TOOLS, 1 - HK_SUB
+        self.producer = [None, None]
+        self.consumer = [None, None]
+        
+        self.param = ""
         
         self.uploade_start = 0
         self.uploade_status = False
@@ -175,12 +177,17 @@ class MainWindow(Ui_Dialog, QMainWindow):
              
         self.on_startup(True, True)
         
+        th = threading.Thread(target=self.data_processing)
+        th.daemon = True
+        th.start()
+        
 
         
     def closeEvent(self, event: QCloseEvent) -> None:
         
-        self.periodicbtn = PRESSED
-        self.Periodic()
+        #self.periodicbtn = PRESSED
+        #self.Periodic()
+        self.producer[HK_SUB].send_message("", self.hk_sub_q, HK_STOP_MONITORING)
         
         ti.sleep(2)
         
@@ -196,13 +203,13 @@ class MainWindow(Ui_Dialog, QMainWindow):
                     
         self.log.send(self.iam, INFO, "Closed!")        
                                 
-        for i in range(SERV_CONNECT_CNT):
-            if i == ENG_TOOLS:
-                msg = "%s %s" % (EXIT, HK)
-                self.producer[ENG_TOOLS].send_message(MAIN, self.hk_main_q, msg)
-            
+        msg = "%s %s" % (EXIT, HK)
+        self.producer[ENG_TOOLS].send_message(MAIN, self.hk_main_q, msg)
+        
+        for i in range(2):
             if self.producer[i] != None:
                 self.producer[i].__del__()
+        self.producer[HK_SUB] = None
                 
         return super().closeEvent(event)
     
@@ -363,136 +370,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         if len(cmd) < 80:
             self.log.send(self.iam, INFO, msg)
 
-        param = cmd.split()
-                
-        if param[0] == CMD_REQ_TEMP:
-            self.LoggingFun()
-
-        elif param[0] == HK_REQ_UPLOAD_STS:
-            self.uploade_status = True
-        
-        connected = True
-        if param[0] == HK_REQ_COM_STS:
-            connected = bool(int(param[2]))
-            if connected is False:
-                self.set_alert_status_on()   
-
-        if param[1] == self.com_list[TMC1]:
-            self.tempctrl_monitor(connected, TMC1)
-            
-        elif param[1] == self.com_list[TMC2]:
-            self.tempctrl_monitor(connected, TMC2*2)
-            
-        elif param[1] == self.com_list[TMC3]:
-            self.tempctrl_monitor(connected, TMC3*2)
-            
-        elif param[1] == self.com_list[TM]:
-            self.temp_monitor(connected)
-            
-        elif param[1] == self.com_list[VM]:
-            self.vacuum_monitor(connected)
-            
-        elif param[1] == self.com_list[PDU]:
-            self.pdu_monitor(connected)                
-            
-        if param[0] == HK_REQ_GETSETPOINT:      
-            if param[1] == self.com_list[TMC1]:
-                self.set_point[0] = self.judge_value(param[2])
-                self.monitor[0][1].setText(self.set_point[0])
-                self.set_point[1] = self.judge_value(param[3])
-                self.monitor[1][1].setText(self.set_point[1])
-            elif param[1] == self.com_list[TMC2]:
-                self.set_point[2] = self.judge_value(param[2])
-                self.monitor[2][1].setText(self.set_point[2])
-                self.set_point[3] = self.judge_value(param[3])
-                self.monitor[3][1].setText(self.set_point[3])
-            elif param[1] == self.com_list[TMC3]:
-                self.set_point[4] = self.judge_value(param[2])
-                self.monitor[5][1].setText(self.set_point[4])
-                
-            self.save_setpoint(self.set_point)
-            #self.log.send(self.iam, DEBUG, self.set_point)
-            
-        elif param[0] == HK_REQ_GETVALUE:    
-            # from TMC
-            if param[1] == self.com_list[TMC1]:
-                value = self.judge_value(param[2])
-                self.dtvalue[label_list[0]] = self.GetValuefromTempCtrl(TMC1_A, 0, value, 1.0)
-                value = self.judge_value(param[3])
-                self.dtvalue[label_list[1]] = self.GetValuefromTempCtrl(TMC1_B, 1, value, 0.1)
-                
-                heat = self.judge_value(param[4])
-                self.heatlabel[label_list[0]] = self.GetHeatValuefromTempCtrl(TMC1_A, heat)
-                heat = self.judge_value(param[5])
-                self.heatlabel[label_list[1]] = self.GetHeatValuefromTempCtrl(TMC1_B, heat)
-                
-            elif param[1] == self.com_list[TMC2]:
-                value = self.judge_value(param[2])
-                self.dtvalue[label_list[2]] = self.GetValuefromTempCtrl(TMC2_A, 2, value, 0.1)
-                value = self.judge_value(param[3])
-                self.dtvalue[label_list[3]] = self.GetValuefromTempCtrl(TMC2_B, 3, value, 0.1)
-            
-                heat = self.judge_value(param[4])
-                self.heatlabel[label_list[2]] = self.GetHeatValuefromTempCtrl(TMC2_A, heat)
-                heat = self.judge_value(param[5])
-                self.heatlabel[label_list[3]] = self.GetHeatValuefromTempCtrl(TMC2_B, heat)
-                    
-            elif param[1] == self.com_list[TMC3]:  
-                if param[2] == DEFAULT_VALUE:
-                    state = "warm"
-                else:
-                    state = "normal"     
-
-                value = self.judge_value(param[2])
-                self.QShowValue(TMC3_A, 0, value, state)
-                
-                self.dtvalue[label_list[4]] = value
-                value = self.judge_value(param[3])
-                self.dtvalue[label_list[5]] = self.GetValuefromTempCtrl(TMC3_B, 4, value, 0.1)
-            
-                heat = self.judge_value(param[4])
-                self.heatlabel[label_list[5]] = self.GetHeatValuefromTempCtrl(TMC3_B, heat)       
-
-            # from TM
-            elif param[1] == self.com_list[TM]:
-                # for all
-                for i in range(TM_CNT):
-                    if param[2+i] == DEFAULT_VALUE:
-                        state = "warm"
-                    else:
-                        state = "normal"
-                    value = self.judge_value(param[2+i])
-                    self.QShowValue(TM_1+i, 0, value, state)
-                    self.dtvalue[label_list[TM_1+i]] = value
-                    
-            # from VM
-            elif param[1] == self.com_list[VM]:
-                if len(param[2]) > 10 or param[2] == DEFAULT_VALUE:
-                    value = DEFAULT_VALUE
-                    state = "warm"
-                else:
-                    value = param[2]
-                    state = "normal"
-                self.QShowValueVM(value, state)
-                self.dpvalue = value                     
-                
-        # from PDU
-        elif param[0] == HK_REQ_PWR_STS:
-            for i in range(PDU_IDX):
-                self.power_status[i] = param[i+3]    
-                if self.power_status[i] == ON:
-                    self.QWidgetLabelColor(self.pdulist[i], "red")
-                    self.bt_pwr_onoff[i].setText(OFF)
-                    self.QWidgetBtnColor(self.bt_pwr_onoff[i], "white", "green")
-                else:
-                    self.QWidgetLabelColor(self.pdulist[i], "gray")
-                    self.bt_pwr_onoff[i].setText(ON)
-                    self.QWidgetBtnColor(self.bt_pwr_onoff[i], "black", "white")                  
-                
-        elif param[0] == HK_REQ_MANUAL_CMD:
-            result = "[%s:%s] %s" % (param[1], param[2], param[3])
-            self.e_recv.setText(result)
-                      
+        self.param = cmd
         
         
     #-------------------------------
@@ -545,22 +423,14 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         sc.SaveConfig(self.cfg, self.ini_file)   #IGRINS.ini
         
-    
-    def GetHeatValuefromTempCtrl(self, port, heat): 
-        value = self.judge_value(heat)
-        self.monitor[port][2].setText(value)
-        return heat
-    
-    
+        
     def GetValuefromTempCtrl(self, port, idx, value, limit): 
         state = "warm"
         if abs(float(self.set_point[idx])-float(value)) >= limit or value == DEFAULT_VALUE:
             state = "warm"   
         else:
             state = "normal"
-        value = self.judge_value(value)
         self.QShowValue(port, 0, value, state)
-        return value               
 
     
     def judge_value(self, input):
@@ -684,27 +554,28 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
     def PeriodicFunc(self):
         
-        if self.periodicbtn == PRESSED: 
-
-            timer = QTimer(self)
-            _t = ti.time() - self.st_time
-            if _t < self.Period:
-                timer.singleShot(500, self.PeriodicFunc)
-                return
-
-            self.st_time = ti.time()
-
-            self.get_pwr_sts()
-            self.GetValue()
-
-            self.st = ti.time()            
-    
-            timer = QTimer(self)
+        if self.producer[HK_SUB] == None:
+            return
+        
+        timer = QTimer(self)
+        _t = ti.time() - self.st_time
+        if _t < self.Period:
             timer.singleShot(500, self.PeriodicFunc)
-            self.log.send(self.iam, INFO, "PeriodicFunc")
+            return
 
-            timer = QTimer(self)
-            timer.singleShot(2000, self.LoggingFun)            
+        self.st_time = ti.time()
+
+        self.get_pwr_sts()
+        self.GetValue()
+
+        self.st = ti.time()            
+    
+        timer = QTimer(self)
+        timer.singleShot(500, self.PeriodicFunc)
+        self.log.send(self.iam, INFO, "PeriodicFunc")
+
+        timer = QTimer(self)
+        timer.singleShot(2000, self.LoggingFun)            
         
             
     def GetValue(self):
@@ -872,9 +743,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
     def send_gmail(self, email_to, email_title, email_content):
         
         email_from = "gemini.igrins2@gmail.com"  #temp!!!!
-        #email_to = "leehyein.julien@gmail.com"
-        #email_subject = "Email Test."
-        #email_content = "Sending an email test."
   
         msg = MIMEText(email_content)
         msg["From"] = email_from
@@ -982,15 +850,146 @@ class MainWindow(Ui_Dialog, QMainWindow):
         else:
             label = "QPushButton {color:%s;background:%s}" % (textcolor, bgcolor)
             widget.setStyleSheet(label)
+            
+    
+    def data_processing(self):
+        
+        while True:
+            if self.param == "":
+                continue
+            
+            param = self.param.split()
+                
+            if param[0] == CMD_REQ_TEMP:
+                self.LoggingFun()
+
+            elif param[0] == HK_REQ_UPLOAD_STS:
+                self.uploade_status = True
+            
+            connected = True
+            if param[0] == HK_REQ_COM_STS:
+                connected = bool(int(param[2]))
+                if connected is False:
+                    self.set_alert_status_on()   
+
+            if param[1] == self.com_list[TMC1]:
+                self.tempctrl_monitor(connected, TMC1)
+                
+            elif param[1] == self.com_list[TMC2]:
+                self.tempctrl_monitor(connected, TMC2*2)
+                
+            elif param[1] == self.com_list[TMC3]:
+                self.tempctrl_monitor(connected, TMC3*2)
+                
+            elif param[1] == self.com_list[TM]:
+                self.temp_monitor(connected)
+                
+            elif param[1] == self.com_list[VM]:
+                self.vacuum_monitor(connected)
+                
+            elif param[1] == self.com_list[PDU]:
+                self.pdu_monitor(connected)                
+                
+            if param[0] == HK_REQ_GETSETPOINT:      
+                if param[1] == self.com_list[TMC1]:
+                    self.set_point[0] = self.judge_value(param[2])
+                    self.monitor[0][1].setText(self.set_point[0])
+                    self.set_point[1] = self.judge_value(param[3])
+                    self.monitor[1][1].setText(self.set_point[1])
+                elif param[1] == self.com_list[TMC2]:
+                    self.set_point[2] = self.judge_value(param[2])
+                    self.monitor[2][1].setText(self.set_point[2])
+                    self.set_point[3] = self.judge_value(param[3])
+                    self.monitor[3][1].setText(self.set_point[3])
+                elif param[1] == self.com_list[TMC3]:
+                    self.set_point[4] = self.judge_value(param[2])
+                    self.monitor[5][1].setText(self.set_point[4])
+                    
+                self.save_setpoint(self.set_point)
+                #self.log.send(self.iam, DEBUG, self.set_point)
+                
+            elif param[0] == HK_REQ_GETVALUE:    
+                # from TMC
+                if param[1] == self.com_list[TMC1]:
+                    self.dtvalue[label_list[0]] = self.judge_value(param[2])
+                    self.GetValuefromTempCtrl(TMC1_A, 0, self.dtvalue[label_list[0]], 1.0)
+                    self.dtvalue[label_list[1]] = self.judge_value(param[3])
+                    self.GetValuefromTempCtrl(TMC1_B, 1, self.dtvalue[label_list[1]], 0.1)
+                    
+                    self.heatlabel[label_list[0]] = self.judge_value(param[4])
+                    self.monitor[TMC1_A][2].setText(self.heatlabel[label_list[0]])
+                    self.heatlabel[label_list[1]] = self.judge_value(param[5])
+                    self.monitor[TMC1_B][2].setText(self.heatlabel[label_list[1]])
+                    
+                elif param[1] == self.com_list[TMC2]:
+                    self.dtvalue[label_list[2]] = self.judge_value(param[2])
+                    self.GetValuefromTempCtrl(TMC2_A, 2, self.dtvalue[label_list[2]], 0.1)
+                    self.dtvalue[label_list[3]] = self.judge_value(param[3])
+                    self.GetValuefromTempCtrl(TMC2_B, 3, self.dtvalue[label_list[3]], 0.1)
+                
+                    self.heatlabel[label_list[2]] = self.judge_value(param[4])
+                    self.monitor[TMC2_A][2].setText(self.heatlabel[label_list[2]])
+                    self.heatlabel[label_list[3]] = self.judge_value(param[5])
+                    self.monitor[TMC2_B][2].setText(self.heatlabel[label_list[3]])
+                        
+                elif param[1] == self.com_list[TMC3]:  
+                    if param[2] == DEFAULT_VALUE:
+                        state = "warm"
+                    else:
+                        state = "normal"     
+                    self.dtvalue[label_list[4]] = self.judge_value(param[2])
+                    self.QShowValue(TMC3_A, 0, self.dtvalue[label_list[4]], state)
+                    
+                    self.dtvalue[label_list[5]] = self.judge_value(param[3])
+                    self.GetValuefromTempCtrl(TMC3_B, 4, self.dtvalue[label_list[5]], 0.1)
+                
+                    self.heatlabel[label_list[5]] = self.judge_value(param[4])
+                    self.monitor[TMC3_B][2].setText(self.heatlabel[label_list[5]])
+
+                # from TM
+                elif param[1] == self.com_list[TM]:
+                    # for all
+                    for i in range(TM_CNT):
+                        if param[2+i] == DEFAULT_VALUE:
+                            state = "warm"
+                        else:
+                            state = "normal"
+                        self.dtvalue[label_list[TM_1+i]] = self.judge_value(param[2+i])
+                        self.QShowValue(TM_1+i, 0, self.dtvalue[label_list[TM_1+i]], state)
+                        
+                # from VM
+                elif param[1] == self.com_list[VM]:
+                    if len(param[2]) > 10 or param[2] == DEFAULT_VALUE:
+                        self.dpvalue = DEFAULT_VALUE
+                        state = "warm"
+                    else:
+                        self.dpvalue = param[2]
+                        state = "normal"
+                    self.QShowValueVM(self.dpvalue, state)
+                    
+            # from PDU
+            elif param[0] == HK_REQ_PWR_STS:
+                for i in range(PDU_IDX):
+                    self.power_status[i] = param[i+3]    
+                    if self.power_status[i] == ON:
+                        self.QWidgetLabelColor(self.pdulist[i], "red")
+                        self.bt_pwr_onoff[i].setText(OFF)
+                        self.QWidgetBtnColor(self.bt_pwr_onoff[i], "white", "green")
+                    else:
+                        self.QWidgetLabelColor(self.pdulist[i], "gray")
+                        self.bt_pwr_onoff[i].setText(ON)
+                        self.QWidgetBtnColor(self.bt_pwr_onoff[i], "black", "white")                  
+                    
+            elif param[0] == HK_REQ_MANUAL_CMD:
+                result = "[%s:%s] %s" % (param[1], param[2], param[3])
+                self.e_recv.setText(result)
+                
+            self.param = ""
+            
           
     
         
 if __name__ == "__main__":
-    
-    if len(sys.argv) > 1 and sys.argv[1] == "--autostart":
-        autostart = True
-    else:
-        autostart = False
     
     app = QApplication(sys.argv)
         

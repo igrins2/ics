@@ -27,7 +27,7 @@ class motor(threading.Thread) :
         self.port = port 
         #self.iam = "%s(%d)" % (self.motor, int(self.port)-10000)
         
-        self.log = LOG(WORKING_DIR + "IGRINS", "EngTools", gui)    
+        self.log = LOG(WORKING_DIR + "IGRINS", "HW", gui)    
         self.log.send(self.iam, INFO, "start")
         
         # load ini file
@@ -117,6 +117,7 @@ class motor(threading.Thread) :
             
         if self.comSocket != None:
             self.close_component()
+        ti.sleep(1)
         self.connect_to_component()        
 
            

@@ -17,7 +17,6 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 import os
 
-from DTP.DT_def import MOTOR_UT
 dir = os.getcwd().split("/")
 WORKING_DIR = "/" + dir[1] + "/" + dir[2] + "/"
         
@@ -31,10 +30,8 @@ INFO = "INFO"
 WARNING = "WARNING"
 ERROR = "ERROR"
 
-SERV_CONNECT_CNT = 3 #Inst.sequencer / EngTools / hk Sub
-INST_SEQ = 0
-ENG_TOOLS = 1
-HK_SUB = 2
+ENG_TOOLS = 0
+HK_SUB = 1
 
 #RETRY_CNT = 5
 # ---------------------------

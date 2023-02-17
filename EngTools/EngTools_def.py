@@ -33,7 +33,6 @@ LT = 6
 UT = 7
 UPLOADER = 8
 
-SERV_CONNECT_CNT = 2    #HKP, DTP
 HKP = 0
 DTP = 1
 

@@ -7,7 +7,7 @@ Modified on Dec 29, 2022
 """
 
 import os, sys
-import time as ti
+#import time as ti
 import datetime
 import pytz
 
@@ -43,12 +43,12 @@ class uploader(threading.Thread):
         
         self.iam = "uploader"
         
-        self.log = LOG(WORKING_DIR + "IGRINS", "EngTools")    
+        self.log = LOG(WORKING_DIR + "IGRINS", "HW")    
         self.log.send(self.iam, INFO, "start")
         
         # load ini file
-        self.ini_file = WORKING_DIR + "IGRINS/Config/"
-        cfg = sc.LoadConfig(self.ini_file + "IGRINS.ini")
+        ini_file = WORKING_DIR + "IGRINS/Config/"
+        cfg = sc.LoadConfig(ini_file + "IGRINS.ini")
         
         self.ics_ip_addr = cfg.get(MAIN, "ip_addr")
         self.ics_id = cfg.get(MAIN, "id")

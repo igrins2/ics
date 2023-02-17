@@ -8,9 +8,8 @@ Modified on Dec 14, 2022
 @author: hilee
 """
 
-import os, sys
+import os
 import time as ti
-import Libs.SetConfig as sc
 class LOG():
 
     def __init__(self, work_dir, iam, gui = True):

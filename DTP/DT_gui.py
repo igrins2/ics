@@ -36,12 +36,12 @@ import Libs.zscale as zs
 import glob
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+#from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 
 class MainWindow(Ui_Dialog, QMainWindow):
     
-    def __init__(self, autostart=False):
+    def __init__(self):
         super().__init__()
         
         self.iam = DT
@@ -52,7 +52,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.setupUi(self)
         
         self.setGeometry(0, 0, 1030, 700)
-        self.setWindowTitle("Data Taking Package 0.3")        
+        self.setWindowTitle("Data Taking Package 1.0")        
         
         # canvas
         self.image_fig = []
@@ -178,13 +178,12 @@ class MainWindow(Ui_Dialog, QMainWindow):
         for i in range(CAL_CNT):
             self.cal_use_parsing(self.cal_chk[i], self.cal_e_exptime[i], self.cal_e_repeat[i])         
         
-        self.prog_timer = [None for _ in range(DCS_CNT)]
-        self.elapsed_timer = [None for _ in range(DCS_CNT)]
-
         # progress bar     
+        self.prog_timer = [None for _ in range(DCS_CNT)]
         self.cur_prog_step = [0 for _ in range(DCS_CNT)]
         
         # elapsed
+        self.elapsed_timer = [None for _ in range(DCS_CNT)]
         self.elapsed = [0.0 for _ in range(DCS_CNT)]
         
         # connect to server
@@ -443,7 +442,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             if param[1] == self.com_list[i]:
                 com = True
                 break
-        if com is False:
+        if com == False:
             return
         
         msg = "receive: %s" % cmd
@@ -455,7 +454,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.power_status[FLAT-3] = param[FLAT+2]
             self.power_status[THAR-3] = param[THAR+2]
                                         
-            if self.dcs_sts[H] is False or self.dcs_sts[K] is False:
+            if self.dcs_sts[H] == False or self.dcs_sts[K] == False:
                 self.bt_run.setText("RUN")
                 self.QWidgetBtnColor(self.bt_run, "white", "red")
                 self.cal_stop_clicked = False
@@ -605,7 +604,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                     self.QWidgetBtnColor(self.bt_run, "black", "white")
                     self.cal_stop_clicked = False                   
             
-                    if self.acquiring[H] is False and self.acquiring[K] is False:
+                    if self.acquiring[H] == False and self.acquiring[K] == False:
                         self.func_lamp(self.cal_cur, OFF)
                         self.cal_cur += 1
                         self.cal_run_cycle()
@@ -655,7 +654,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     #-------------------------------
     # dcs command
     def initialize2(self, dc_idx):
-        if self.simulation_mode is False and self.dcs_sts[dc_idx] is False:
+        if self.simulation_mode == False and self.dcs_sts[dc_idx] == False:
             return
         
         self.bt_init[dc_idx].setEnabled(False)
@@ -666,7 +665,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     def set_fs_param(self, dc_idx):     
 
-        if self.simulation_mode is False and self.dcs_sts[dc_idx] is False:
+        if self.simulation_mode == False and self.dcs_sts[dc_idx] == False:
             return
 
         self.enable_dcs(dc_idx, False)
@@ -678,7 +677,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         _exptime = float(self.e_exptime[dc_idx].text())
         _FS_number = int(self.e_FS_number[dc_idx].text())
         _fowlerTime = _exptime - T_frame * _FS_number
-        self.cal_waittime = T_br + (T_frame + _fowlerTime + (2 * T_frame * _FS_number))
+        _cal_waittime = T_br + (T_frame + _fowlerTime + (2 * T_frame * _FS_number))
             
         start_time = ti.strftime("%Y-%m-%d %H:%M:%S", ti.localtime())       
         
@@ -687,7 +686,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
 
         # progress bar 
         self.prog_timer[dc_idx] = QTimer(self)
-        self.prog_timer[dc_idx].setInterval(int(self.cal_waittime*10))   
+        self.prog_timer[dc_idx].setInterval(int(_cal_waittime*10))   
         self.prog_timer[dc_idx].timeout.connect(lambda: self.show_progressbar(dc_idx))    
 
         self.cur_prog_step[dc_idx] = 0
@@ -704,7 +703,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.elapsed_timer[dc_idx].start()
 
         if self.cur_cnt[dc_idx] == 0:
-            msg = "%s %s %d %.3f 1 1 1 %.3f 1" % (CMD_SETFSPARAM_ICS, self.dcs_list[dc_idx], self.simulation_mode, _exptime, _fowlerTime)
+            msg = "%s %s %d %.3f 1 %d 1 %.3f 1" % (CMD_SETFSPARAM_ICS, self.dcs_list[dc_idx], self.simulation_mode, _exptime, _FS_number, _fowlerTime)
         else:
             msg = "%s %s %d" % (CMD_ACQUIRERAMP_ICS, self.dcs_list[dc_idx], self.simulation_mode)
         self.producer[DCS].send_message(self.dcs_list[dc_idx], self.dt_dcs_q, msg)
@@ -842,9 +841,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.e_path[dc_idx].setEnabled(enable)
         self.e_savefilename[dc_idx].setEnabled(enable)        
         
-        if self.radio_exptime[dc_idx].isChecked() and enable is True:
+        if self.radio_exptime[dc_idx].isChecked() and enable == True:
             self.judge_exp_time(dc_idx)
-        elif self.radio_N_fowler[dc_idx].isChecked() and enable is True:
+        elif self.radio_N_fowler[dc_idx].isChecked() and enable == True:
             self.judge_FS_number(dc_idx)
             
             
@@ -875,7 +874,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.radio_H.setEnabled(enable)
         self.radio_K.setEnabled(enable)
         
-        #if enable is False and self.bt_take_image.text() == "Stop":
+        #if enable == False and self.bt_take_image.text() == "Stop":
         #    self.bt_take_image.setEnabled(True)
         #else:
         #    self.bt_take_image.setEnabled(enable)
@@ -1295,10 +1294,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
 
 if __name__ == "__main__":
     
-    if len(sys.argv) > 1 and sys.argv[1] == "--autostart":
-        autostart = True
-    else:
-        autostart = False
     app = QApplication(sys.argv)
         
     dt = MainWindow()

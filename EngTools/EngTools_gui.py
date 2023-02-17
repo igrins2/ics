@@ -27,7 +27,7 @@ from  Libs.logger import *
 
 class MainWindow(Ui_Dialog, QMainWindow):
     
-    def __init__(self, autostart=False):
+    def __init__(self):
         super().__init__()
         
         self.iam = "EngTools"
@@ -36,15 +36,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.log.send(self.iam, INFO, "start")
         
         self.setupUi(self)
-        self.setWindowTitle("EngTools 0.2")
+        self.setWindowTitle("EngTools 1.0")
                 
         self.init_events()
-        
-        #self.radio_real.setChecked(True)
-        #self.simulation = False
-            
+                    
         # ---------------------------------------------------------------
-        # start subprocess - temp ctrl, monitor, pdu, uploader
         # load ini file
         ini_file = WORKING_DIR + "IGRINS/Config/IGRINS.ini"
         self.cfg = sc.LoadConfig(ini_file)
@@ -62,7 +58,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.proc_simul = None
         
-        self.proc = [None for _ in range(SERV_CONNECT_CNT)]
+        # 0 - HKP, 1 - DTP
+        self.proc = [None, None]
         
         self.producer = None
         self.consumer = None
@@ -79,20 +76,17 @@ class MainWindow(Ui_Dialog, QMainWindow):
         for i in range(COM_CNT):
             if self.proc_sub[i] != None:
                 print(self.proc_sub[i].pid)
-                #ti.sleep(20)
                 self.proc_sub[i].terminate()
                 self.log.send(self.iam, INFO, str(self.proc_sub[i].pid) + " exit")
         
-        for i in range(SERV_CONNECT_CNT):
+        for i in range(2):
             if self.proc[i] != None:
                 print(self.proc[i].pid)
-                #ti.sleep(20)
                 self.proc[i].terminate()
                 self.log.send(self.iam, INFO, str(self.proc[i].pid) + " exit")
                 
         if self.proc_simul != None:
             print(self.proc_simul.pid)
-            #ti.sleep(20)
             self.proc_simul.terminate()
             self.log.send(self.iam, INFO, str(self.proc_simul.pid) + " exit")
                 
@@ -268,10 +262,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
 
 if __name__ == "__main__":
     
-    if len(sys.argv) > 1 and sys.argv[1] == "--autostart":
-        autostart = True
-    else:
-        autostart = False
     app = QApplication(sys.argv)
         
     ETs = MainWindow()

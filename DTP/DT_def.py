@@ -30,11 +30,10 @@ PDU_IDX = 8
 
 FOWLER_MODE = 3
 
-SERV_CONNECT_CNT = 4 #Inst.sequencer / EngTools / DCS / hk Sub
-INST_SEQ = 0
-ENG_TOOLS = 1
-DCS = 2
-HK_SUB = 3
+SERV_CONNECT_CNT = 3 #EngTools / DCS / hk Sub
+ENG_TOOLS = 0
+DCS = 1
+HK_SUB = 2
 
 DCS_CNT = 3
 SVC = 0
