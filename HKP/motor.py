@@ -438,21 +438,14 @@ class motor(threading.Thread) :
     
 if __name__ == "__main__":
 
-    #ys.argv.append("ut")
-    #sys.argv.append("10007")
-    #sys.argv.append("lt")
-    #sys.argv.append("10006")
-    #if len(sys.argv) < 3:
-    #    print("Please add ip and port")
-    #    exit()
-    
+      
     proc = motor(sys.argv[1], sys.argv[2], sys.argv[3], True)
         
     proc.connect_to_server_sub_ex()
     proc.connect_to_server_hk_q()
         
     proc.connect_to_component()
-
+    '''
     #proc.init_motor()
     #proc.move_motor(1)
     
@@ -460,7 +453,7 @@ if __name__ == "__main__":
     #proc.move_motor_delta(False, 50)
 
     #proc.setUT(1)
-    '''
+    
     proc = motor("lt", "10006")
     #proc = motor("ut", "10007")
     

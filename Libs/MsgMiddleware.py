@@ -68,9 +68,9 @@ class MsgMiddleware():
     def send_message(self, _routing_key, _message, slow = True): 
         #if target == "tmc1" or target == "pdu" or target == "vm":
         if slow:
-            ti.sleep(0.7)
+            ti.sleep(1)
         else:
-            ti.sleep(0.2)
+            ti.sleep(0.5)
                 
         try:
             self.channel.basic_publish(exchange=self.exchange, routing_key=_routing_key, body=_message.encode())

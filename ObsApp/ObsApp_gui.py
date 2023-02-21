@@ -381,7 +381,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
 
     
     def startup(self):      
-        print('startup')
+        #print('startup')
         if self.InstSeq_ready == False:
             threading.Timer(1, self.startup).start()
             return            
@@ -695,7 +695,7 @@ if __name__ == "__main__":
     
     app = QApplication()
         
-    sys.argv.append('1')
+    sys.argv.append('0')
     ObsApp = MainWindow(sys.argv[1])
     ObsApp.show()
         

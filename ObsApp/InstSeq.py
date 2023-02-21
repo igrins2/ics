@@ -76,7 +76,7 @@ class Inst_Seq(threading.Thread):
             cmd = "%sworkspace/ics/igos2_simul/run_hk_simulator.py" % WORKING_DIR
             self.proc_simul = subprocess.Popen(["python", cmd])
             
-            ti.sleep(3)
+        ti.sleep(3)
             
         self.start_sub_system(simul) 
         

@@ -173,7 +173,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.ut_moved = False
         self.lt_moved = False
         
-        self.power_status = [OFF for _ in range(DCS_CNT)] # motor, FLAT, THAR
+        self.power_status = [OFF for _ in range(PDU_IDX)] # motor, FLAT, THAR
            
         for i in range(CAL_CNT):
             self.cal_use_parsing(self.cal_chk[i], self.cal_e_exptime[i], self.cal_e_repeat[i])         
@@ -181,6 +181,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         # progress bar     
         self.prog_timer = [None for _ in range(DCS_CNT)]
         self.cur_prog_step = [0 for _ in range(DCS_CNT)]
+        for dc_idx in range(DCS_CNT):
+            self.progressBar[dc_idx].setValue(0)
         
         # elapsed
         self.elapsed_timer = [None for _ in range(DCS_CNT)]
@@ -195,8 +197,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.connect_to_server_dt_ex()
         self.connect_to_server_dcs_q() 
-
+            
         #ti.sleep(5)
+        self.get_pwr_sts()
         self.alive_check()                          
         
         
@@ -205,8 +208,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.log.send(self.iam, DEBUG, "This may take several seconds waiting for threads to close")
             
         for idx in range(PDU_IDX):
-            msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, idx+1, OFF)
-            self.producer[HK_SUB].send_message(self.dt_sub_q, msg, True) 
+            self.power_onoff(idx+1, OFF)
+
+        ti.sleep(5)
                         
         for th in threading.enumerate():
             self.log.send(self.iam, INFO, th.name + " exit.")
@@ -289,21 +293,21 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
         self.radio_exptime[SVC].clicked.connect(lambda: self.judge_exp_time(SVC)) 
         self.radio_N_fowler[SVC].clicked.connect(lambda: self.judge_FS_number(SVC))
-        self.e_exptime[SVC].textChanged.connect(lambda: self.judge_param(SVC))
-        self.e_FS_number[SVC].textChanged.connect(lambda: self.judge_param(SVC))
-        self.e_repeat[SVC].textChanged.connect(lambda: self.change_name(SVC))
+        self.e_exptime[SVC].editingFinished.connect(lambda: self.judge_param(SVC))
+        self.e_FS_number[SVC].editingFinished.connect(lambda: self.judge_param(SVC))
+        self.e_repeat[SVC].editingFinished.connect(lambda: self.change_name(SVC))
         
         self.radio_exptime[H].clicked.connect(lambda: self.judge_exp_time(H)) 
         self.radio_N_fowler[H].clicked.connect(lambda: self.judge_FS_number(H))
-        self.e_exptime[H].textChanged.connect(lambda: self.judge_param(H))
-        self.e_FS_number[H].textChanged.connect(lambda: self.judge_param(H)) 
-        self.e_repeat[H].textChanged.connect(lambda: self.change_name(H))
+        self.e_exptime[H].editingFinished.connect(lambda: self.judge_param(H))
+        self.e_FS_number[H].editingFinished.connect(lambda: self.judge_param(H)) 
+        self.e_repeat[H].editingFinished.connect(lambda: self.change_name(H))
         
         self.radio_exptime[K].clicked.connect(lambda: self.judge_exp_time(K)) 
         self.radio_N_fowler[K].clicked.connect(lambda: self.judge_FS_number(K))
-        self.e_exptime[K].textChanged.connect(lambda: self.judge_param(K))
-        self.e_FS_number[K].textChanged.connect(lambda: self.judge_param(K)) 
-        self.e_repeat[K].textChanged.connect(lambda: self.change_name(K)) 
+        self.e_exptime[K].editingFinished.connect(lambda: self.judge_param(K))
+        self.e_FS_number[K].editingFinished.connect(lambda: self.judge_param(K)) 
+        self.e_repeat[K].editingFinished.connect(lambda: self.change_name(K)) 
         
         self.bt_init[SVC].clicked.connect(lambda: self.initialize2(SVC))    
         self.bt_save[SVC].clicked.connect(lambda: self.save_fits(SVC))
@@ -450,16 +454,20 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         # from PDU
         if param[0] == HK_REQ_PWR_STS and param[2] == DT:
-            self.power_status[MOTOR-3] = param[MOTOR+2]
-            self.power_status[FLAT-3] = param[FLAT+2]
-            self.power_status[THAR-3] = param[THAR+2]
-                                        
+            for i in range(PDU_IDX):
+                self.power_status[i] = param[i+3]
+
+            if self.power_status[MACIE-1] == OFF:
+                self.power_onoff(MACIE, ON)
+
+            '''                                        
             if self.dcs_sts[H] == False or self.dcs_sts[K] == False:
                 self.bt_run.setText("RUN")
                 self.QWidgetBtnColor(self.bt_run, "white", "red")
                 self.cal_stop_clicked = False
                 
                 self.log.send(self.iam, WARNING, "Check DCS initializing")
+            '''
         
         elif param[0] == DT_REQ_INITMOTOR:
             if param[2] == "TRY":
@@ -556,6 +564,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         if param[0] == ALIVE:
             self.dcs_sts[dc_idx] = True
             self.show_alive_sts()
+            self.QWidgetBtnColor(self.bt_init[dc_idx], "black", "white")
             return
                         
         if param[0] == CMD_INITIALIZE2_ICS:
@@ -717,13 +726,12 @@ class MainWindow(Ui_Dialog, QMainWindow):
         for idx in range(DCS_CNT):
             self.dcs_sts[idx] = False
         
-        msg = "%s %d" % (ALIVE, self.simulation_mode)
-        self.producer[DCS].send_message(self.dt_dcs_q, msg)
+        self.producer[DCS].send_message(self.dt_dcs_q, ALIVE)
         #print("alive check")
 
         #timer = QTimer()
         #timer.singleShot(self.alive_chk_interval*1000, self.alive_check)
-        threading.Timer(self.alive_chk_interval, self.alive_check).start()
+        #threading.Timer(self.alive_chk_interval, self.alive_check).start()
         
     
     def show_alive_sts(self):
@@ -1146,8 +1154,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         else:
             self.setGeometry(0, 0, 1030, 700)
             
-        msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, MOTOR, ON)
-        self.producer[HK_SUB].send_message(self.dt_sub_q, msg, True)
+        self.power_onoff(MOTOR, ON)
     
 
     def QWidgetLabelColor(self, widget, textcolor, bgcolor=None):
@@ -1217,27 +1224,35 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.cal_mode = False
             
             
+    def get_pwr_sts(self):
+        msg = "%s %s %s" % (HK_REQ_PWR_STS, self.com_list[PDU], DT)
+        self.producer[HK_SUB].send_message(self.dt_sub_q, msg, True)
+
+
+    def power_onoff(self, idx, onoff):
+        msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, idx, onoff)
+        self.producer[HK_SUB].send_message(self.dt_sub_q, msg, True) 
+
+
     def func_lamp(self, idx, off=False):  
         if off:
-            msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, FLAT, OFF)
+            self.power_onoff(FLAT, OFF)
         else:
-            msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, FLAT, LAMP_FLAT[idx])
-        self.producer[HK_SUB].send_message(self.dt_sub_q, msg, True)
+            self.power_onoff(FLAT, LAMP_FLAT[idx])
         
         if off:
-            msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, THAR, OFF)
+            self.power_onoff(THAR, OFF)
         else:
-            msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, THAR, LAMP_THAR[idx])
-        self.producer[HK_SUB].send_message(self.dt_sub_q, msg, True)
-                    
+            self.power_onoff(THAR, LAMP_FLAT[idx])
+                        
             
     def func_motor(self, idx):
         self.ut_moved = False
-        msg = "%s %s %d" % (DT_REQ_MOVEMOTOR, self.com_list[UT], MOTOR_UT[idx])
+        msg = "%s %s %d" % (DT_REQ_MOVEMOTOR, self.com_list[UT], MOTOR_UT_POS[idx])
         self.producer[HK_SUB].send_message(self.dt_sub_q, msg)
                 
         self.lt_moved = False
-        msg = "%s %s %d" % (DT_REQ_MOVEMOTOR, self.com_list[LT], MOTOR_LT[idx])
+        msg = "%s %s %d" % (DT_REQ_MOVEMOTOR, self.com_list[LT], MOTOR_LT_POS[idx])
         self.producer[HK_SUB].send_message(self.dt_sub_q, msg)
         
         
