@@ -279,7 +279,7 @@ def start():
                 if len(args) < 2:
                     show_errmsg(_args) 
                 elif args[1] == "-h" or args[1] == "--help":
-                    show_subfunc(args[0], _args, "motor:UT/LT, delta:int")   
+                    show_subfunc(args[0], _args, "motor:ut/lt, delta:int")   
                 elif len(args) < 3:
                     show_errmsg(_args)     
                 elif (args[1] == MOTOR_UT or args[1] == MOTOR_LT) is not True:
@@ -333,10 +333,10 @@ def start():
                 elif (0 <= int(args[1]) <= 3) is not True:  
                     print("Please input a number 0-3 for lt.")
                 else:
-                    if hk[UT] == None:
+                    if hk[LT] == None:
                         print("Please execute 'initmotor' first!")
                     else:
-                        hk[UT].setLT(int(args[1]))  
+                        hk[LT].setLT(int(args[1]))  
             except:
                 print("Please input a number 0-3 for lt.")
                     

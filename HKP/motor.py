@@ -211,11 +211,13 @@ class motor(threading.Thread) :
         self.comSocket.send(cmd.encode())
         self.log.send(self.iam, INFO, "send_to_motor: " + cmd)
         ti.sleep(CMCWTIME)
-        res = self.comSocket.recv(REBUFSIZE)
         if ret:
+            res = self.comSocket.recv(REBUFSIZE)
             res = res.decode()
             res = res[:-1]
             self.log.send(self.iam, INFO, "ReceivedFromMotor: " + res)
+        else:
+            res = ""
             
         return res
         
@@ -438,7 +440,7 @@ class motor(threading.Thread) :
     
 if __name__ == "__main__":
 
-      
+
     proc = motor(sys.argv[1], sys.argv[2], sys.argv[3], True)
         
     proc.connect_to_server_sub_ex()
