@@ -47,8 +47,6 @@ class monitor(threading.Thread) :
         
         self.hk_sub_ex = cfg.get(MAIN, 'hk_sub_exchange')     
         self.hk_sub_q = cfg.get(MAIN, 'hk_sub_routing_key')
-        self.sub_hk_ex = cfg.get(MAIN, 'sub_hk_exchange')
-        self.sub_hk_q = cfg.get(MAIN, 'sub_hk_routing_key')
                 
         if bool(int(simul)):
             self.ip = "localhost"
@@ -64,10 +62,7 @@ class monitor(threading.Thread) :
         self.comSocket = None
         self.comStatus = False
         
-        self.producer = None
-        self.consumer = None
-
-        
+        self.producer = None      
                 
         
     
@@ -113,9 +108,9 @@ class monitor(threading.Thread) :
             #threading.Timer(1, self.re_connect_to_component).start()
 
             
-        msg = "%s %s %d" % (HK_REQ_COM_STS, self.iam, self.comStatus)   
+        msg = "%s %d" % (HK_REQ_COM_STS, self.comStatus)   
         if self.gui:
-            self.producer.send_message(self.sub_hk_q, msg)        
+            self.producer.send_message(self.iam+'.q', msg)        
                  
     
     def re_connect_to_component(self):
@@ -217,7 +212,7 @@ class monitor(threading.Thread) :
     # sub -> hk    
     def connect_to_server_sub_ex(self):
         # RabbitMQ connect        
-        self.producer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.sub_hk_ex)      
+        self.producer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.iam+'.ex')      
         self.producer.connect_to_server()
         self.producer.define_producer()
         
@@ -226,11 +221,11 @@ class monitor(threading.Thread) :
     # hk -> sub
     def connect_to_server_hk_q(self):
         # RabbitMQ connect
-        self.consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_sub_ex)      
-        self.consumer.connect_to_server()
-        self.consumer.define_consumer(self.hk_sub_q, self.callback_hk)
+        consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_sub_ex)      
+        consumer.connect_to_server()
+        consumer.define_consumer(self.hk_sub_q, self.callback_hk)
         
-        th = threading.Thread(target=self.consumer.start_consumer)
+        th = threading.Thread(target=consumer.start_consumer)
         th.start()
         
     
@@ -238,27 +233,20 @@ class monitor(threading.Thread) :
         cmd = body.decode()
         param = cmd.split()
         
-        if param[0] == HK_START_MONITORING:
+        if param[0] == HK_REQ_COM_STS:
+            msg = "%s %d" % (param[0], self.comStatus)   
+            self.producer.send_message(self.iam+'.q', msg)
+            
+        elif param[0] == HK_START_MONITORING:
             self.monit = True
             self.start_monitoring()
-            return
+            
         elif param[0] == HK_STOP_MONITORING:
             self.monit = False
-            return
-                    
-        if len(param) < 2:
-            return
-        if param[1] != self.iam:
-            return
-        #if not self.comStatus:
-        #    return
         
-        #msg = "receive: %s" % cmd
-        #self.log.send(self.iam, INFO, msg)
-        
-        if param[0] == HK_REQ_GETVALUE:
+        elif param[0] == HK_REQ_GETVALUE:
             if self.iam == "tm":
-                msg = "%s %s" % (param[0], self.iam)
+                msg = "%s" % (param[0])
                 for i in range(TM_CNT):
                     try:
                         msg += " "
@@ -267,14 +255,19 @@ class monitor(threading.Thread) :
                         msg += DEFAULT_VALUE
                         
             elif self.iam == "vm":
-                msg = "%s %s %s" % (param[0], self.iam, self.vm)
-            self.producer.send_message(self.sub_hk_q, msg)    
+                msg = "%s %s" % (param[0], self.vm)
+            self.producer.send_message(self.iam+'.q', msg)    
             
-        elif param[0] == HK_REQ_MANUAL_CMD:            
-            cmd = "%s %s\r\n" % (param[2], param[3])
+        elif param[0] == HK_REQ_MANUAL_CMD:       
+            if param[1] != self.iam:
+                return     
+            cmd = ""
+            for idx in range(len(param)-2):
+                cmd += param[idx+2] + " "
+            cmd = cmd[:-1] + "\r\n"
             value = self.socket_send(cmd)
-            msg = "%s %s %s" % (param[0], self.iam, value) 
-            self.producer.send_message(self.sub_hk_q, msg) 
+            msg = "%s %s" % (param[0], value) 
+            self.producer.send_message(self.iam+'.q', msg) 
             
  
             

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'ObsAppMvsRpw.ui'
+## Form generated from reading UI file 'ObsAppOviYCt.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.3.0
 ##
@@ -23,7 +23,12 @@ class Ui_Dialog(object):
     def setupUi(self, Dialog):
         if not Dialog.objectName():
             Dialog.setObjectName(u"Dialog")
-        Dialog.resize(844, 582)
+        Dialog.resize(844, 596)
+        sizePolicy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(Dialog.sizePolicy().hasHeightForWidth())
+        Dialog.setSizePolicy(sizePolicy)
         self.groupBox_18 = QGroupBox(Dialog)
         self.groupBox_18.setObjectName(u"groupBox_18")
         self.groupBox_18.setGeometry(QRect(10, 10, 241, 331))
@@ -417,6 +422,13 @@ class Ui_Dialog(object):
         self.lineEdit_zscale_max.setObjectName(u"lineEdit_zscale_max")
         self.lineEdit_zscale_max.setGeometry(QRect(170, 40, 61, 21))
         self.lineEdit_zscale_max.setFont(font)
+        self.label_messagebar = QLabel(Dialog)
+        self.label_messagebar.setObjectName(u"label_messagebar")
+        self.label_messagebar.setGeometry(QRect(10, 574, 821, 20))
+        font4 = QFont()
+        font4.setBold(True)
+        self.label_messagebar.setFont(font4)
+        self.label_messagebar.setAlignment(Qt.AlignCenter)
 
         self.retranslateUi(Dialog)
 
@@ -498,5 +510,6 @@ class Ui_Dialog(object):
         self.label_autoscale.setText(QCoreApplication.translate("Dialog", u"10 ~ 500", None))
         self.radioButton_2.setText(QCoreApplication.translate("Dialog", u"zscale", None))
         self.radioButton_autoscale_zscale.setText(QCoreApplication.translate("Dialog", u"autoscale", None))
+        self.label_messagebar.setText(QCoreApplication.translate("Dialog", u"TextLabel", None))
     # retranslateUi
 

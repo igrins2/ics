@@ -39,8 +39,8 @@ DTP = 1
 MODE_SIMUL = 0
 MODE_REAL = 1
 
-REQ_CHK = "AliveCheck"
 
+HK_STATUS = "HKStatus"
 EXIT = "Exit"
 ALIVE = "Alive"
 TEST_MODE = "TestMode"

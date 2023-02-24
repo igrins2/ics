@@ -51,7 +51,6 @@ class Inst_Seq(threading.Thread):
         
         # 0 - ObsApp, 1 - DCS
         self.producer = [None, None]
-        self.consumer = [None, None]
                 
         self.proc_sub = [None for _ in range(COM_CNT)]
         
@@ -80,7 +79,7 @@ class Inst_Seq(threading.Thread):
             
         self.start_sub_system(simul) 
         
-        self.producer[OBS_APP].send_message(self.InstSeq_ObsApp_q, READY) 
+        #self.producer[OBS_APP].send_message(self.InstSeq_ObsApp_q, READY) 
          
         
     def __del__(self):
@@ -145,11 +144,11 @@ class Inst_Seq(threading.Thread):
     #--------------------------------------------------------
     # Inst. Sequencer -> ObsApp
     def connect_to_server_ObsApp_q(self):
-        self.consumer[OBS_APP] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.ObsApp_InstSeq_ex)      
-        self.consumer[OBS_APP].connect_to_server()
-        self.consumer[OBS_APP].define_consumer(self.ObsApp_InstSeq_q, self.callback_ObsApp)       
+        consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.ObsApp_InstSeq_ex)      
+        consumer.connect_to_server()
+        consumer.define_consumer(self.ObsApp_InstSeq_q, self.callback_ObsApp)       
         
-        th = threading.Thread(target=self.consumer[OBS_APP].start_consumer)
+        th = threading.Thread(target=consumer.start_consumer)
         th.start()
     
     
@@ -177,11 +176,11 @@ class Inst_Seq(threading.Thread):
     # hk -> sub
     def connect_to_server_dcs_q(self):
         # RabbitMQ connect
-        self.consumer[DCS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.dcs_InstSeq_ex)      
-        self.consumer[DCS].connect_to_server()
-        self.consumer[DCS].define_consumer(self.dcs_InstSeq_q, self.callback_dcs)
+        consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.dcs_InstSeq_ex)      
+        consumer.connect_to_server()
+        consumer.define_consumer(self.dcs_InstSeq_q, self.callback_dcs)
         
-        th = threading.Thread(target=self.consumer[DCS].start_consumer)
+        th = threading.Thread(target=consumer.start_consumer)
         th.start()
                         
                 
@@ -207,7 +206,7 @@ class Inst_Seq(threading.Thread):
                 self.producer[OBS_APP].send_message(self.InstSeq_ObsApp_q, msg)
                 
             else:
-                if self.acquiring[H] == False and self.acquiring[K] == False:
+                if not self.acquiring[H] and not self.acquiring[K]:
                     msg = "%s %s" % (CMD_COMPLETED, "all")
                     self.producer[OBS_APP].send_message(self.InstSeq_ObsApp_q, msg)
                 

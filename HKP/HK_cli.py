@@ -120,14 +120,12 @@ def start():
                         if args[2] == "0":
                             hk[temp].get_setpoint(1)
                             hk[temp].get_setpoint(2)
-                            #(0.5)
                         else:
                             hk[temp].get_setpoint(int(args[2]))
                     elif args[0] == "getheatvalue":  
                         if args[2] == "0":
                             hk[temp].get_heating_power(1)
                             hk[temp].get_heating_power(2)
-                            #ti.sleep(0.5)
                         else:
                             hk[temp].get_heating_power(int(args[2]))  
             except:
@@ -158,7 +156,6 @@ def start():
                             if args[2] == "0":
                                 hk[temp].get_value("A")
                                 hk[temp].get_value("B")
-                                #ti.sleep(0.5)
                             else:
                                 hk[temp].get_value(args[2])
                                 
@@ -202,7 +199,6 @@ def start():
                         
                         hk[PDU].connect_to_component()
                         hk[PDU].initPDU()
-                        #ti.sleep(2)
                         
                     if args[1] == "0":
                         for i in range(PDU_IDX):
@@ -210,7 +206,6 @@ def start():
                     else:
                         print(args[1], args[2])
                         hk[PDU].change_power(int(args[1]), args[2])
-                    #ti.sleep(2)
             except:
                 print("Please input a number 1~8 or 0(all) and 'on' or 'off'")
         
@@ -354,7 +349,6 @@ def start():
         else:
             print("Please confirm command.")
         
-        #ti.sleep(0.5)
         args = ""
   
 

@@ -88,8 +88,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.dt_sub_ex = self.cfg.get(MAIN, 'hk_sub_exchange')
         self.dt_sub_q = self.cfg.get(MAIN, 'hk_sub_routing_key')
-        self.sub_dt_ex = self.cfg.get(MAIN, 'sub_hk_exchange')     
-        self.sub_dt_q = self.cfg.get(MAIN, 'sub_hk_routing_key')
+        #self.sub_dt_ex = self.cfg.get(MAIN, 'sub_hk_exchange')     
+        #self.sub_dt_q = self.cfg.get(MAIN, 'sub_hk_routing_key')
         
         self.dt_dcs_ex = self.cfg.get(DT, 'dt_dcs_exchange')     
         self.dt_dcs_q = self.cfg.get(DT, 'dt_dcs_routing_key')
@@ -137,8 +137,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.cal_e_exptime[i].setText("1.63")
             self.cal_e_repeat[i].setText("1")
         
-        self.e_utpos.setText("-")
-        self.e_ltpos.setText("-")
+        self.e_utpos.setText("---")
+        self.e_ltpos.setText("---")
         
         self.e_movinginterval.setText("1")        
         
@@ -152,7 +152,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.acquiring = [False for _ in range(DCS_CNT)]
                 
         self.producer = [None for _ in range(SERV_CONNECT_CNT)]
-        self.consumer = [None for _ in range(SERV_CONNECT_CNT)]       
         
         self.img = [None for _ in range(DCS_CNT)]
         
@@ -383,11 +382,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
     # main -> dt
     def connect_to_server_gui_q(self):
         # RabbitMQ connect
-        self.consumer[ENG_TOOLS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.main_dt_ex)      
-        self.consumer[ENG_TOOLS].connect_to_server()
-        self.consumer[ENG_TOOLS].define_consumer(self.main_dt_q, self.callback_main)       
+        consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.main_dt_ex)      
+        consumer.connect_to_server()
+        consumer.define_consumer(self.main_dt_q, self.callback_main)       
         
-        th = threading.Thread(target=self.consumer[ENG_TOOLS].start_consumer)
+        th = threading.Thread(target=consumer.start_consumer)
         th.daemon = True
         th.start()
         
@@ -426,11 +425,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
     # sub -> dt: use hk q
     def connect_to_server_sub_q(self):
         # RabbitMQ connect
-        self.consumer[HK_SUB] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.sub_dt_ex)      
-        self.consumer[HK_SUB].connect_to_server()
-        self.consumer[HK_SUB].define_consumer(self.sub_dt_q, self.callback_sub)       
+        consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.sub_dt_ex)      
+        consumer.connect_to_server()
+        consumer.define_consumer(self.sub_dt_q, self.callback_sub)       
         
-        th = threading.Thread(target=self.consumer[HK_SUB].start_consumer)
+        th = threading.Thread(target=consumer.start_consumer)
         th.daemon = True
         th.start()
                     
@@ -446,7 +445,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             if param[1] == self.com_list[i]:
                 com = True
                 break
-        if com == False:
+        if not com:
             return
         
         msg = "receive: %s" % cmd
@@ -536,11 +535,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
     # dcs -> dt
     def connect_to_server_dcs_q(self):
         # RabbitMQ connect
-        self.consumer[DCS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.dcs_dt_ex)      
-        self.consumer[DCS].connect_to_server()
-        self.consumer[DCS].define_consumer(self.dcs_dt_q, self.callback_dcs)       
+        consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.dcs_dt_ex)      
+        consumer.connect_to_server()
+        consumer.define_consumer(self.dcs_dt_q, self.callback_dcs)       
         
-        th = threading.Thread(target=self.consumer[DCS].start_consumer)
+        th = threading.Thread(target=consumer.start_consumer)
         th.daemon = True
         th.start()
         
@@ -613,7 +612,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                     self.QWidgetBtnColor(self.bt_run, "black", "white")
                     self.cal_stop_clicked = False                   
             
-                    if self.acquiring[H] == False and self.acquiring[K] == False:
+                    if not self.acquiring[H] and not self.acquiring[K]:
                         self.func_lamp(self.cal_cur, OFF)
                         self.cal_cur += 1
                         self.cal_run_cycle()
@@ -663,7 +662,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     #-------------------------------
     # dcs command
     def initialize2(self, dc_idx):
-        if self.simulation_mode == False and self.dcs_sts[dc_idx] == False:
+        if not self.simulation_mode and not self.dcs_sts[dc_idx]:
             return
         
         self.bt_init[dc_idx].setEnabled(False)
@@ -674,7 +673,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     def set_fs_param(self, dc_idx):     
 
-        if self.simulation_mode == False and self.dcs_sts[dc_idx] == False:
+        if not self.simulation_mode and not self.dcs_sts[dc_idx]:
             return
 
         self.enable_dcs(dc_idx, False)
@@ -850,9 +849,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.e_path[dc_idx].setEnabled(enable)
         self.e_savefilename[dc_idx].setEnabled(enable)        
         
-        if self.radio_exptime[dc_idx].isChecked() and enable == True:
+        if self.radio_exptime[dc_idx].isChecked() and enable:
             self.judge_exp_time(dc_idx)
-        elif self.radio_N_fowler[dc_idx].isChecked() and enable == True:
+        elif self.radio_N_fowler[dc_idx].isChecked() and enable:
             self.judge_FS_number(dc_idx)
             
             
@@ -1226,12 +1225,12 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
     def get_pwr_sts(self):
         msg = "%s %s %s" % (HK_REQ_PWR_STS, self.com_list[PDU], DT)
-        self.producer[HK_SUB].send_message(self.dt_sub_q, msg, True)
+        self.producer[HK_SUB].send_message(self.dt_sub_q, msg)
 
 
     def power_onoff(self, idx, onoff):
         msg = "%s %s %s %d %s" % (HK_REQ_PWR_ONOFF, self.com_list[PDU], DT, idx, onoff)
-        self.producer[HK_SUB].send_message(self.dt_sub_q, msg, True) 
+        self.producer[HK_SUB].send_message(self.dt_sub_q, msg) 
 
 
     def func_lamp(self, idx, off=False):  

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'EngToolsXhOStZ.ui'
+## Form generated from reading UI file 'EngToolslUCdlZ.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.3.0
 ##
@@ -23,6 +23,11 @@ class Ui_Dialog(object):
         if not Dialog.objectName():
             Dialog.setObjectName(u"Dialog")
         Dialog.resize(281, 184)
+        sizePolicy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(Dialog.sizePolicy().hasHeightForWidth())
+        Dialog.setSizePolicy(sizePolicy)
         self.bt_runHKP = QPushButton(Dialog)
         self.bt_runHKP.setObjectName(u"bt_runHKP")
         self.bt_runHKP.setGeometry(QRect(30, 60, 131, 41))

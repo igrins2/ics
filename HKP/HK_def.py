@@ -91,6 +91,7 @@ HK_REQ_MANUAL_CMD = "SendManualCommand" #temp_ctrl, tm
 
 HK_REQ_PWR_STS = "PowerStatus"  #pdu
 HK_REQ_PWR_ONOFF = "PowerOnOff" #pdu
+HK_REQ_PWR_ONOFF_IDX = "PowerOnOffIndex" #pdu
 
 HK_REQ_UPLOAD_DB = "UploadDB"   #uploader
 HK_REQ_UPLOAD_STS = "UploadDBStatus"    #uploader
@@ -105,7 +106,7 @@ DT_REQ_SETLT = "SetLT"          #motor
 
 CMD_REQ_TEMP = "ReqTempInfo"    #from DCS
 
+HK_STATUS = "HKStatus"
 EXIT = "Exit"
 ALIVE = "Alive"
 
-#REQ_CHK = "AliveCheck"   

@@ -62,10 +62,12 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.proc = [None, None]
         
         self.producer = None
-        self.consumer = None
         
         self.bt_runHKP.setEnabled(False)
         self.bt_runDTP.setEnabled(False)
+        
+        self.label_stsHKP.setText("---")
+        self.label_stsDTP.setText("---")
         
         self.connect_to_server_main_ex()
         self.connect_to_server_gui_q()
@@ -149,11 +151,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
     # sub -> dt: use hk q
     def connect_to_server_gui_q(self):
         # RabbitMQ connect
-        self.consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.gui_main_ex)      
-        self.consumer.connect_to_server()
-        self.consumer.define_consumer(self.gui_main_q, self.callback_gui)       
+        consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.gui_main_ex)      
+        consumer.connect_to_server()
+        consumer.define_consumer(self.gui_main_q, self.callback_gui)       
         
-        th = threading.Thread(target=self.consumer.start_consumer)
+        th = threading.Thread(target=consumer.start_consumer)
         th.daemon = True
         th.start()
         
@@ -170,19 +172,26 @@ class MainWindow(Ui_Dialog, QMainWindow):
         if param[0] == ALIVE:
             if param[1] == HK:
                 self.bt_runHKP.setEnabled(False)
+                self.label_stsHKP.setText("STARTED")
             elif param[1] == DT:
                 self.bt_runDTP.setEnabled(False)
+                self.label_stsDTP.setText("STARTED")
             
                 msg = "%s %s %d" % (TEST_MODE, DT, self.simulation)
                 self.producer.send_message(self.main_gui_q, msg)
+                
+        elif param[0] == HK_STATUS:
+            self.label_stsHKP.setText(param[1])
 
         elif param[0] == EXIT:        
             if param[1] == HK:
                 self.bt_runHKP.setEnabled(True)
+                self.label_stsHKP.setText("CLOSED")
                 self.proc[HKP] = None
                 
             elif param[1] == DT:
-                self.bt_runDTP.setEnabled(True)     
+                self.bt_runDTP.setEnabled(True)   
+                self.label_stsDTP.setText("CLOSED")  
                 self.proc[DTP] = None
                 
             self.radio_inst_simul.setEnabled(True)
@@ -209,9 +218,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
             if self.proc_simul != None:
                 if self.proc_simul.poll() == None:
-                    #print(self.proc_simul.pid)
-                    #ti.sleep(20)
-                    #self.proc_simul.terminate()
                     self.proc_simul.kill()
                     self.proc_simul = None
                 
@@ -244,14 +250,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
         msg = "%s %s %d" % (TEST_MODE, DT, self.simulation)
         self.producer.send_message(self.main_gui_q, msg)     
         
-    
-    def send_to_GMP(self):
-        pass
-    
-    
-    def send_to_TCS(self):
-        pass    
-    
     
 
 if __name__ == "__main__":

@@ -31,7 +31,7 @@ INFO = "INFO"
 WARNING = "WARNING"
 ERROR = "ERROR"
 
-SERV_CONNECT_CNT = 3 #Inst.sequencer / hk Sub / DCS for ObsApp
+SERV_CONNECT_CNT = 3 #Inst.sequencer / hk Sub 7ea / DCS for ObsApp
 INST_SEQ = 0
 DCS = 1
 HK_SUB = 2
@@ -76,8 +76,9 @@ HK_REQ_COM_STS = "ComPortStatus"
 HK_START_MONITORING = "StartMonitoring" #temp_ctrl, tm, vm
 HK_REQ_GETVALUE = "GetValue"  #temp_ctrl, tm, vm
 HK_REQ_UPLOAD_DB = "UploadDB"   #uploader
-CMD_REQ_TEMP = "ReqTempInfo"    #from DCS
+HK_REQ_UPLOAD_STS = "UploadDBStatus"    #uploader
 
+CMD_REQ_TEMP = "ReqTempInfo"    #from DCS
 CMD_SIMULATION = "Simulation"
 EXIT = "Exit"
 READY = "Ready"

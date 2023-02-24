@@ -43,8 +43,6 @@ class pdu(threading.Thread) :
         
         self.hk_sub_ex = cfg.get(MAIN, 'hk_sub_exchange')     
         self.hk_sub_q = cfg.get(MAIN, 'hk_sub_routing_key')
-        self.sub_hk_ex = cfg.get(MAIN, 'sub_hk_exchange')
-        self.sub_hk_q = cfg.get(MAIN, 'sub_hk_routing_key')
                 
         self.power_str = cfg.get(HK, "pdu-list").split(',')
         self.pow_flag = [OFF for _ in range(PDU_IDX)]
@@ -64,8 +62,6 @@ class pdu(threading.Thread) :
         self.comStatus = False
                 
         self.producer = None
-        self.consumer = None
-            
         
     
     def __del__(self):
@@ -105,9 +101,9 @@ class pdu(threading.Thread) :
             self.re_connect_to_component()
             #threading.Timer(1, self.re_connect_to_component).start()
                         
-        msg = "%s %s %d" % (HK_REQ_COM_STS, self.iam, self.comStatus)   
+        msg = "%s %d" % (HK_REQ_COM_STS, self.comStatus)   
         if self.gui:
-            self.producer.send_message(self.sub_hk_q, msg) 
+            self.producer.send_message(self.iam+'.q', msg) 
                  
     
     def re_connect_to_component(self):
@@ -155,7 +151,7 @@ class pdu(threading.Thread) :
             #threading.Timer(1, self.re_connect_to_component).start()
         
                     
-    def power_status(self, cmd, commander=None):
+    def power_status(self, cmd):
         if not self.comStatus:
             return      
         
@@ -181,9 +177,9 @@ class pdu(threading.Thread) :
                 pow_flag += self.pow_flag[i]
                 pow_flag += " "
                 
-            msg = "%s %s %s %s" % (HK_REQ_PWR_STS, self.iam, commander, pow_flag)
+            msg = "%s %s" % (HK_REQ_PWR_STS, pow_flag)
             if self.gui: 
-                self.producer.send_message(self.sub_hk_q, msg)  
+                self.producer.send_message(self.iam+'.q', msg)  
             else:
                 print(pow_flag)
         except:                  
@@ -194,7 +190,7 @@ class pdu(threading.Thread) :
             
 
     # on/off
-    def change_power(self, idx, onoff, commander=None):  # definition OnOff: ON, OFF
+    def change_power(self, idx, onoff):  # definition OnOff: ON, OFF
         # this function is used when received PDU On/Off status and change status
         
         if not self.comStatus:
@@ -211,14 +207,14 @@ class pdu(threading.Thread) :
         msg = " %s Button clicked"  % self.pow_flag[idx-1]
         self.log.send(self.iam, INFO, self.power_str[idx-1] + msg)
     
-        self.power_status(cmd, commander)
+        self.power_status(cmd)
             
     
     #-------------------------------
     # sub -> hk    
     def connect_to_server_sub_ex(self):
         # RabbitMQ connect        
-        self.producer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.sub_hk_ex)      
+        self.producer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.iam+'.ex')      
         self.producer.connect_to_server()
         self.producer.define_producer()     
            
@@ -227,11 +223,11 @@ class pdu(threading.Thread) :
     # hk -> sub
     def connect_to_server_hk_q(self):
         # RabbitMQ connect
-        self.consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_sub_ex)      
-        self.consumer.connect_to_server()
-        self.consumer.define_consumer(self.hk_sub_q, self.callback_hk)
+        consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_sub_ex)      
+        consumer.connect_to_server()
+        consumer.define_consumer(self.hk_sub_q, self.callback_hk)
         
-        th = threading.Thread(target=self.consumer.start_consumer)
+        th = threading.Thread(target=consumer.start_consumer)
         th.start()
             
                             
@@ -240,23 +236,22 @@ class pdu(threading.Thread) :
         cmd = body.decode()
         param = cmd.split()
                     
-        if len(param) < 2:
-            return
-        if param[1] != self.iam:
-            return
         if not self.comStatus:
             return
+                       
+        if param[0] == HK_REQ_COM_STS:
+            msg = "%s %d" % (param[0], self.comStatus)   
+            self.producer.send_message(self.iam+'.q', msg)
             
-        #msg = "receive: %s" % cmd
-        #self.log.send(self.iam, INFO, msg)
-           
-        if param[0] == HK_REQ_PWR_STS:
-            cmd = "DN0\r"   
-            self.power_status(cmd, param[2])
+        elif param[0] == HK_REQ_PWR_STS:
+            self.power_status("DN0\r")
+            
+        elif param[0] == HK_REQ_PWR_ONOFF_IDX:
+            self.change_power(int(param[1]), param[2]) 
             
         elif param[0] == HK_REQ_PWR_ONOFF:
-            idx = int(param[3])
-            self.change_power(idx, param[4], param[2]) 
+            for idx in range(PDU_IDX):
+                self.change_power(idx+1, param[idx+1])
                         
             
 if __name__ == "__main__":

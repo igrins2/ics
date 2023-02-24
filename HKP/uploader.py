@@ -56,8 +56,6 @@ class uploader(threading.Thread):
         
         self.hk_sub_ex = cfg.get(MAIN, "hk_sub_exchange")     
         self.hk_sub_q = cfg.get(MAIN, "hk_sub_routing_key")
-        self.sub_hk_ex = cfg.get(MAIN, 'sub_hk_exchange')
-        self.sub_hk_q = cfg.get(MAIN, 'sub_hk_routing_key')
                 
         firebase = self.get_firebase()
         self.db = firebase.database()
@@ -67,9 +65,7 @@ class uploader(threading.Thread):
         #self.start_upload_to_firebase(self.db)
         #self.log.send(self.iam, INFO, "Uploaded " + ti.strftime("%Y-%m-%d %H:%M:%S"))
         #-------
-        
-        self.consumer = None
-        
+                
         self.simul = bool(int(simul))
         #self.connect_to_server_hk_q()
         
@@ -143,7 +139,7 @@ class uploader(threading.Thread):
             self.db.child("BasicHK").push(entry)
         
             msg = "%s %s" % (HK_REQ_UPLOAD_STS, self.iam)   
-            self.producer.send_message(self.sub_hk_q, msg)
+            self.producer.send_message(self.iam+'.q', msg)
 
             return True
         
@@ -157,36 +153,30 @@ class uploader(threading.Thread):
     # sub -> hk    
     def connect_to_server_sub_ex(self):
         # RabbitMQ connect        
-        self.producer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.sub_hk_ex)      
+        self.producer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.iam+'.ex')      
         self.producer.connect_to_server()
         self.producer.define_producer()
         
         
     def connect_to_server_hk_q(self):
         # RabbitMQ connect
-        self.consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_sub_ex)      
-        self.consumer.connect_to_server()
-        self.consumer.define_consumer(self.hk_sub_q, self.callback_hk)
+        consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_sub_ex)      
+        consumer.connect_to_server()
+        consumer.define_consumer(self.hk_sub_q, self.callback_hk)
         
-        th = threading.Thread(target=self.consumer.start_consumer)
+        th = threading.Thread(target=consumer.start_consumer)
         th.start()
             
             
     def callback_hk(self, ch, method, properties, body):
         cmd = body.decode()
         param = cmd.split()
-                    
-        #print("uploader:", param)
-        if len(param) < 2:
-            return
-        if param[1] != self.iam:
-            return
         
         msg = "receive: %s" % cmd
         self.log.send(self.iam, INFO, msg)
 
         if param[0] == HK_REQ_UPLOAD_DB:
-            db = param[2:]
+            db = param[1:]
             if self.simul:
                 print("uploaded virtual firebase database...")
             else:
