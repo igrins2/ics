@@ -63,7 +63,7 @@ class Inst_Seq(threading.Thread):
         self.acquiring = [False for _ in range(DC_CNT)]
         
         self.dcs_list = ["DCSS", "DCSH", "DCSK"]
-                
+                        
         self.connect_to_server_InstSeq_ex()
         self.connect_to_server_ObsApp_q()
         
@@ -79,8 +79,9 @@ class Inst_Seq(threading.Thread):
             
         self.start_sub_system(simul) 
         
-        #self.producer[OBS_APP].send_message(self.InstSeq_ObsApp_q, READY) 
-         
+        cmd = "%sworkspace/ics/ObsApp/ObsApp_gui.py" % WORKING_DIR
+        self.proc_ObsApp = subprocess.Popen(["python", cmd, simul])
+                 
         
     def __del__(self):
         msg = "Closing %s" % self.iam
@@ -95,6 +96,10 @@ class Inst_Seq(threading.Thread):
             self.proc_simul.terminate()
             self.log.send(self.iam, INFO, str(self.proc_simul.pid) + " exit")        
                 
+        if self.proc_ObsApp != None:
+            self.proc_ObsApp.terminate()
+            self.log.send(self.iam, INFO, str(self.proc_ObsApp.pid) + " exit")
+            
         for th in threading.enumerate():
             self.log.send(self.iam, INFO, th.name + " exit.")
             
@@ -102,6 +107,7 @@ class Inst_Seq(threading.Thread):
             self.producer[i].__del__()  
 
         self.log.send(self.iam, DEBUG, "Closed!") 
+        exit()
         
     
     def start_sub_system(self, simul):
@@ -256,5 +262,6 @@ class Inst_Seq(threading.Thread):
 
 if __name__ == "__main__":
         
+    sys.argv.append('1')
     Inst_Seq(sys.argv[1])
     

@@ -43,6 +43,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     
     def __init__(self):
         super().__init__()
+        self.setFixedSize(1314, 703)
         
         self.iam = DT
         

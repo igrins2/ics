@@ -30,6 +30,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
     def __init__(self):
         super().__init__()
         
+        self.setFixedSize(281, 184)
+                    
         self.iam = "EngTools"
         
         self.log = LOG(WORKING_DIR + "IGRINS", self.iam)  
@@ -163,6 +165,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     #-------------------------------
     # rev <- sub        
     def callback_gui(self, ch, method, properties, body):
+        
         cmd = body.decode()
         param = cmd.split()
                 

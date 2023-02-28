@@ -20,7 +20,6 @@ from PySide6.QtWidgets import *
 from ui_HKP import *
 from HK_def import *
 
-from concurrent import futures
 import threading
 from itertools import cycle
 
@@ -64,6 +63,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
     
     def __init__(self):
         super().__init__()
+    
+        self.setFixedSize(686, 498)
         
         self.iam = HK     
         
@@ -103,8 +104,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.logpath=self.cfg.get(HK,'hk-log-location')
         
-        self.alert_label = self.cfg.get(HK, "hk-alert-label")  
-        self.alert_temperature = int(self.cfg.get(HK, "hk-alert-temperature"))
+        #self.alert_label = self.cfg.get(HK, "hk-alert-label")  
+        #self.alert_temperature = int(self.cfg.get(HK, "hk-alert-temperature"))
         
         self.tb_Monitor.setColumnWidth(0, self.tb_Monitor.width()/32 * 11)
         self.tb_Monitor.setColumnWidth(1, self.tb_Monitor.width()/32 * 7)
@@ -120,17 +121,22 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.iter_color = cycle(["white", "black"]) 
         self.iter_bgcolor = cycle(["red", "white"])
          
-        self.key_to_label = {}
+        key_to_label = {}
+        self.temp_normal, self.temp_lower, self.temp_upper = {},{},{}
         for k in label_list:
-            self.key_to_label[k] = self.cfg.get(HK, k)
+            hk_list = self.cfg.get(HK, k).split(",")
+            key_to_label[k] = hk_list[0]
+            self.temp_lower[k] = hk_list[1]
+            self.temp_normal[k] = hk_list[2]
+            self.temp_upper[k] = hk_list[3]
             
         self.dtvalue = dict()
-        self.dtvalue_from_label = DtvalueFromLabel(self.key_to_label, self.dtvalue)
+        self.dtvalue_from_label = DtvalueFromLabel(key_to_label, self.dtvalue)
         
         self.set_point = ["-999" for _ in range(5)]   #set point
         
         self.dpvalue = DEFAULT_VALUE
-        for key in self.key_to_label:
+        for key in key_to_label:
             self.dtvalue[key] = DEFAULT_VALUE
         
         self.heatlabel = dict() #heat value
@@ -140,9 +146,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
                                 
         # 0 - ENG_TOOLS, 1 - HK_SUB
         self.producer = [None, None]
-        
-        self.param = ""
-        
+                
+        self.alarm_status = ALM_OK
+        self.alarm_status_back = None
         self.alert_toggling = False
         self.monitoring_ready = False
         
@@ -248,7 +254,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
                         self.sts_monitor9, self.sts_monitor10, self.sts_monitor11, self.sts_monitor12,
                         self.sts_monitor13, self.sts_monitor14] 
                 
-        btn_txt = "Send Alert (T_%s>%d)" % (self.alert_label, self.alert_temperature)
+        #btn_txt = "Send Alert (T_%s>%d)" % (self.alert_label, self.alert_temperature)
+        btn_txt = "Send Alert"
         self.chk_alert.setText(btn_txt)
         self.chk_alert.setChecked(True)
         self.chk_alert.clicked.connect(self.toggle_alert)
@@ -287,7 +294,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         msg = "%s %s" % (ALIVE, HK)
         self.producer[ENG_TOOLS].send_message(self.hk_main_q, msg)
-    
+            
          
     #-------------------------------
     # main -> hk 
@@ -310,11 +317,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 
         msg = "receive: %s" % cmd
         self.log.send(self.iam, INFO, msg)
-        
-        if param[0] == ALIVE:
-            msg = "%s %s" % (ALIVE, HK)
-            self.producer[ENG_TOOLS].send_message(self.hk_main_q, msg)
-        
+            
         
     #-------------------------------
     # hk -> sub    
@@ -358,11 +361,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         msg = "receive: %s" % cmd
         self.log.send(self.iam, INFO, msg)
         param = cmd.split()
-        self.param = param[0]
         
         if param[0] == HK_REQ_COM_STS:
             self.com_status[TMC1] = bool(int(param[1]))            
-            self.check_ready()
             
         elif param[0] == HK_REQ_GETSETPOINT:
             self.set_point[0] = self.judge_value(param[1])
@@ -370,10 +371,10 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.save_setpoint(self.set_point)
         
         elif param[0] == HK_REQ_GETVALUE:
-            self.dtvalue[label_list[0]] = self.judge_value(param[1])
-            self.dtvalue[label_list[1]] = self.judge_value(param[2])
-            self.heatlabel[label_list[0]] = self.judge_value(param[3])
-            self.heatlabel[label_list[1]] = self.judge_value(param[4])
+            self.dtvalue[label_list[TMC1_A]] = self.judge_value(param[1])
+            self.dtvalue[label_list[TMC1_B]] = self.judge_value(param[2])
+            self.heatlabel[label_list[TMC1_A]] = self.judge_value(param[3])
+            self.heatlabel[label_list[TMC1_B]] = self.judge_value(param[4])
             
         elif param[0] == HK_REQ_MANUAL_CMD:
             res = "[TC1] %s" % param[1]
@@ -386,11 +387,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         msg = "receive: %s" % cmd
         self.log.send(self.iam, INFO, msg)
         param = cmd.split()
-        self.param = param[0]
         
         if param[0] == HK_REQ_COM_STS:
             self.com_status[TMC2] = bool(int(param[1]))            
-            self.check_ready()
         
         elif param[0] == HK_REQ_GETSETPOINT:
             self.set_point[2] = self.judge_value(param[1])
@@ -398,10 +397,10 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.save_setpoint(self.set_point)
             
         elif param[0] == HK_REQ_GETVALUE:
-            self.dtvalue[label_list[2]] = self.judge_value(param[1])
-            self.dtvalue[label_list[3]] = self.judge_value(param[2])
-            self.heatlabel[label_list[2]] = self.judge_value(param[3])
-            self.heatlabel[label_list[3]] = self.judge_value(param[4])
+            self.dtvalue[label_list[TMC2_A]] = self.judge_value(param[1])
+            self.dtvalue[label_list[TMC2_B]] = self.judge_value(param[2])
+            self.heatlabel[label_list[TMC2_A]] = self.judge_value(param[3])
+            self.heatlabel[label_list[TMC2_B]] = self.judge_value(param[4])
             
         elif param[0] == HK_REQ_MANUAL_CMD:
             res = "[TC2] %s" % param[1]
@@ -413,20 +412,18 @@ class MainWindow(Ui_Dialog, QMainWindow):
         msg = "receive: %s" % cmd
         self.log.send(self.iam, INFO, msg)
         param = cmd.split()
-        self.param = param[0]
         
         if param[0] == HK_REQ_COM_STS:
             self.com_status[TMC3] = bool(int(param[1]))            
-            self.check_ready()
             
         elif param[0] == HK_REQ_GETSETPOINT:
             self.set_point[4] = self.judge_value(param[1])
             self.save_setpoint(self.set_point)
         
         elif param[0] == HK_REQ_GETVALUE:
-            self.dtvalue[label_list[4]] = self.judge_value(param[1])
-            self.dtvalue[label_list[5]] = self.judge_value(param[2])
-            self.heatlabel[label_list[5]] = self.judge_value(param[3])
+            self.dtvalue[label_list[TMC3_A]] = self.judge_value(param[1])
+            self.dtvalue[label_list[TMC3_B]] = self.judge_value(param[2])
+            self.heatlabel[label_list[TMC3_B]] = self.judge_value(param[3])
             
         elif param[0] == HK_REQ_MANUAL_CMD:
             res = "[TC3] %s" % param[1]
@@ -438,11 +435,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         msg = "receive: %s" % cmd
         self.log.send(self.iam, INFO, msg)
         param = cmd.split()
-        self.param = param[0]
         
         if param[0] == HK_REQ_COM_STS:
             self.com_status[TM] = bool(int(param[1]))            
-            self.check_ready()
         
         elif param[0] == HK_REQ_GETVALUE:
             for i in range(TM_CNT):
@@ -459,11 +454,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         if len(cmd) < 80:
             self.log.send(self.iam, INFO, msg)
         param = cmd.split()
-        self.param = param[0]
         
         if param[0] == HK_REQ_COM_STS:
             self.com_status[VM] = bool(int(param[1]))            
-            self.check_ready()
             
         elif param[0] == HK_REQ_GETVALUE:
             if len(param[1]) > 10 or param[1] == DEFAULT_VALUE:
@@ -477,11 +470,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         msg = "receive: %s" % cmd
         self.log.send(self.iam, INFO, msg)
         param = cmd.split()
-        self.param = param[0]
         
         if param[0] == HK_REQ_COM_STS:
             self.com_status[PDU] = bool(int(param[1]))            
-            self.check_ready()
             
         elif param[0] == HK_REQ_PWR_STS:
             for i in range(PDU_IDX):
@@ -494,22 +485,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.log.send(self.iam, INFO, msg)
         param = cmd.split()
         
-        self.param = param[0]
         if param[0] == HK_REQ_UPLOAD_STS:
             self.uploade_status = True     
         
     #-------------------------------
-    # com sts monitoring
-    
-    def check_ready(self):
-        for i in range(COM_CNT-1):
-            if not self.com_status[i]:
-                break
-        if i == 6:
-            self.monitoring_ready = True
-            msg = "%s GOOD" % HK_STATUS
-            self.producer[ENG_TOOLS].send_message(self.hk_main_q, msg)
-            
+    # com sts monitoring                        
     
     def uploader_monitor(self):
         clr = "gray"
@@ -558,7 +538,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         sc.SaveConfig(self.cfg, self.ini_file)   #IGRINS.ini
         
-        
+    '''    
     def GetValuefromTempCtrl(self, port, idx, value, limit): 
         state = "warm"
         if abs(float(self.set_point[idx])-float(value)) >= limit or value == DEFAULT_VALUE:
@@ -566,8 +546,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         else:
             state = "normal"
         self.QShowValue(port, 0, value, state)
+    '''
 
-    
+   
     def judge_value(self, input):
         if input != DEFAULT_VALUE:
             value = "%.2f" % float(input)
@@ -595,6 +576,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
     def toggle_alert(self):
         if not self.chk_alert.isChecked():
             self.set_alert_status_off()
+            self.alarm_status = None
+            self.alarm_status_back = self.alarm_status
             
             
     def manaul_test(self, status):
@@ -608,6 +591,14 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
     #-----------------------------
     # strat process
+    
+    def sendTomain_status(self):        
+        if self.alarm_status_back == self.alarm_status:            
+            return
+        msg = "%s %s" % (HK_STATUS, self.alarm_status)
+        self.producer[ENG_TOOLS].send_message(self.hk_main_q, msg)
+        self.alarm_status_back = self.alarm_status
+        
        
     def startup(self):
         if not self.monitoring_ready:
@@ -623,6 +614,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
          
         
     def Periodic(self):
+        
         if self.chk_manual_test.isChecked():
             self.manaul_test(True)
             self.monitoring_ready = False
@@ -631,15 +623,13 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
             self.log.send(self.iam, INFO, "Periodic Monitoring paused")
             self.set_alert_status_off()
-            
+        
         else:   
             self.manaul_test(False)
             self.monitoring_ready = True
             
-            self.producer[HK_SUB].send_message(self.hk_sub_q, HK_REQ_GETSETPOINT)
-            ti.sleep(1)
             self.producer[HK_SUB].send_message(self.hk_sub_q, HK_START_MONITORING)
-                              
+                             
             self.log.send(self.iam, INFO, "Periodic Monitoring started")
             self.st_time = ti.time()
             
@@ -712,18 +702,18 @@ class MainWindow(Ui_Dialog, QMainWindow):
                       self.dtvalue_from_label["shieldtop"],  
                       self.dtvalue_from_label["air"]]  
 
-        if self.chk_alert.isChecked():
-            alert_status = "On(T>%d)" % self.alert_temperature
+        #alert_status = "On(T>%d)" % self.alert_temperature
+        if self.chk_alert.isChecked():    
+            alert_status = "On"
         else:
             alert_status = "Off"
-
         hk_entries.append(alert_status)
 
         # hk_entries to string
         updated_datetime = ti.strftime("%Y-%m-%d %H:%M:%S", ti.localtime())
         self.sts_updated.setText(updated_datetime)
 
-        str_log1 = "\t".join([updated_datetime] + list(map(str, hk_entries))) + "\n"    #by hilee
+        str_log1 = "\t".join([updated_datetime] + list(map(str, hk_entries))) + "\n"   
         file.write(str_log1)
         file.close()
 
@@ -750,14 +740,17 @@ class MainWindow(Ui_Dialog, QMainWindow):
         if not self.chk_alert.isChecked():
             return 
 
-        if self.check_temperature_danger():
+        if self.alarm_status == ALM_ERR or self.alarm_status == ALM_FAT:
             if not self.alert_toggling:
                 self.alert_toggling = True
                 self.set_alert_status_on()
         else:
-            self.set_alert_status_off()
+            if self.alert_toggling:
+                self.set_alert_status_off()
+                
+        self.sendTomain_status()           
             
-            
+    '''        
     def check_temperature_danger(self):
         # temperature of cold head #2
         label = self.alert_label
@@ -767,20 +760,18 @@ class MainWindow(Ui_Dialog, QMainWindow):
             return True
         else:
             return False
-        
+    '''    
         
     def set_alert_status_on(self):
-        
         if not self.chk_alert.isChecked():
+            return
+        if self.alarm_status == ALM_OK or self.alarm_status == ALM_WARN:
             return
         
         clr = next(self.iter_color)
         bg = next(self.iter_bgcolor)
         self.alert_status.setText("ALERT")
         self.QWidgetLabelColor(self.alert_status, clr, bg)
-        
-        msg = "%s ERROR" % HK_STATUS
-        self.producer[ENG_TOOLS].send_message(self.hk_main_q, msg)
         
         threading.Timer(1, self.set_alert_status_on).start()
                              
@@ -789,21 +780,47 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.alert_toggling = False
         self.alert_status.setText("Okay")
         self.QWidgetLabelColor(self.alert_status, "black", "white") 
-        
-        msg = "%s GOOD" % HK_STATUS
-        self.producer[ENG_TOOLS].send_message(self.hk_main_q, msg)
 
         
     #----------------------
     # about gui set
+    '''
     def QShowValue(self, row, col, text, state):
         #monitor = self.tb_Monitor.item(row, col)
         if state == "warm":
-            self.monitor[row][col].setForeground(QColor("red"))
+            self.monitor[row][col].setForeground(QColor("white"))
+            self.monitor[row][col].setBackground(QColor("red"))
         else:
             self.monitor[row][col].setForeground(QColor("black"))
+            self.monitor[row][col].setBackground(QColor("white"))
         #monitor.setText(text)
         self.monitor[row][col].setText(text)
+    '''
+    
+        
+    def QShowValue(self, row, col, label, limit):      
+        value = self.dtvalue[label]
+        if value == DEFAULT_VALUE:
+            self.monitor[row][col].setForeground(QColor("white"))
+            self.monitor[row][col].setBackground(QColor("orange"))
+            self.alarm_status = ALM_ERR
+            
+        elif abs(float(self.temp_normal[label]) - float(value)) < limit:
+            self.monitor[row][col].setForeground(QColor("green"))
+            self.monitor[row][col].setBackground(QColor("white"))
+            self.alarm_status = ALM_OK
+            
+        elif float(self.temp_lower[label]) <= float(value) <= float(self.temp_upper[label]):
+            self.monitor[row][col].setForeground(QColor("black"))
+            self.monitor[row][col].setBackground(QColor("yellow"))
+            self.alarm_status = ALM_WARN
+            
+        elif float(self.temp_upper[label]) < float(value):
+            self.monitor[row][col].setForeground(QColor("white"))
+            self.monitor[row][col].setBackground(QColor("red"))
+            self.alarm_status = ALM_FAT
+            
+        self.monitor[row][col].setText(value)
             
 
     def QShowValueVM(self, text, state):
@@ -842,19 +859,31 @@ class MainWindow(Ui_Dialog, QMainWindow):
             
     
     def data_processing(self):
+        # monitoring ready    
         if not self.monitoring_ready:
-            threading.Timer(1, self.data_processing).start()
-            return
-                    
-        if self.param == HK_REQ_COM_STS:                        
-            for idx in range(COM_CNT-1):
-                if not self.com_status[idx]:
-                    if not self.alert_toggling:
-                        self.alert_toggling = True
-                        self.set_alert_status_on()
-                    break 
-            self.param = ""
+            for i in range(COM_CNT-1):
+                if not self.com_status[i]:
+                    break
+            if i == 6:
+                self.monitoring_ready = True
+                self.alarm_status = ALM_OK
+                self.sendTomain_status()
+            else:
+                threading.Timer(1, self.data_processing).start()
+                return
+           
+        # communication port error                       
+        for idx in range(COM_CNT-1):
+            if not self.com_status[idx]:
+                if not self.alert_toggling:
+                    self.alert_toggling = True
+                    self.set_alert_status_on()                    
+                        
+                    self.alarm_status = ALM_ERR
+                    self.sendTomain_status()
+            break 
             
+        # show lamp
         self.tempctrl_monitor(self.com_status[TMC1], TMC1)               
         self.tempctrl_monitor(self.com_status[TMC2], TMC2*2)
         self.tempctrl_monitor(self.com_status[TMC3], TMC3*2)
@@ -867,34 +896,25 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.monitor[2][1].setText(self.set_point[2])
         self.monitor[3][1].setText(self.set_point[3])
         self.monitor[5][1].setText(self.set_point[4])
-                        
-        # from TMC
-        self.GetValuefromTempCtrl(TMC1_A, 0, self.dtvalue[label_list[0]], 1.0)
-        self.GetValuefromTempCtrl(TMC1_B, 1, self.dtvalue[label_list[1]], 0.1)
-        self.monitor[TMC1_A][2].setText(self.heatlabel[label_list[0]])
-        self.monitor[TMC1_B][2].setText(self.heatlabel[label_list[1]])
+               
+        # show value and color         
+        self.QShowValue(TMC1_A, 0, label_list[TMC1_A], 1.0)
+        self.QShowValue(TMC1_B, 0, label_list[TMC1_B], 0.1)
+        self.monitor[TMC1_A][2].setText(self.heatlabel[label_list[TMC1_A]])
+        self.monitor[TMC1_B][2].setText(self.heatlabel[label_list[TMC1_B]])
             
-        self.GetValuefromTempCtrl(TMC2_A, 2, self.dtvalue[label_list[2]], 0.1)
-        self.GetValuefromTempCtrl(TMC2_B, 3, self.dtvalue[label_list[3]], 0.1)
-        self.monitor[TMC2_A][2].setText(self.heatlabel[label_list[2]])
-        self.monitor[TMC2_B][2].setText(self.heatlabel[label_list[3]])
+        self.QShowValue(TMC2_A, 0, label_list[TMC2_A], 0.1)
+        self.QShowValue(TMC2_B, 0, label_list[TMC2_B], 0.1)
+        self.monitor[TMC2_A][2].setText(self.heatlabel[label_list[TMC2_A]])
+        self.monitor[TMC2_B][2].setText(self.heatlabel[label_list[TMC2_B]])
                 
-        if self.dtvalue[label_list[4]] == DEFAULT_VALUE:
-            state = "warm"
-        else:
-            state = "normal"     
-        self.QShowValue(TMC3_A, 0, self.dtvalue[label_list[4]], state)
-        self.GetValuefromTempCtrl(TMC3_B, 4, self.dtvalue[label_list[5]], 0.1)
-        self.monitor[TMC3_B][2].setText(self.heatlabel[label_list[5]])
+        self.QShowValue(TMC3_A, 0, label_list[TMC3_A], 0.1)
+        self.QShowValue(TMC3_B, 0, label_list[TMC3_B], 0.1)
+        self.monitor[TMC3_B][2].setText(self.heatlabel[label_list[TMC3_B]])
 
-        # from TM
         # for all
         for i in range(TM_CNT):
-            if self.dtvalue[label_list[TM_1+i]] == DEFAULT_VALUE:
-                state = "warm"
-            else:
-                state = "normal"
-            self.QShowValue(TM_1+i, 0, self.dtvalue[label_list[TM_1+i]], state)
+            self.QShowValue(TM_1+i, 0, label_list[TM_1+i], 0.1)
                 
         # from VM
         if self.dpvalue == DEFAULT_VALUE:

@@ -105,7 +105,6 @@ class monitor(threading.Thread) :
             
             ti.sleep(1)
             self.re_connect_to_component()
-            #threading.Timer(1, self.re_connect_to_component).start()
 
             
         msg = "%s %d" % (HK_REQ_COM_STS, self.comStatus)   
@@ -190,7 +189,6 @@ class monitor(threading.Thread) :
             self.log.send(self.iam, ERROR, "communication error") 
             ti.sleep(1)
             self.re_connect_to_component()
-            #threading.Timer(1, self.re_connect_to_component).start()
 
             return DEFAULT_VALUE
             
@@ -206,7 +204,6 @@ class monitor(threading.Thread) :
 
         ti.sleep(10)
         threading.Thread(target=self.start_monitoring).start()
-        #threading.Timer(10, self.start_monitoring).start()
     
     #-------------------------------
     # sub -> hk    

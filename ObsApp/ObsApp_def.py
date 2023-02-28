@@ -31,6 +31,10 @@ INFO = "INFO"
 WARNING = "WARNING"
 ERROR = "ERROR"
 
+MON_START = 1
+MON_READY = 0
+MON_EXIT = -1
+
 SERV_CONNECT_CNT = 3 #Inst.sequencer / hk Sub 7ea / DCS for ObsApp
 INST_SEQ = 0
 DCS = 1
@@ -56,6 +60,11 @@ UPLOADER = 6
 
 DEFAULT_VALUE = "-999"
 
+ALM_ERR = "ERROR"
+ALM_OK = "GOOD"
+ALM_WARN = "WARN"
+ALM_FAT = "FATAL"
+
 TMC1_A = 0
 TMC1_B = 1
 TMC2_A = 2
@@ -80,6 +89,7 @@ HK_REQ_UPLOAD_STS = "UploadDBStatus"    #uploader
 
 CMD_REQ_TEMP = "ReqTempInfo"    #from DCS
 CMD_SIMULATION = "Simulation"
+SUB_STATUS = "SubStatus"
 EXIT = "Exit"
 READY = "Ready"
 HK_STOP_MONITORING = "StopMonitoring"  

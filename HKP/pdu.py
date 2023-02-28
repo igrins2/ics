@@ -99,7 +99,6 @@ class pdu(threading.Thread) :
             self.log.send(self.iam, ERROR, msg)
             
             self.re_connect_to_component()
-            #threading.Timer(1, self.re_connect_to_component).start()
                         
         msg = "%s %d" % (HK_REQ_COM_STS, self.comStatus)   
         if self.gui:
@@ -148,7 +147,6 @@ class pdu(threading.Thread) :
                    
             self.comStatus = False
             self.re_connect_to_component()
-            #threading.Timer(1, self.re_connect_to_component).start()
         
                     
     def power_status(self, cmd):
@@ -186,7 +184,6 @@ class pdu(threading.Thread) :
             self.comStatus = False
             self.log.send(self.iam, ERROR, "communication error")
             self.re_connect_to_component()
-            #threading.Timer(1, self.re_connect_to_component).start()
             
 
     # on/off

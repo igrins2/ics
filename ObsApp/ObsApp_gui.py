@@ -12,7 +12,7 @@ import sys, os
 from ui_ObsApp import *
 from ObsApp_def import *
 
-from concurrent import futures
+import threading
 
 from PySide6.QtCore import *
 from PySide6.QtGui import *
@@ -61,8 +61,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
     def __init__(self, simul='0'):
         super().__init__()
         
-        cmd = "%sworkspace/ics/ObsApp/InstSeq.py" % WORKING_DIR
-        self.proc_InstSeq = subprocess.Popen(["python", cmd, simul])
+        self.setFixedSize(844, 596)
         
         self.iam = "ObsApp"
         
@@ -91,7 +90,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.ObsApp_sub_ex = cfg.get(MAIN, "hk_sub_exchange")     
         self.ObsApp_sub_q = cfg.get(MAIN, "hk_sub_routing_key")
         
-        self.alert_temperature = int(cfg.get(HK, "hk-alert-temperature"))
+        #self.alert_temperature = int(cfg.get(HK, "hk-alert-temperature"))
         
         self.ObsApp_svc_ex = cfg.get(DT, 'dt_dcs_exchange')     
         self.ObsApp_svc_q = cfg.get(DT, 'dt_dcs_routing_key')
@@ -103,18 +102,23 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.logpath = cfg.get(HK,'hk-log-location')
         
         self.com_list = ["tmc1", "tmc2", "tmc3", "tm", "vm", "pdu", "uploader"]
-        self.com_status = [False for _ in range(COM_CNT-1)]
+        self.com_status = [False for _ in range(COM_CNT)]
         self.power_status = [OFF for _ in range(PDU_IDX)]
         
-        self.key_to_label = {}
+        key_to_label = {}
+        self.temp_normal, self.temp_lower, self.temp_upper = {},{},{}
         for k in label_list:
-            self.key_to_label[k] = cfg.get(HK, k)
+            hk_list = cfg.get(HK, k).split(",")
+            key_to_label[k] = hk_list[0]
+            self.temp_lower[k] = hk_list[1]
+            self.temp_normal[k] = hk_list[2]
+            self.temp_upper[k] = hk_list[3]
             
         self.dtvalue = dict()
-        self.dtvalue_from_label = DtvalueFromLabel(self.key_to_label, self.dtvalue)
+        self.dtvalue_from_label = DtvalueFromLabel(key_to_label, self.dtvalue)
         
         self.dpvalue = DEFAULT_VALUE
-        for key in self.key_to_label:
+        for key in key_to_label:
             self.dtvalue[key] = DEFAULT_VALUE
             
         self.heatlabel = dict() #heat value
@@ -124,10 +128,12 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 
         self.uploade_start = 0
             
-        self.producer = [None, None]    # for Inst. Sequencer, DCS 
-        self.producer_sub = None        # for hardware subsystems
+        self.producer = [None, None, None]    # for Inst. Sequencer, Sub, DCS 
         
-        self.param = ["" for _ in range(SERV_CONNECT_CNT)]
+        self.param = ["" for _ in range(SERV_CONNECT_CNT-1)]
+        
+        self.alarm_status = ALM_OK
+        self.alarm_status_back = None
         
         #--------------------------------
         # 0 - H_K, 1 - SVC
@@ -143,7 +149,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.measure_T = 0
         #--------------------------------
         
-        self.monitoring_ready = False
+        self.monitoring = MON_READY
         
         self.label_vacuum.setText("---")
         self.label_temp_detH.setText("---")
@@ -163,24 +169,17 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.connect_to_server_dt_ex()
         self.connect_to_server_svc_q()
         
-        #from Inst.Seq
-        th = threading.Thread(target=self.InstSeq_data_processing)
-        th.daemon = True
-        th.start()
-        
-        #from SVC
-        th = threading.Thread(target=self.svc_data_processing)
-        th.daemon = True
-        th.start()
-
         self.startup()
         
+        self.InstSeq_data_processing()
+        self.sub_data_processing()
+        self.svc_data_processing()       
         
         
     def closeEvent(self, event: QCloseEvent) -> None:        
         
-        self.producer_sub.send_message(self.ObsApp_sub_q, HK_STOP_MONITORING) 
-        self.monitoring_ready = False
+        self.producer[HK_SUB].send_message(self.ObsApp_sub_q, HK_STOP_MONITORING) 
+        self.monitoring = MON_EXIT
         ti.sleep(2)
 
         self.log.send(self.iam, DEBUG, "Closing %s : " % sys.argv[0])
@@ -195,17 +194,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.producer[INST_SEQ].send_message(self.ObsApp_InstSeq_q, EXIT)  
 
-        for i in range(SERV_CONNECT_CNT-1):
+        for i in range(SERV_CONNECT_CNT):
             if self.producer[i] != None:
                 self.producer[i].__del__()
-        if self.producer_sub != None:
-            self.producer_sub.__del__()
-        self.producer_sub = None
+        self.producer[HK_SUB] = None
         
-        if self.proc_InstSeq != None:
-            self.proc_InstSeq.terminate()
-            self.log.send(self.iam, INFO, str(self.proc_InstSeq.pid) + " exit")
-
         self.log.send(self.iam, DEBUG, "Closed!") 
         
         return super().closeEvent(event)
@@ -260,9 +253,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
     #--------------------------------------------------------
     # ObsApp -> hardware subsystems
     def connect_to_server_hk_ex(self):
-        self.producer_sub = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.ObsApp_sub_ex)      
-        self.producer_sub.connect_to_server()
-        self.producer_sub.define_producer()
+        self.producer[HK_SUB] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.ObsApp_sub_ex)      
+        self.producer[HK_SUB].connect_to_server()
+        self.producer[HK_SUB].define_producer()
     
     
     #--------------------------------------------------------
@@ -287,7 +280,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             th.daemon = True
             th.start()
             
-        self.producer_sub.send_message(self.ObsApp_sub_q, HK_REQ_COM_STS)
+        self.producer[HK_SUB].send_message(self.ObsApp_sub_q, HK_REQ_COM_STS)
             
             
     def callback_tmc1(self, ch, method, properties, body):
@@ -298,7 +291,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         if param[0] == HK_REQ_COM_STS:
             self.com_status[TMC1] = bool(int(param[1]))            
-            self.check_ready()
         
         elif param[0] == HK_REQ_GETVALUE:
             self.dtvalue[label_list[0]] = self.judge_value(param[1])
@@ -317,7 +309,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         if param[0] == HK_REQ_COM_STS:
             self.com_status[TMC2] = bool(int(param[1]))            
-            self.check_ready()
         
         elif param[0] == HK_REQ_GETVALUE:
             self.dtvalue[label_list[2]] = self.judge_value(param[1])
@@ -325,11 +316,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.heatlabel[label_list[2]] = self.judge_value(param[3])
             self.heatlabel[label_list[3]] = self.judge_value(param[4])
             
-            self.label_temp_detS.setText(self.dtvalue[label_list[2]])
-            self.label_temp_detK.setText(self.dtvalue[label_list[3]])
-            self.label_heater_detS.setText(self.heatlabel[label_list[2]])
-            self.label_heater_detK.setText(self.heatlabel[label_list[3]])
-
     
     def callback_tmc3(self, ch, method, properties, body):
         cmd = body.decode()
@@ -339,16 +325,12 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         if param[0] == HK_REQ_COM_STS:
             self.com_status[TMC3] = bool(int(param[1]))            
-            self.check_ready()
         
         elif param[0] == HK_REQ_GETVALUE:
             self.dtvalue[label_list[4]] = self.judge_value(param[1])
             self.dtvalue[label_list[5]] = self.judge_value(param[2])
             self.heatlabel[label_list[5]] = self.judge_value(param[3])
             
-            self.label_temp_detH.setText(self.dtvalue[label_list[5]])
-            self.label_heater_detH.setText(self.heatlabel[label_list[5]])
-
             
     def callback_tm(self, ch, method, properties, body):
         cmd = body.decode()
@@ -358,7 +340,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         if param[0] == HK_REQ_COM_STS:
             self.com_status[TM] = bool(int(param[1]))            
-            self.check_ready()
         
         elif param[0] == HK_REQ_GETVALUE:
             for i in range(TM_CNT):
@@ -374,14 +355,12 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         if param[0] == HK_REQ_COM_STS:
             self.com_status[VM] = bool(int(param[1]))            
-            self.check_ready()
             
         elif param[0] == HK_REQ_GETVALUE:
             if len(param[1]) > 10 or param[1] == DEFAULT_VALUE:
                 self.dpvalue = DEFAULT_VALUE
             else:
                 self.dpvalue = param[1]
-            self.label_vacuum.setText(self.dpvalue)
         
     
     def callback_pdu(self, ch, method, properties, body):
@@ -392,7 +371,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         if param[0] == HK_REQ_COM_STS:
             self.com_status[PDU] = bool(int(param[1]))            
-            self.check_ready()
             
         elif param[0] == HK_REQ_PWR_STS:
             self.power_status[0] = param[1] 
@@ -438,29 +416,32 @@ class MainWindow(Ui_Dialog, QMainWindow):
     
 
     #--------------------------------------------------------
-    # functions
-    def check_ready(self):
-        for i in range(COM_CNT-1):
-            if not self.com_status[i]:
-                break
-        if i == 5:
-            self.monitoring_ready = True
-            
+    # strat process
+    
+    def sendTomain_status(self):        
+        if self.alarm_status_back == self.alarm_status:            
+            return
+        msg = "%s %s" % (SUB_STATUS, self.alarm_status)
+        self.producer[INST_SEQ].send_message(self.ObsApp_InstSeq_q, msg)
+        self.alarm_status_back = self.alarm_status
+        
             
     def startup(self):      
         #print('startup')
-        if not self.monitoring_ready:
+        if self.monitoring == MON_EXIT:
+            return
+        elif self.monitoring == MON_READY:
             threading.Timer(1, self.startup).start()
             return            
         
         # power on
-        self.producer_sub.send_message(self.ObsApp_sub_q, HK_REQ_PWR_STS) 
+        self.producer[HK_SUB].send_message(self.ObsApp_sub_q, HK_REQ_PWR_STS) 
         
         pwr_list = [ON, ON, OFF, OFF, OFF, OFF, OFF, OFF]
         self.power_onoff(pwr_list)
                             
         #print('start monitoring!!!')
-        self.producer_sub.send_message(self.ObsApp_sub_q, HK_START_MONITORING)
+        self.producer[HK_SUB].send_message(self.ObsApp_sub_q, HK_START_MONITORING)
         
         self.st_time = ti.time()
 
@@ -471,8 +452,10 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         
     def PeriodicFunc(self):   
+        if self.monitoring != MON_START:
+            return
         
-        if self.producer_sub == None:
+        if self.producer[HK_SUB] == None:
             return
                    
         _t = ti.time() - self.st_time
@@ -491,12 +474,15 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
                  
     def get_value(self):
-        self.producer_sub.send_message(self.ObsApp_sub_q, HK_REQ_GETVALUE)
+        self.producer[HK_SUB].send_message(self.ObsApp_sub_q, HK_REQ_GETVALUE)
                 
         
     def power_onoff(self, args):
-        msg = "%s %s" % (HK_REQ_PWR_ONOFF, args)
-        self.producer_sub.send_message(self.ObsApp_sub_q, msg)
+        pwr_list = ""
+        for i in range(PDU_IDX):
+            pwr_list += args[i] + " "
+        msg = "%s %s" % (HK_REQ_PWR_ONOFF, pwr_list)
+        self.producer[HK_SUB].send_message(self.ObsApp_sub_q, msg)
         
         
     def LoggingFun(self):     
@@ -524,24 +510,22 @@ class MainWindow(Ui_Dialog, QMainWindow):
                       self.dtvalue_from_label["shieldtop"],  
                       self.dtvalue_from_label["air"]]  
 
-        alert_status = "On(T>%d)" % self.alert_temperature
-
+        #alert_status = "On(T>%d)" % self.alert_temperature
+        alert_status = "On"
         hk_entries.append(alert_status)
 
         # hk_entries to string
         updated_datetime = ti.strftime("%Y-%m-%d %H:%M:%S", ti.localtime())
-        str_log1 = "\t".join([updated_datetime] + list(map(str, hk_entries))) + "\n"    #by hilee
+        str_log1 = "\t".join([updated_datetime] + list(map(str, hk_entries))) + "\n"    
         file.write(str_log1)
         file.close()
 
         upload = ti.time() - self.uploade_start
         #print("Logging time:", upload)
-        if upload >= LOGGING_INTERVAL:
-            self.uploade_status = False
-            
+        if upload >= LOGGING_INTERVAL:            
             str_log = "    ".join([updated_datetime] + list(map(str, hk_entries)))     
             msg = "%s %s" % (HK_REQ_UPLOAD_DB, str_log)
-            self.producer_sub.send_message(self.ObsApp_sub_q, msg)
+            self.producer[HK_SUB].send_message(self.ObsApp_sub_q, msg)
             
             self.uploade_start = ti.time()
         
@@ -558,6 +542,42 @@ class MainWindow(Ui_Dialog, QMainWindow):
             value = input
 
         return value
+    
+    #--------------------------------------------------------
+    # gui set
+    def QShowValue(self, widget, label, limit):
+        value = self.dtvalue[label]
+        if value == DEFAULT_VALUE:
+            self.QWidgetLabelColor(widget, "white", "orange")
+            self.alarm_status = ALM_ERR
+            msgbar = "%s is %s!!!" % (label, self.alarm_status)
+            
+        elif abs(float(self.temp_normal[label]) - float(value)) < limit:
+            self.QWidgetLabelColor(widget, "green", "white")
+            self.alarm_status = ALM_OK
+            msgbar = ""
+            
+        elif float(self.temp_lower[label]) <= float(value) <= float(self.temp_upper[label]):
+            self.QWidgetLabelColor(widget, "black", "yellow")
+            self.alarm_status = ALM_WARN
+            msgbar = "%s temperature %s!!!" % (label, self.alarm_status)
+            
+        elif float(self.temp_upper[label]) < float(value):
+            self.QWidgetLabelColor(widget, "white", "red")
+            self.alarm_status = ALM_FAT
+            msgbar = "%s temperature is too high!!!" % label 
+            
+        widget.setText(value)
+        self.label_messagebar.setText(msgbar)
+        
+    
+    def QWidgetLabelColor(self, widget, textcolor, bgcolor=None):
+        if bgcolor == None:
+            label = "QLabel {color:%s}" % textcolor
+            widget.setStyleSheet(label)
+        else:
+            label = "QLabel {color:%s;background:%s}" % (textcolor, bgcolor)
+            widget.setStyleSheet(label)
           
     #--------------------------------------------------------
     # button, event
@@ -618,81 +638,127 @@ class MainWindow(Ui_Dialog, QMainWindow):
     # thread - with GUI
             
     def InstSeq_data_processing(self):
-        while True:
-            if self.param[INST_SEQ] == "":
-                continue
-            
-            param = self.param[INST_SEQ].split()
-                
-            if param[0] == SHOW_TCS_INFO:
-                pass
-                        
-            elif param[0] == CMD_SETFSPARAM_ICS:
-                if param[1] == "DCSS":
-                    self.lineEdit_svc_exp_time.setText(param[3])
-                    self.label_svc_sampling_number.setText(param[5])
-                    _fowlerTime = float(param[7])
-                    self.cal_waittime[SVC] = T_br + (T_frame + _fowlerTime + (2 * T_frame * int(param[5])))
-                else:
-                    self.label_exp_time.setText(param[3])
-                    self.label_sampling_number.setText(param[5])
-                    _fowlerTime = float(param[7])
-                    self.cal_waittime[H_K] = T_br + (T_frame + _fowlerTime + (2 * T_frame * int(param[5])))
-                    
-            elif param[0] == CMD_ACQUIRERAMP_ICS:
-                if param[1] == "DCSS":
-                    #SVC progressbar
-                    self.prog_timer[SVC] = QTimer(self)
-                    self.prog_timer[SVC].setInterval(int(self.cal_waittime[SVC]*10))   
-                    self.prog_timer[SVC].timeout.connect(lambda: self.show_progressbar(SVC)) 
-                    
-                    self.cur_prog_step[SVC] = 0
-                    self.progressBar_obs.setValue(self.cur_prog_step[SVC])    
-                    self.prog_timer[SVC].start()   
-                else:
-                    #H, K progressbar
-                    self.prog_timer[H_K] = QTimer(self)
-                    self.prog_timer[H_K].setInterval(int(self.cal_waittime[H_K]*10))   
-                    self.prog_timer[H_K].timeout.connect(lambda: self.show_progressbar(H_K)) 
-                    
-                    self.cur_prog_step[H_K] = 0
-                    self.progressBar_obs.setValue(self.cur_prog_step[H_K])    
-                    self.prog_timer[H_K].start() 
-                    
-                    # elapsed               
-                    self.elapsed_obs_timer = QTimer(self) 
-                    self.elapsed_obs_timer.setInterval(0.001)
-                    self.elapsed_obs_timer.timeout.connect(self.show_elapsed)
+        if self.monitoring == MON_EXIT:
+            return
 
-                    self.elapsed_obs = self.cal_waittime[H_K]
-                    self.label_time_left.setText(self.elapsed_obs)    
-                    self.elapsed_obs_timer.start()
-                    
-            elif param[0] == CMD_COMPLETED:
-                if param[1] == "DCSS":
-                    self.prog_timer[SVC].stop()
-                else:
-                    self.prog_timer[H_K].stop()
-                    self.elapsed_obs_timer.stop()
-                    
-            self.param[INST_SEQ] = ""                    
-                    
+        if self.param[INST_SEQ] == "":
+            threading.Timer(1, self.InstSeq_data_processing).start()
+            return
+        
+        param = self.param[INST_SEQ].split()
             
+        if param[0] == SHOW_TCS_INFO:
+            pass
+                    
+        elif param[0] == CMD_SETFSPARAM_ICS:
+            if param[1] == "DCSS":
+                self.lineEdit_svc_exp_time.setText(param[3])
+                self.label_svc_sampling_number.setText(param[5])
+                _fowlerTime = float(param[7])
+                self.cal_waittime[SVC] = T_br + (T_frame + _fowlerTime + (2 * T_frame * int(param[5])))
+            else:
+                self.label_exp_time.setText(param[3])
+                self.label_sampling_number.setText(param[5])
+                _fowlerTime = float(param[7])
+                self.cal_waittime[H_K] = T_br + (T_frame + _fowlerTime + (2 * T_frame * int(param[5])))
+                
+        elif param[0] == CMD_ACQUIRERAMP_ICS:
+            if param[1] == "DCSS":
+                #SVC progressbar
+                self.prog_timer[SVC] = QTimer(self)
+                self.prog_timer[SVC].setInterval(int(self.cal_waittime[SVC]*10))   
+                self.prog_timer[SVC].timeout.connect(lambda: self.show_progressbar(SVC)) 
+                
+                self.cur_prog_step[SVC] = 0
+                self.progressBar_obs.setValue(self.cur_prog_step[SVC])    
+                self.prog_timer[SVC].start()   
+            else:
+                #H, K progressbar
+                self.prog_timer[H_K] = QTimer(self)
+                self.prog_timer[H_K].setInterval(int(self.cal_waittime[H_K]*10))   
+                self.prog_timer[H_K].timeout.connect(lambda: self.show_progressbar(H_K)) 
+                
+                self.cur_prog_step[H_K] = 0
+                self.progressBar_obs.setValue(self.cur_prog_step[H_K])    
+                self.prog_timer[H_K].start() 
+                
+                # elapsed               
+                self.elapsed_obs_timer = QTimer(self) 
+                self.elapsed_obs_timer.setInterval(0.001)
+                self.elapsed_obs_timer.timeout.connect(self.show_elapsed)
+
+                self.elapsed_obs = self.cal_waittime[H_K]
+                self.label_time_left.setText(self.elapsed_obs)    
+                self.elapsed_obs_timer.start()
+                
+        elif param[0] == CMD_COMPLETED:
+            if param[1] == "DCSS":
+                self.prog_timer[SVC].stop()
+            else:
+                self.prog_timer[H_K].stop()
+                self.elapsed_obs_timer.stop()
+                
+        self.param[INST_SEQ] = "" 
+        
+        threading.Timer(1, self.InstSeq_data_processing).start()
+                    
+                        
+    def sub_data_processing(self):
+        if self.monitoring == MON_EXIT:
+            return
+        
+        # monitoring ready    
+        if self.monitoring == MON_READY:
+            for i in range(COM_CNT):
+                if not self.com_status[i]:
+                    break
+            if i == 6:
+                self.monitoring = MON_START
+                self.alarm_status = ALM_OK
+                self.sendTomain_status()
+            else:
+                threading.Timer(1, self.sub_data_processing).start()
+                return
+           
+        # communication port error                       
+        for idx in range(COM_CNT):
+            if not self.com_status[idx]:
+                self.alarm_status = ALM_ERR
+                self.sendTomain_status()
+            break 
+                       
+        # show value and color                    
+        self.QShowValue(self.label_temp_detS, label_list[TMC2_A], 0.1)
+        self.QShowValue(self.label_temp_detK, label_list[TMC2_B], 0.1)
+        self.label_heater_detS.setText(self.heatlabel[label_list[TMC2_A]])
+        self.label_heater_detK.setText(self.heatlabel[label_list[TMC2_B]])
+        
+        self.QShowValue(self.label_temp_detH, label_list[TMC3_B], 0.1)
+        self.label_heater_detH.setText(self.heatlabel[label_list[TMC3_B]])
+                        
+        # from VM
+        self.label_vacuum.setText(self.dpvalue)
+
+        threading.Timer(1, self.sub_data_processing).start()
+        
             
     def svc_data_processing(self):
-        while True:
-            if self.param[DCS] == "":
-                continue
+        if self.monitoring == MON_EXIT:
+            return
+        
+        if self.param[DCS] == "":
+            threading.Timer(1, self.svc_data_processing).start()
+            return
             
-            self.param[DCS] = ""
+        self.param[DCS] = ""
+        threading.Timer(1, self.svc_data_processing).start()
     
 
 
 if __name__ == "__main__":
     
     app = QApplication()
-        
-    sys.argv.append('1')
+    #sys.argv.append('1')
     ObsApp = MainWindow(sys.argv[1])
     ObsApp.show()
         

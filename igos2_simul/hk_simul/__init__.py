@@ -215,8 +215,8 @@ HK["pdu"] = dict(com_resp=com_resp,
 # TMC1
 com_resp = [('SETP? 1', '+125.000\r\n'),
             ('SETP? 2', '+66.4000\r\n'),
-            ('KRDG? A', '+279.798\r\n'),
-            ('KRDG? B', '+278.798\r\n'),
+            ('KRDG? A', '+120.798\r\n'),
+            ('KRDG? B', '+130.798\r\n'),
             ('HTR? 1', '+000.0\r\n'),
             ('HTR? 2', '+000.0\r\n')]
 HK["tmc1"] = dict(com_resp=com_resp, default_resp=None)
@@ -225,8 +225,8 @@ HK["tmc1"] = dict(com_resp=com_resp, default_resp=None)
 # TMC2
 com_resp = [('SETP? 1', '+124.000\r\n'),
             ('SETP? 2', '+65.4000\r\n'),
-            ('KRDG? A', '+277.798\r\n'),
-            ('KRDG? B', '+276.798\r\n'),
+            ('KRDG? A', '+60.798\r\n'),
+            ('KRDG? B', '+66.798\r\n'),
             ('HTR? 1', '+000.0\r\n'),
             ('HTR? 2', '+000.0\r\n')]
 HK["tmc2"] = dict(com_resp=com_resp, default_resp=None)
@@ -234,22 +234,22 @@ HK["tmc2"] = dict(com_resp=com_resp, default_resp=None)
 # TMC3
 com_resp = [('SETP? 1', '+65.4000\r\n'),
             ('SETP? 2', '+66.4000\r\n'),
-            ('KRDG? A', '+275.798\r\n'),
-            ('KRDG? B', '+274.798\r\n'),
+            ('KRDG? A', '+65.798\r\n'),
+            ('KRDG? B', '+65.798\r\n'),
             ('HTR? 1', '+000.0\r\n'),
             ('HTR? 2', '+000.0\r\n')]
 HK["tmc3"] = dict(com_resp=com_resp, default_resp=None)
 
 # TM
-com_resp = [('KRDG? 1', '+285.81\r\n'),
-            ('KRDG? 2', '+284.81\r\n'),
-            ('KRDG? 3', '+283.81\r\n'),
-            ('KRDG? 4', '+282.81\r\n'),
-            ('KRDG? 5', '+281.81\r\n'),
-            ('KRDG? 6', '+280.81\r\n'),
-            ('KRDG? 7', '+279.81\r\n'),
-            ('KRDG? 8', '+278.81\r\n'),
-            ('KRDG? 0', '+285.81,+284.81,+283.81,+282.81,+280.81,+278.81,+279.81,+278.81\r\n')]
+com_resp = [('KRDG? 1', '+120.81\r\n'),
+            ('KRDG? 2', '+62.81\r\n'),
+            ('KRDG? 3', '+16.81\r\n'),
+            ('KRDG? 4', '+120.81\r\n'),
+            ('KRDG? 5', '+35.81\r\n'),
+            ('KRDG? 6', '+66.81\r\n'),
+            ('KRDG? 7', '+280.81\r\n'),
+            ('KRDG? 8', '+280.81\r\n'),
+            ('KRDG? 0', '+120.81,+62.81,+16.81,+120.81,+35.81,+66.81,+280.81,+280.81\r\n')]
 HK["tm"] = dict(com_resp=com_resp, default_resp=None)
 
 # VGM

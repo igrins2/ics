@@ -105,7 +105,6 @@ class temp_ctrl(threading.Thread):
             
             self.re_connect_to_component()
             
-            #threading.Timer(1, self.re_connect_to_component).start()
             
         msg = "%s %d" % (HK_REQ_COM_STS, self.comStatus)   
         if self.gui:
@@ -193,7 +192,6 @@ class temp_ctrl(threading.Thread):
             self.comStatus = False
             self.log.send(self.iam, ERROR, "communication error") 
             self.re_connect_to_component()
-            #threading.Timer(1, self.re_connect_to_component).start()
 
             return DEFAULT_VALUE
             
@@ -244,19 +242,21 @@ class temp_ctrl(threading.Thread):
             msg = "%s %d" % (param[0], self.comStatus)   
             self.producer.send_message(self.iam+'.q', msg)
             
-        elif param[0] == HK_REQ_GETSETPOINT:
+        elif param[0] == HK_START_MONITORING:
+            
+            # HK_REQ_GETSETPOINT
             if self.iam != "tmc3":
                 self.setpoint[0] = self.get_setpoint(1)
                 ti.sleep(1)
             self.setpoint[1] = self.get_setpoint(2)
             
             if self.iam != "tmc3":
-                msg = "%s %s %s" % (param[0], self.setpoint[0], self.setpoint[1]) 
+                msg = "%s %s %s" % (HK_REQ_GETSETPOINT, self.setpoint[0], self.setpoint[1]) 
             else:
-                msg = "%s %s" % (param[0], self.setpoint[1])
+                msg = "%s %s" % (HK_REQ_GETSETPOINT, self.setpoint[1])
             self.producer.send_message(self.iam+'.q', msg)
             
-        elif param[0] == HK_START_MONITORING:
+            # HK_START_MONITORING            
             self.monit = True
             self.start_monitoring()
             

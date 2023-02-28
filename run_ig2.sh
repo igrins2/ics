@@ -6,7 +6,7 @@ PYTHONBIN=/home/ics/miniconda3/envs/igos2n/bin/python
 
 case "$1" in
         obs)
-	    (cd ObsApp; $PYTHONBIN ObsApp_gui.py 0)
+	    (cd ObsApp; $PYTHONBIN InstSeq.py 0)
             ;;
          
         eng)
@@ -14,7 +14,7 @@ case "$1" in
             ;;
          
         obs-simul)
-	    (cd ObsApp; $PYTHONBIN ObsApp_gui.py 1)
+	    (cd ObsApp; $PYTHONBIN InstSeq.py 1)
             ;;
         *)
             echo $"Usage: $0 {obs|eng|obs-simul}"
