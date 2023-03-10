@@ -10,7 +10,9 @@ Modified on Dec 15, 2022
 
 # -----------------------------------------------------------
 # definition: constant
-COM_CNT = 8
+SUB_CNT = 9 #whole subsystems
+
+COM_CNT = 6 #hardware without motors
 PDU_IDX = 8
 TM_CNT = 8
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
@@ -44,8 +46,9 @@ VM = 4
 PDU = 5
 LT = 6
 UT = 7
+UPLOADER = 8
 
-UPLOADER = 6
+
 
 # ---------------------------
 ON = "on"
@@ -84,12 +87,11 @@ MOTOR_ERR = 100
 HK_REQ_COM_STS = "ComPortStatus"
 
 HK_REQ_GETSETPOINT = "GetSetPoint"  #temp_ctrl
-HK_START_MONITORING = "StartMonitoring" #temp_ctrl, tm, vm
-HK_STOP_MONITORING = "StopMonitoring"   #temp_ctrl, tm, vm
 
 HK_REQ_GETVALUE = "GetValue"  #temp_ctrl, tm, vm
 
 HK_REQ_MANUAL_CMD = "SendManualCommand" #temp_ctrl, tm
+HK_REQ_CLI_CMD = "SendCLICommand"   #temp_ctrl, tm, vm, pdu, motor
 
 HK_REQ_PWR_STS = "PowerStatus"  #pdu
 HK_REQ_PWR_ONOFF = "PowerOnOff" #pdu

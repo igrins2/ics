@@ -5,18 +5,23 @@ export IGRINS_CONFIG=/IGRINS/TEST/Config/IGRINS.ini,/IGRINS/TEST/Config/IGRINS_t
 PYTHONBIN=/home/ics/miniconda3/envs/igos2n/bin/python
 
 case "$1" in
-        obs)
-	    (cd ObsApp; $PYTHONBIN InstSeq.py 0)
+	sub)
+	    (cd HKP; $PYTHONBIN start_sub.py)
             ;;
-         
-        eng)
-	    (cd EngTools; $PYTHONBIN EngTools_gui.py)
+
+        obs)
+	    (cd ObsApp; $PYTHONBIN ObsApp_gui.py)
             ;;
          
         obs-simul)
-	    (cd ObsApp; $PYTHONBIN InstSeq.py 1)
+	    (cd ObsApp; $PYTHONBIN ObsApp_gui.py 1)
             ;;
+
+	eng)
+	    (cd EngTools; $PYTHONBIN EngTools_gui.py)
+            ;;
+         
         *)
-            echo $"Usage: $0 {obs|eng|obs-simul}"
+            echo $"Usage: $0 {sub|obs|obs-simul|eng}"
             exit 1
 esac

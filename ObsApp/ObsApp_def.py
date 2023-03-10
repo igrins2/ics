@@ -22,7 +22,8 @@ DT = "DT"
 
 PDU_IDX = 8
 TM_CNT = 8
-COM_CNT = 7
+SUB_CNT = 7
+COM_CNT = 6
 DC_CNT = 3
 
 # LOG option
@@ -31,17 +32,14 @@ INFO = "INFO"
 WARNING = "WARNING"
 ERROR = "ERROR"
 
-MON_START = 1
-MON_READY = 0
-MON_EXIT = -1
-
-SERV_CONNECT_CNT = 3 #Inst.sequencer / hk Sub 7ea / DCS for ObsApp
+SERV_CONNECT_CNT = 3 #Inst.sequencer / SVC / SUB
 INST_SEQ = 0
-DCS = 1
+DCSS = 1
 HK_SUB = 2
 
 SVC = 0
 H_K = 1
+
 H = 1
 K = 2
 
@@ -82,7 +80,6 @@ HK_REQ_PWR_STS = "PowerStatus"  #pdu
 HK_REQ_PWR_ONOFF = "PowerOnOff" #pdu
 
 HK_REQ_COM_STS = "ComPortStatus"
-HK_START_MONITORING = "StartMonitoring" #temp_ctrl, tm, vm
 HK_REQ_GETVALUE = "GetValue"  #temp_ctrl, tm, vm
 HK_REQ_UPLOAD_DB = "UploadDB"   #uploader
 HK_REQ_UPLOAD_STS = "UploadDBStatus"    #uploader
@@ -91,10 +88,14 @@ CMD_REQ_TEMP = "ReqTempInfo"    #from DCS
 CMD_SIMULATION = "Simulation"
 SUB_STATUS = "SubStatus"
 EXIT = "Exit"
+ALIVE = "Alive"
 READY = "Ready"
-HK_STOP_MONITORING = "StopMonitoring"  
 SHOW_TCS_INFO = "ShowTCSInfo"
+
+CMD_INIT2_DONE = "Initialize2_Done" # to DCS
 CMD_INITIALIZE2_ICS = "Initialize2_ics"
 CMD_SETFSPARAM_ICS = "SetFSParam_ics"
 CMD_ACQUIRERAMP_ICS = "ACQUIRERAMP_ics"
+CMD_STOPACQUISITION = "STOPACQUISITION"
+
 CMD_COMPLETED = "Completed"

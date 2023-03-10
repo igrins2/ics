@@ -61,9 +61,13 @@ class MainWindow(Ui_Dialog, QMainWindow):
     def __init__(self, simul='0'):
         super().__init__()
         
+        cmd = "%sworkspace/ics/ObsApp/InstSeq.py" % WORKING_DIR
+        self.proc_InstSeq = subprocess.Popen(["python", cmd, simul])
+        
         self.setFixedSize(844, 596)
         
         self.iam = "ObsApp"
+        self.simulation = bool(int(simul))
         
         self.log = LOG(WORKING_DIR + "IGRINS", self.iam)  
         self.log.send(self.iam, INFO, "start")
@@ -89,19 +93,15 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
         self.ObsApp_sub_ex = cfg.get(MAIN, "hk_sub_exchange")     
         self.ObsApp_sub_q = cfg.get(MAIN, "hk_sub_routing_key")
-        
-        #self.alert_temperature = int(cfg.get(HK, "hk-alert-temperature"))
-        
+                
         self.ObsApp_svc_ex = cfg.get(DT, 'dt_dcs_exchange')     
         self.ObsApp_svc_q = cfg.get(DT, 'dt_dcs_routing_key')
-        self.svc_ObsApp_ex = cfg.get(DT, 'dcs_dt_exchange')
-        self.svc_ObsApp_q = cfg.get(DT, 'dcs_dt_routing_key')
         
         self.Period = int(cfg.get(HK,'hk-monitor-intv'))
         
         self.logpath = cfg.get(HK,'hk-log-location')
         
-        self.com_list = ["tmc1", "tmc2", "tmc3", "tm", "vm", "pdu", "uploader"]
+        self.sub_list = ["tmc1", "tmc2", "tmc3", "tm", "vm", "pdu", "uploader"]
         self.com_status = [False for _ in range(COM_CNT)]
         self.power_status = [OFF for _ in range(PDU_IDX)]
         
@@ -128,15 +128,19 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 
         self.uploade_start = 0
             
-        self.producer = [None, None, None]    # for Inst. Sequencer, Sub, DCS 
+        self.producer = [None for _ in range(SERV_CONNECT_CNT)]    # for Inst. Sequencer, Sub, DCS 
         
-        self.param = ["" for _ in range(SERV_CONNECT_CNT-1)]
+        self.param_InstSeq = ""
+        self.param_svc = ""
         
         self.alarm_status = ALM_OK
         self.alarm_status_back = None
         
         #--------------------------------
         # 0 - H_K, 1 - SVC
+        
+        self.cur_cnt = 0
+        
         self.cal_waittime = [0, 0]
                 
         # progress bar     
@@ -148,9 +152,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.elapsed_obs = None
         self.measure_T = 0
         #--------------------------------
-        
-        self.monitoring = MON_READY
-        
+                
         self.label_vacuum.setText("---")
         self.label_temp_detH.setText("---")
         self.label_temp_detK.setText("---")
@@ -169,19 +171,29 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.connect_to_server_dt_ex()
         self.connect_to_server_svc_q()
         
-        self.startup()
-        
         self.InstSeq_data_processing()
-        self.sub_data_processing()
-        self.svc_data_processing()       
+        
+        self.monit_timer = QTimer(self)
+        self.monit_timer.setInterval(self.Period)
+        self.monit_timer.timeout.connect(self.LoggingFun)
+        
+        self.show_sub_timer = QTimer(self)
+        self.show_sub_timer.setInterval(self.Period/2)
+        self.show_sub_timer.timeout.connect(self.sub_data_processing)
+        
+        self.show_dcs_timer = QTimer(self)
+        self.show_dcs_timer.setInterval(0.1)
+        self.show_dcs_timer.timeout.connect(self.svc_data_processing)     
+        self.show_dcs_timer.start()
+                
+        self.startup()
         
         
     def closeEvent(self, event: QCloseEvent) -> None:        
         
-        self.producer[HK_SUB].send_message(self.ObsApp_sub_q, HK_STOP_MONITORING) 
-        self.monitoring = MON_EXIT
-        ti.sleep(2)
-
+        self.monit_timer.stop()
+        self.show_sub_timer.stop()
+        
         self.log.send(self.iam, DEBUG, "Closing %s : " % sys.argv[0])
         self.log.send(self.iam, DEBUG, "This may take several seconds waiting for threads to close")       
 
@@ -198,7 +210,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
             if self.producer[i] != None:
                 self.producer[i].__del__()
         self.producer[HK_SUB] = None
-        
+
+        if self.proc_InstSeq != None:
+            self.proc_InstSeq.terminate()
+            self.log.send(self.iam, INFO, str(self.proc_InstSeq.pid) + " exit")
+                    
         self.log.send(self.iam, DEBUG, "Closed!") 
         
         return super().closeEvent(event)
@@ -245,9 +261,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
     def callback_InstSeq(self, ch, method, properties, body):
         cmd = body.decode()
         msg = "receive: %s" % cmd
-    
-        self.param[INST_SEQ] = cmd
-        param = cmd.split()        
+        self.log.send(self.iam, INFO, msg)
+        self.param_InstSeq = cmd
         
     
     #--------------------------------------------------------
@@ -261,26 +276,24 @@ class MainWindow(Ui_Dialog, QMainWindow):
     #--------------------------------------------------------
     # hardware subsystems -> ObsApp
     def connect_to_server_sub_q(self):
-        sub_ObsApp_ex = [self.com_list[i]+'.ex' for i in range(COM_CNT)]
-        consumer = [None for _ in range(COM_CNT)]
-        for idx in range(COM_CNT):
+        sub_ObsApp_ex = [self.sub_list[i]+'.ex' for i in range(SUB_CNT)]
+        consumer = [None for _ in range(SUB_CNT)]
+        for idx in range(SUB_CNT):
             consumer[idx] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, sub_ObsApp_ex[idx])              
             consumer[idx].connect_to_server()
                 
-        consumer[TMC1].define_consumer(self.com_list[TMC1]+'.q', self.callback_tmc1)       
-        consumer[TMC2].define_consumer(self.com_list[TMC2]+'.q', self.callback_tmc2)
-        consumer[TMC3].define_consumer(self.com_list[TMC3]+'.q', self.callback_tmc3)
-        consumer[TM].define_consumer(self.com_list[TM]+'.q', self.callback_tm)
-        consumer[VM].define_consumer(self.com_list[VM]+'.q', self.callback_vm)
-        consumer[PDU].define_consumer(self.com_list[PDU]+'.q', self.callback_pdu)
-        consumer[UPLOADER].define_consumer(self.com_list[UPLOADER]+'.q', self.callback_uploader)
+        consumer[TMC1].define_consumer(self.sub_list[TMC1]+'.q', self.callback_tmc1)       
+        consumer[TMC2].define_consumer(self.sub_list[TMC2]+'.q', self.callback_tmc2)
+        consumer[TMC3].define_consumer(self.sub_list[TMC3]+'.q', self.callback_tmc3)
+        consumer[TM].define_consumer(self.sub_list[TM]+'.q', self.callback_tm)
+        consumer[VM].define_consumer(self.sub_list[VM]+'.q', self.callback_vm)
+        consumer[PDU].define_consumer(self.sub_list[PDU]+'.q', self.callback_pdu)
+        consumer[UPLOADER].define_consumer(self.sub_list[UPLOADER]+'.q', self.callback_uploader)
         
-        for idx in range(COM_CNT):
+        for idx in range(SUB_CNT):
             th = threading.Thread(target=consumer[idx].start_consumer)
             th.daemon = True
             th.start()
-            
-        self.producer[HK_SUB].send_message(self.ObsApp_sub_q, HK_REQ_COM_STS)
             
             
     def callback_tmc1(self, ch, method, properties, body):
@@ -391,17 +404,17 @@ class MainWindow(Ui_Dialog, QMainWindow):
     #--------------------------------------------------------
     # ObsApp -> DC core
     def connect_to_server_dt_ex(self):
-        self.producer[DCS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.ObsApp_svc_ex)      
-        self.producer[DCS].connect_to_server()
-        self.producer[DCS].define_producer()
+        self.producer[DCSS] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.ObsApp_svc_ex)      
+        self.producer[DCSS].connect_to_server()
+        self.producer[DCSS].define_producer()
     
     
     #--------------------------------------------------------
     # DC core -> ObsApp
     def connect_to_server_svc_q(self):
-        consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.svc_ObsApp_ex)      
+        consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, "DCSS.ex")      
         consumer.connect_to_server()
-        consumer.define_consumer(self.svc_ObsApp_q, self.callback_svc)       
+        consumer.define_consumer("DCSS.q", self.callback_svc)       
         
         th = threading.Thread(target=consumer.start_consumer)
         th.daemon = True
@@ -411,9 +424,10 @@ class MainWindow(Ui_Dialog, QMainWindow):
     def callback_svc(self, ch, method, properties, body):
         cmd = body.decode()
         msg = "receive: %s" % cmd
+        self.log.send(self.iam, INFO, msg)
+        self.param_svc = cmd
         
-        self.param[DCS] = cmd
-    
+            
 
     #--------------------------------------------------------
     # strat process
@@ -427,55 +441,18 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
             
     def startup(self):      
-        #print('startup')
-        if self.monitoring == MON_EXIT:
-            return
-        elif self.monitoring == MON_READY:
-            threading.Timer(1, self.startup).start()
-            return            
-        
-        # power on
         self.producer[HK_SUB].send_message(self.ObsApp_sub_q, HK_REQ_PWR_STS) 
         
         pwr_list = [ON, ON, OFF, OFF, OFF, OFF, OFF, OFF]
         self.power_onoff(pwr_list)
-                            
-        #print('start monitoring!!!')
-        self.producer[HK_SUB].send_message(self.ObsApp_sub_q, HK_START_MONITORING)
+                                            
+        self.uploade_start = ti.time()   
+        self.monit_timer.start()
+        self.show_sub_timer.start()
         
-        self.st_time = ti.time()
-
-        self.get_value()
-        self.PeriodicFunc()
-        
-        self.uploade_start = ti.time()    
-        
-        
-    def PeriodicFunc(self):   
-        if self.monitoring != MON_START:
-            return
-        
-        if self.producer[HK_SUB] == None:
-            return
-                   
-        _t = ti.time() - self.st_time
-        if _t < self.Period:
-            threading.Timer(0.5, self.PeriodicFunc).start()
-            return
-
-        self.st_time = ti.time()
-        self.get_value()
-        self.st = ti.time()            
-    
-        threading.Timer(0.5, self.PeriodicFunc).start()
-        self.log.send(self.iam, INFO, "PeriodicFunc")
-
-        threading.Timer(2, self.LoggingFun).start()
-        
-                 
-    def get_value(self):
-        self.producer[HK_SUB].send_message(self.ObsApp_sub_q, HK_REQ_GETVALUE)
-                
+        msg = "%s %s %d" % (CMD_INIT2_DONE, "all", self.simulation)
+        self.producer[DCSS].send_message(self.ObsApp_svc_q, msg)
+                                    
         
     def power_onoff(self, args):
         pwr_list = ""
@@ -528,11 +505,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
             self.producer[HK_SUB].send_message(self.ObsApp_sub_q, msg)
             
             self.uploade_start = ti.time()
-        
-        # update log_time with Z0
-        log_date, log_time = updated_datetime.split()
-        hk_dict = hk_entries_to_dict(log_date, log_time, hk_entries)
-        hk_dict.update(self.dtvalue_from_label.as_dict())
 
 
     def judge_value(self, input):
@@ -638,14 +610,11 @@ class MainWindow(Ui_Dialog, QMainWindow):
     # thread - with GUI
             
     def InstSeq_data_processing(self):
-        if self.monitoring == MON_EXIT:
-            return
-
-        if self.param[INST_SEQ] == "":
+        if self.param_InstSeq == "":
             threading.Timer(1, self.InstSeq_data_processing).start()
             return
         
-        param = self.param[INST_SEQ].split()
+        param = self.param_InstSeq.split()
             
         if param[0] == SHOW_TCS_INFO:
             pass
@@ -698,28 +667,12 @@ class MainWindow(Ui_Dialog, QMainWindow):
                 self.prog_timer[H_K].stop()
                 self.elapsed_obs_timer.stop()
                 
-        self.param[INST_SEQ] = "" 
+        self.param_InstSeq = "" 
         
         threading.Timer(1, self.InstSeq_data_processing).start()
                     
                         
     def sub_data_processing(self):
-        if self.monitoring == MON_EXIT:
-            return
-        
-        # monitoring ready    
-        if self.monitoring == MON_READY:
-            for i in range(COM_CNT):
-                if not self.com_status[i]:
-                    break
-            if i == 6:
-                self.monitoring = MON_START
-                self.alarm_status = ALM_OK
-                self.sendTomain_status()
-            else:
-                threading.Timer(1, self.sub_data_processing).start()
-                return
-           
         # communication port error                       
         for idx in range(COM_CNT):
             if not self.com_status[idx]:
@@ -738,20 +691,26 @@ class MainWindow(Ui_Dialog, QMainWindow):
                         
         # from VM
         self.label_vacuum.setText(self.dpvalue)
+        
+            
+    def svc_data_processing(self):        
+        if self.param_svc == "":
+            return
+        
+        param = self.param_svc.split()
+        
+        if param[0] == CMD_INIT2_DONE or param[0] == CMD_INITIALIZE2_ICS:
+            pass
 
-        threading.Timer(1, self.sub_data_processing).start()
-        
+        elif param[0] == CMD_SETFSPARAM_ICS or param[0] == CMD_ACQUIRERAMP_ICS:   
+                                 
+            self.cur_cnt += 1            
+            self.label_svc_state.setText("Done")
             
-    def svc_data_processing(self):
-        if self.monitoring == MON_EXIT:
-            return
-        
-        if self.param[DCS] == "":
-            threading.Timer(1, self.svc_data_processing).start()
-            return
+        elif param[0] == CMD_STOPACQUISITION:
             
-        self.param[DCS] = ""
-        threading.Timer(1, self.svc_data_processing).start()
+            
+        self.param_svc = ""
     
 
 

@@ -10,9 +10,6 @@ Modified on
 import os, sys
 import threading
 
-import subprocess
-#import time as ti
-
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
 from ObsApp.ObsApp_def import *
@@ -51,9 +48,7 @@ class Inst_Seq(threading.Thread):
         
         # 0 - ObsApp, 1 - DCS
         self.producer = [None, None]
-                
-        self.proc_sub = [None for _ in range(COM_CNT)]
-        
+                        
         self.simulation_mode = bool(int(simul))
         self.exptime_obs = 0.0
         self.exptime_svc = 0.0
@@ -69,37 +64,12 @@ class Inst_Seq(threading.Thread):
         
         self.connect_to_server_dt_ex()
         self.connect_to_server_dcs_q()
-        
-        self.proc_simul = None
-        if bool(int(simul)):
-            cmd = "%sworkspace/ics/igos2_simul/run_hk_simulator.py" % WORKING_DIR
-            self.proc_simul = subprocess.Popen(["python", cmd])
-            
-        ti.sleep(3)
-            
-        self.start_sub_system(simul) 
-        
-        cmd = "%sworkspace/ics/ObsApp/ObsApp_gui.py" % WORKING_DIR
-        self.proc_ObsApp = subprocess.Popen(["python", cmd, simul])
-                 
+                                     
         
     def __del__(self):
         msg = "Closing %s" % self.iam
         self.log.send(self.iam, DEBUG, msg)
-        
-        for i in range(COM_CNT):
-            if self.proc_sub[i] != None:
-                self.proc_sub[i].terminate()
-                self.log.send(self.iam, INFO, str(self.proc_sub[i].pid) + " exit")                
-
-        if self.proc_simul != None:
-            self.proc_simul.terminate()
-            self.log.send(self.iam, INFO, str(self.proc_simul.pid) + " exit")        
-                
-        if self.proc_ObsApp != None:
-            self.proc_ObsApp.terminate()
-            self.log.send(self.iam, INFO, str(self.proc_ObsApp.pid) + " exit")
-            
+                    
         for th in threading.enumerate():
             self.log.send(self.iam, INFO, th.name + " exit.")
             
@@ -107,37 +77,9 @@ class Inst_Seq(threading.Thread):
             self.producer[i].__del__()  
 
         self.log.send(self.iam, DEBUG, "Closed!") 
-        exit()
+        #exit()
         
     
-    def start_sub_system(self, simul):
-                
-        comport = []
-        com_list = ["tmc1", "tmc2", "tmc3", "tm", "vm", "pdu", "uploader"]
-        for name in com_list:
-            if name != com_list[UPLOADER]:
-                comport.append(self.cfg.get(HK, name + "-port"))
-    
-        for i in range(COM_CNT-1):
-            if self.proc_sub[i] != None:
-                continue
-                
-            if i <= TMC3:
-                cmd = "%sworkspace/ics/HKP/temp_ctrl.py" % WORKING_DIR
-                self.proc_sub[i] = subprocess.Popen(['python', cmd, comport[i], simul])
-            elif i == TM or i == VM:
-                cmd = "%sworkspace/ics/HKP/monitor.py" % WORKING_DIR
-                self.proc_sub[i] = subprocess.Popen(['python', cmd, comport[i], simul])
-            elif i == PDU:
-                cmd = "%sworkspace/ics/HKP/pdu.py" % WORKING_DIR
-                self.proc_sub[i] = subprocess.Popen(['python', cmd, simul])              
-                        
-        if self.proc_sub[UPLOADER] == None:
-            cmd = "%sworkspace/ics/HKP/uploader.py" % WORKING_DIR
-            self.proc_sub[UPLOADER] = subprocess.Popen(['python', cmd, simul]) 
-                
-            
-            
     #--------------------------------------------------------
     # ObsApp -> Inst. Sequencer
     def connect_to_server_InstSeq_ex(self):
@@ -262,6 +204,6 @@ class Inst_Seq(threading.Thread):
 
 if __name__ == "__main__":
         
-    sys.argv.append('1')
+    #sys.argv.append('1')
     Inst_Seq(sys.argv[1])
     

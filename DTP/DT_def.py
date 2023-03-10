@@ -26,6 +26,10 @@ INFO = "INFO"
 WARNING = "WARNING"
 ERROR = "ERROR"
 
+SIMUL_MODE = 1
+REAL_MODE = 0
+NONE_MODE = -1
+
 PDU_IDX = 8
 
 FOWLER_MODE = 3
@@ -75,11 +79,11 @@ PINHOLE = 2
 USAF = 3
 MOTOR_LT_POS = [DARK_MIRROR, EMPTY, EMPTY, EMPTY, PINHOLE, PINHOLE, USAF, USAF, EMPTY]
 
-MACIE = 1
-#VM = 2
-MOTOR = 3
-FLAT = 4
-THAR = 5
+MACIE = 0
+#VM = 1
+MOTOR = 2
+FLAT = 3
+THAR = 4
 ON = "on"
 OFF = "off"
 LAMP_FLAT = [OFF, ON, OFF, OFF, ON, OFF, ON, OFF, OFF]
@@ -90,6 +94,11 @@ MUX_TYPE = 2
 FRAME_X = 2048
 FRAME_Y = 2048
 
+HK_REQ_COM_STS = "ComPortStatus"
+
+HK_REQ_PWR_STS = "PowerStatus"  #pdu
+HK_REQ_PWR_ONOFF_IDX = "PowerOnOffIndex" #pdu
+
 DT_REQ_INITMOTOR = "InitMotor"  #motor  
 DT_REQ_MOVEMOTOR = "MoveMotor"  #motor
 DT_REQ_MOTORGO = "MotorGo"      #motor
@@ -99,16 +108,12 @@ DT_REQ_SETUT = "SetUT"          #motor
 DT_REQ_SETLT = "SetLT"          #motor
 
 EXIT = "Exit"
-ALIVE = "Alive"
-TEST_MODE = "TestMode"
+ALIVE = "Alive" # from EngTools
 
-#HK_FN_LAMPCHANGE = "LampChange"
-HK_REQ_PWR_STS = "PowerStatus"  #pdu
-HK_REQ_PWR_ONOFF = "PowerOnOff" #pdu
-
-CMD_SIMULATION = "Simulation"
-CMD_INITIALIZE2_ICS = "Initialize2_ics"
+CMD_INIT2_DONE = "Initialize2_Done" # to DCS
+CMD_INITIALIZE2_ICS = "Initialize2_ics" 
 CMD_SETFSPARAM_ICS = "SetFSParam_ics"
 CMD_ACQUIRERAMP_ICS = "ACQUIRERAMP_ics"
 CMD_STOPACQUISITION = "STOPACQUISITION"
+
 

@@ -21,7 +21,7 @@ from Libs.logger import *
 
 class monitor(threading.Thread) :
     
-    def __init__(self, comport, simul='0', gui=False):  
+    def __init__(self, comport, simul='0'):  
         
         self.iam = ""
         self.comport = comport
@@ -30,7 +30,7 @@ class monitor(threading.Thread) :
         elif self.comport == "10005":
             self.iam = "vm"
             
-        self.log = LOG(WORKING_DIR + "IGRINS", "HW", gui)
+        self.log = LOG(WORKING_DIR + "IGRINS", "HW")
         self.log.send(self.iam, INFO, "start")  
         
         # load ini file
@@ -47,18 +47,15 @@ class monitor(threading.Thread) :
         
         self.hk_sub_ex = cfg.get(MAIN, 'hk_sub_exchange')     
         self.hk_sub_q = cfg.get(MAIN, 'hk_sub_routing_key')
+        self.sub_hk_q = self.iam+'.q'
+        
+        self.Period = int(cfg.get(HK,'hk-monitor-intv'))
                 
         if bool(int(simul)):
             self.ip = "localhost"
         else:
             self.ip = cfg.get(HK, "device-server-ip")
-        
-        self.gui = gui
-        self.monit = False
-        
-        self.value = [DEFAULT_VALUE, DEFAULT_VALUE, DEFAULT_VALUE, DEFAULT_VALUE, DEFAULT_VALUE, DEFAULT_VALUE, DEFAULT_VALUE, DEFAULT_VALUE]
-        self.vm = DEFAULT_VALUE
-        
+                
         self.comSocket = None
         self.comStatus = False
         
@@ -75,8 +72,7 @@ class monitor(threading.Thread) :
             
         self.close_component()
         
-        if self.gui:
-            self.producer.__del__()      
+        self.producer.__del__()      
 
         self.log.send(self.iam, DEBUG, "Closed!")              
                     
@@ -92,13 +88,10 @@ class monitor(threading.Thread) :
             
             msg = "connected"
             self.log.send(self.iam, INFO, msg)
-
-            #self.th_monitoring.start()
             
         except:
             self.comSocket = None
             self.comStatus = False
-            self.monit = False
             
             msg = "disconnected"
             self.log.send(self.iam, ERROR, msg)
@@ -108,8 +101,7 @@ class monitor(threading.Thread) :
 
             
         msg = "%s %d" % (HK_REQ_COM_STS, self.comStatus)   
-        if self.gui:
-            self.producer.send_message(self.iam+'.q', msg)        
+        self.producer.send_message(self.sub_hk_q, msg)        
                  
     
     def re_connect_to_component(self):
@@ -194,15 +186,29 @@ class monitor(threading.Thread) :
             
                     
     def start_monitoring(self):
-        if self.monit is False:
-            return
+        
+        value = [DEFAULT_VALUE, DEFAULT_VALUE, DEFAULT_VALUE, DEFAULT_VALUE, DEFAULT_VALUE, DEFAULT_VALUE, DEFAULT_VALUE, DEFAULT_VALUE]
+        vm = DEFAULT_VALUE
 
         if self.iam == "tm":
-            self.value = (self.get_value_fromTM().split(","))
+            value = (self.get_value_fromTM().split(","))
         elif self.iam == "vm":
-            self.vm = self.get_value_fromVM()    
+            vm = self.get_value_fromVM()    
+            
+        if self.iam == "tm":
+            msg = HK_REQ_GETVALUE
+            for i in range(TM_CNT):
+                try:
+                    msg += " "
+                    msg += value[i]
+                except:
+                    msg += DEFAULT_VALUE
+                    
+        elif self.iam == "vm":
+            msg = "%s %s" % (HK_REQ_GETVALUE, vm)
+        self.producer.send_message(self.sub_hk_q, msg)  
 
-        ti.sleep(10)
+        ti.sleep(self.Period)
         threading.Thread(target=self.start_monitoring).start()
     
     #-------------------------------
@@ -229,34 +235,9 @@ class monitor(threading.Thread) :
     def callback_hk(self, ch, method, properties, body):
         cmd = body.decode()
         param = cmd.split()
-        
-        if param[0] == HK_REQ_COM_STS:
-            msg = "%s %d" % (param[0], self.comStatus)   
-            self.producer.send_message(self.iam+'.q', msg)
-            
-        elif param[0] == HK_START_MONITORING:
-            self.monit = True
-            self.start_monitoring()
-            
-        elif param[0] == HK_STOP_MONITORING:
-            self.monit = False
-        
-        elif param[0] == HK_REQ_GETVALUE:
-            if self.iam == "tm":
-                msg = "%s" % (param[0])
-                for i in range(TM_CNT):
-                    try:
-                        msg += " "
-                        msg += self.value[i]
-                    except:
-                        msg += DEFAULT_VALUE
-                        
-            elif self.iam == "vm":
-                msg = "%s %s" % (param[0], self.vm)
-            self.producer.send_message(self.iam+'.q', msg)    
-            
-        elif param[0] == HK_REQ_MANUAL_CMD:       
-            if param[1] != self.iam:
+                              
+        if param[0] == HK_REQ_MANUAL_CMD:       
+            if self.iam != param[1]:
                 return     
             cmd = ""
             for idx in range(len(param)-2):
@@ -264,17 +245,17 @@ class monitor(threading.Thread) :
             cmd = cmd[:-1] + "\r\n"
             value = self.socket_send(cmd)
             msg = "%s %s" % (param[0], value) 
-            self.producer.send_message(self.iam+'.q', msg) 
+            self.producer.send_message(self.sub_hk_q, msg) 
             
  
             
 if __name__ == "__main__":
     
-    proc = monitor(sys.argv[1], sys.argv[2], True)
+    proc = monitor(sys.argv[1], sys.argv[2])
         
     proc.connect_to_server_sub_ex()
     proc.connect_to_server_hk_q()
     
     proc.connect_to_component()
     
-    
+    proc.start_monitoring()

@@ -1,7 +1,7 @@
 """
 ... from uploader.py from IGRINS
 
-Modified on Dec 29, 2022
+Modified on Mar 6, 2023
 
 @author: hilee, JJLee
 """
@@ -37,6 +37,27 @@ FieldNames = [('date', str), ('time', str),
               ('shieldtop', float), ('air', float), 
               ('alert_status', str)]
 
+HK_DATETIME = 0
+HK_VACUUM = 1
+HK_BENCH = 2
+HK_BENCH_HEATING = 3
+HK_GRATING = 4
+HK_GRATING_HEATING = 5
+HK_DETS = 6
+HK_DETS_HEATING = 7
+HK_DETK = 8
+HK_DETK_HEATING = 9
+HK_CAMH = 10
+HK_DETH = 11
+HK_DETH_HEATING = 12
+HK_BENCHCEN = 13
+HK_COLDHEAD1 = 14
+HK_COLDHEAD2 = 15
+HK_COLDSTOP = 16
+HK_CHARCOALBOX = 17
+HK_CAMK = 18
+HK_SHIELDTOP = 19
+HK_AIR = 20
 class uploader(threading.Thread):
     
     def __init__(self, simul='0'):
@@ -57,6 +78,9 @@ class uploader(threading.Thread):
         self.hk_sub_ex = cfg.get(MAIN, "hk_sub_exchange")     
         self.hk_sub_q = cfg.get(MAIN, "hk_sub_routing_key")
                 
+        #datetime, vacuum, temperature 14, heating power 5
+        self.hk_list = ["" for _ in range(21)]
+        
         firebase = self.get_firebase()
         self.db = firebase.database()
     
@@ -120,10 +144,6 @@ class uploader(threading.Thread):
 
 
     def read_item_to_upload(self, HK_list):
-        #HK_list = open(HKLogPath).read().split()
-        # print(len(HK_list), len(FieldNames))
-        #HK_list = _hk_list.split()
-
         if len(HK_list) != len(FieldNames):
             return None
 
@@ -159,16 +179,116 @@ class uploader(threading.Thread):
         
         
     def connect_to_server_hk_q(self):
-        # RabbitMQ connect
-        consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_sub_ex)      
-        consumer.connect_to_server()
-        consumer.define_consumer(self.hk_sub_q, self.callback_hk)
+        # RabbitMQ connect       
+        com_list = ["tmc1", "tmc2", "tmc3", "tm", "vm"]
+        sub_hk_ex = [com_list[i]+'.ex' for i in range(COM_CNT-1)]
+        consumer = [None for _ in range(COM_CNT-1)]
+        for idx in range(COM_CNT-1):
+            consumer[idx] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, sub_hk_ex[idx])      
+            consumer[idx].connect_to_server()
+            
+        consumer[TMC1].define_consumer(com_list[TMC1]+'.q', self.callback_tmc1)       
+        consumer[TMC2].define_consumer(com_list[TMC2]+'.q', self.callback_tmc2)
+        consumer[TMC3].define_consumer(com_list[TMC3]+'.q', self.callback_tmc3)
+        consumer[TM].define_consumer(com_list[TM]+'.q', self.callback_tm)
+        consumer[VM].define_consumer(com_list[VM]+'.q', self.callback_vm)    
         
-        th = threading.Thread(target=consumer.start_consumer)
+        for idx in range(COM_CNT-1):
+            th = threading.Thread(target=consumer[idx].start_consumer)
+            th.start()       
+        
+        # ---- from HKP
+        consumer_up = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.hk_sub_ex)      
+        consumer_up.connect_to_server()
+        consumer_up.define_consumer(self.hk_sub_q, self.callback_uploader)
+        
+        th = threading.Thread(target=consumer_up.start_consumer)
         th.start()
+                    
+    
+    def callback_tmc1(self, ch, method, properties, body):
+        cmd = body.decode()
+        msg = "receive: %s" % cmd
+        self.log.send(self.iam, INFO, msg)
+        param = cmd.split()
+        
+        if param[0] == HK_REQ_GETVALUE:
+            self.hk_list[HK_BENCH] = self.judge_value(param[1])
+            self.hk_list[HK_GRATING] = self.judge_value(param[2])
+            self.hk_list[HK_BENCH_HEATING] = self.judge_value(param[3])
+            self.hk_list[HK_GRATING_HEATING] = self.judge_value(param[4])
+            
+            print(self.hk_list)
             
             
-    def callback_hk(self, ch, method, properties, body):
+    def callback_tmc2(self, ch, method, properties, body):
+        cmd = body.decode()
+        msg = "receive: %s" % cmd
+        self.log.send(self.iam, INFO, msg)
+        param = cmd.split()
+     
+        if param[0] == HK_REQ_GETVALUE:
+            self.hk_list[HK_DETS] = self.judge_value(param[1])
+            self.hk_list[HK_DETK] = self.judge_value(param[2])
+            self.hk_list[HK_DETS_HEATING] = self.judge_value(param[3])
+            self.hk_list[HK_DETK_HEATING] = self.judge_value(param[4])
+            
+            print(self.hk_list)
+            
+        
+    def callback_tmc3(self, ch, method, properties, body):
+        cmd = body.decode()
+        msg = "receive: %s" % cmd
+        self.log.send(self.iam, INFO, msg)
+        param = cmd.split()
+        
+        if param[0] == HK_REQ_GETVALUE:
+            self.hk_list[HK_CAMH] = self.judge_value(param[1])
+            self.hk_list[HK_DETH] = self.judge_value(param[2])
+            self.hk_list[HK_DETH_HEATING] = self.judge_value(param[3])
+            
+            print(self.hk_list)
+        
+    
+    def callback_tm(self, ch, method, properties, body):
+        cmd = body.decode()
+        msg = "receive: %s" % cmd
+        self.log.send(self.iam, INFO, msg)
+        param = cmd.split()
+        
+        if param[0] == HK_REQ_GETVALUE:
+            self.hk_list[HK_BENCHCEN] = self.judge_value(param[1])
+            self.hk_list[HK_COLDHEAD1] = self.judge_value(param[2])
+            self.hk_list[HK_COLDHEAD2] = self.judge_value(param[3])
+            self.hk_list[HK_COLDSTOP] = self.judge_value(param[4])
+            self.hk_list[HK_CHARCOALBOX] = self.judge_value(param[5])
+            self.hk_list[HK_CAMK] = self.judge_value(param[6])
+            self.hk_list[HK_SHIELDTOP] = self.judge_value(param[7])
+            self.hk_list[HK_AIR] = self.judge_value(param[8])
+            
+            print(self.hk_list)
+                
+       
+    def callback_vm(self, ch, method, properties, body):
+        cmd = body.decode()
+        msg = "receive: %s" % cmd
+        if len(cmd) < 80:
+            self.log.send(self.iam, INFO, msg)
+        param = cmd.split()
+        
+        if param[0] == HK_REQ_GETVALUE:
+            dpvalue = ""
+            if len(param[1]) > 10 or param[1] == DEFAULT_VALUE:
+                dpvalue = DEFAULT_VALUE
+            else:
+                dpvalue = param[1]
+            
+            self.hk_list[HK_VACUUM] = float(dpvalue)
+            
+            print(self.hk_list)
+            
+            
+    def callback_uploader(self, ch, method, properties, body):
         cmd = body.decode()
         param = cmd.split()
         
@@ -180,8 +300,21 @@ class uploader(threading.Thread):
             if self.simul:
                 print("uploaded virtual firebase database...")
             else:
+                #from HKP
                 self.start_upload_to_firebase(db)
                 
+                
+    def judge_value(self, input):
+        if input != DEFAULT_VALUE:
+            value = "%.2f" % float(input)
+        else:
+            value = input
+        return value
+    
+    
+    def uploade_to_GEA(self):
+        #need to add time ...
+        pass
             
 
 if __name__ == "__main__":

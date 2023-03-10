@@ -225,7 +225,7 @@ HK["tmc1"] = dict(com_resp=com_resp, default_resp=None)
 # TMC2
 com_resp = [('SETP? 1', '+124.000\r\n'),
             ('SETP? 2', '+65.4000\r\n'),
-            ('KRDG? A', '+60.798\r\n'),
+            ('KRDG? A', '+60.298\r\n'),
             ('KRDG? B', '+66.798\r\n'),
             ('HTR? 1', '+000.0\r\n'),
             ('HTR? 2', '+000.0\r\n')]
@@ -234,7 +234,7 @@ HK["tmc2"] = dict(com_resp=com_resp, default_resp=None)
 # TMC3
 com_resp = [('SETP? 1', '+65.4000\r\n'),
             ('SETP? 2', '+66.4000\r\n'),
-            ('KRDG? A', '+65.798\r\n'),
+            ('KRDG? A', '+65.198\r\n'),
             ('KRDG? B', '+65.798\r\n'),
             ('HTR? 1', '+000.0\r\n'),
             ('HTR? 2', '+000.0\r\n')]

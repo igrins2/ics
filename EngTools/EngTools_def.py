@@ -3,7 +3,7 @@
 """
 Created on Sep 17, 2021
 
-Modified on Dec 14, 2021
+Modified on March 9, 2023
 
 @author: hilee
 """
@@ -23,15 +23,6 @@ INFO = "INFO"
 WARNING = "WARNING"
 ERROR = "ERROR"
 
-COM_CNT = 9
-
-TMC3 = 2
-TM = 3
-VM = 4
-PDU = 5
-LT = 6
-UT = 7
-UPLOADER = 8
 
 HKP = 0
 DTP = 1
@@ -43,5 +34,4 @@ MODE_REAL = 1
 HK_STATUS = "HKStatus"
 EXIT = "Exit"
 ALIVE = "Alive"
-TEST_MODE = "TestMode"
 

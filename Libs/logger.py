@@ -12,10 +12,8 @@ import os
 import time as ti
 class LOG():
 
-    def __init__(self, work_dir, iam, gui = True):
+    def __init__(self, work_dir, iam):
                 
-        self.gui = gui
-
         self.path = "%s/Log/%s/" % (work_dir, iam)
         self.createFolder(self.path)
         
@@ -44,5 +42,5 @@ class LOG():
         file.write(data)
         file.close()
 
-        if level != "INFO" or self.gui is False:
+        if level != "INFO":
             print(data)

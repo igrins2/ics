@@ -21,12 +21,12 @@ from Libs.logger import *
 
 class temp_ctrl(threading.Thread):
     
-    def __init__(self, comport, simul='0', gui=False):
+    def __init__(self, comport, simul='0'):
                        
         self.comport = comport
         self.iam = "tmc%d" % (int(self.comport)-10000)               
     
-        self.log = LOG(WORKING_DIR + "IGRINS", "HW", gui)
+        self.log = LOG(WORKING_DIR + "IGRINS", "HW")
         self.log.send(self.iam, INFO, "start")    
      
         # load ini file
@@ -43,25 +43,23 @@ class temp_ctrl(threading.Thread):
         
         self.hk_sub_ex = cfg.get(MAIN, "hk_sub_exchange")     
         self.hk_sub_q = cfg.get(MAIN, "hk_sub_routing_key")
+        self.sub_hk_q = self.iam+'.q'
+        
+        Period = int(cfg.get(HK,'hk-monitor-intv'))
                
         if bool(int(simul)):
             self.ip = "localhost"
         else:   
             self.ip = cfg.get(HK, "device-server-ip")
- 
-        self.gui = gui
-        self.monit = False
-        
+         
         self.setpoint = [DEFAULT_VALUE, DEFAULT_VALUE]
-        self.value = [DEFAULT_VALUE, DEFAULT_VALUE]
-        self.heat = [DEFAULT_VALUE, DEFAULT_VALUE]
-        
+                
         self.comSocket = None
         self.comStatus = False
         
         self.producer = None
         
-        self.wait_time = 1
+        self.wait_time = float(Period/4)
                 
         
     def __del__(self):
@@ -73,8 +71,7 @@ class temp_ctrl(threading.Thread):
             
         self.close_component()
         
-        if self.gui:           
-            self.producer.__del__()   
+        self.producer.__del__()   
 
         self.log.send(self.iam, DEBUG, "Closed!")                 
         
@@ -88,27 +85,20 @@ class temp_ctrl(threading.Thread):
             self.comStatus = True
             
             msg = "connected"
-            self.log.send(self.iam, INFO, msg)
-
-            #self.th_monitoring.start()
+            self.log.send(self.iam, INFO, msg)            
             
         except:
             self.comSocket = None
             self.comStatus = False
-            self.monit = False
             
             msg = "disconnected"
             self.log.send(self.iam, ERROR, msg)
-            
-            self.value = [DEFAULT_VALUE, DEFAULT_VALUE]
-            self.heat = [DEFAULT_VALUE, DEFAULT_VALUE]
-            
+                        
             self.re_connect_to_component()
             
             
         msg = "%s %d" % (HK_REQ_COM_STS, self.comStatus)   
-        if self.gui:
-            self.producer.send_message(self.iam+'.q', msg) 
+        self.producer.send_message(self.sub_hk_q, msg) 
               
     
     def re_connect_to_component(self):
@@ -197,18 +187,31 @@ class temp_ctrl(threading.Thread):
             
     
     def start_monitoring(self):
-        if self.monit is False:
-            return
+        
+        value = [DEFAULT_VALUE, DEFAULT_VALUE]
+        heat = [DEFAULT_VALUE, DEFAULT_VALUE]
             
-        self.value[0] = self.get_value("A")
+        value[0] = self.get_value("A")
         ti.sleep(self.wait_time)  
-        self.value[1] = self.get_value("B")     
+        value[1] = self.get_value("B")     
         ti.sleep(self.wait_time)
         if self.iam != "tmc3":
-            self.heat[0] = self.get_heating_power(1)
+            heat[0] = self.get_heating_power(1)
             ti.sleep(self.wait_time)
-        self.heat[1] = self.get_heating_power(2)
+        heat[1] = self.get_heating_power(2)
         ti.sleep(self.wait_time)
+        
+        for i in range(2):
+            if value[i] == None:
+                value[i] = DEFAULT_VALUE
+            if heat[i] == None:
+                heat[i] = DEFAULT_VALUE
+
+        if self.iam != "tmc3":
+            msg = "%s %s %s %s %s" % (HK_REQ_GETVALUE, value[0], value[1], heat[0], heat[1]) 
+        else:
+            msg = "%s %s %s %s" % (HK_REQ_GETVALUE, value[0], value[1], heat[1]) 
+        self.producer.send_message(self.sub_hk_q, msg)
 
         threading.Thread(target=self.start_monitoring).start()
 
@@ -237,14 +240,8 @@ class temp_ctrl(threading.Thread):
     def callback_hk(self, ch, method, properties, body):
         cmd = body.decode()
         param = cmd.split()
-                
-        if param[0] == HK_REQ_COM_STS:
-            msg = "%s %d" % (param[0], self.comStatus)   
-            self.producer.send_message(self.iam+'.q', msg)
-            
-        elif param[0] == HK_START_MONITORING:
-            
-            # HK_REQ_GETSETPOINT
+                            
+        if param[0] == HK_REQ_GETSETPOINT:           
             if self.iam != "tmc3":
                 self.setpoint[0] = self.get_setpoint(1)
                 ti.sleep(1)
@@ -254,31 +251,10 @@ class temp_ctrl(threading.Thread):
                 msg = "%s %s %s" % (HK_REQ_GETSETPOINT, self.setpoint[0], self.setpoint[1]) 
             else:
                 msg = "%s %s" % (HK_REQ_GETSETPOINT, self.setpoint[1])
-            self.producer.send_message(self.iam+'.q', msg)
-            
-            # HK_START_MONITORING            
-            self.monit = True
-            self.start_monitoring()
-            
-        elif param[0] == HK_STOP_MONITORING:
-            self.monit = False 
-            
-        elif param[0] == HK_REQ_GETVALUE:
-
-            for i in range(2):
-                if self.value[i] == None:
-                    self.value[i] = DEFAULT_VALUE
-                if self.heat[i] == None:
-                    self.heat[i] = DEFAULT_VALUE
-
-            if self.iam != "tmc3":
-                msg = "%s %s %s %s %s" % (param[0], self.value[0], self.value[1], self.heat[0], self.heat[1]) 
-            else:
-                msg = "%s %s %s %s" % (param[0], self.value[0], self.value[1], self.heat[1]) 
-            self.producer.send_message(self.iam+'.q', msg)            
-        
+            self.producer.send_message(self.sub_hk_q, msg)
+                                    
         elif param[0] == HK_REQ_MANUAL_CMD:
-            if param[1] != self.iam:
+            if self.iam != param[1]:
                 return
             cmd = ""
             for idx in range(len(param)-2):
@@ -286,16 +262,17 @@ class temp_ctrl(threading.Thread):
             cmd = cmd[:-1] + "\r\n"
             value = self.socket_send(cmd)
             msg = "%s %s" % (param[0], value) 
-            self.producer.send_message(self.iam+'.q', msg)  
+            self.producer.send_message(self.sub_hk_q, msg)  
 
 
 if __name__ == "__main__":
         
-    proc = temp_ctrl(sys.argv[1], sys.argv[2], True)
+    proc = temp_ctrl(sys.argv[1], sys.argv[2])
     
     proc.connect_to_server_sub_ex()
     proc.connect_to_server_hk_q()
     
     proc.connect_to_component()
+    proc.start_monitoring()
 
     

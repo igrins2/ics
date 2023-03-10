@@ -75,12 +75,145 @@ def show_noargs(cmd):
     print(msg)
 
 
+#-------------------------------
+# hk -> sub 
+def connect_to_server_hk_ex(ics_ip_addr, ics_id, ics_pwd, hk_sub_ex):
+        
+    # RabbitMQ connect  
+    producer = MsgMiddleware(HK, ics_ip_addr, ics_id, ics_pwd, hk_sub_ex)      
+    producer.connect_to_server()
+    producer.define_producer()
+    
+    return producer
+
+
+#-------------------------------
+# sub -> hk
+def connect_to_server_sub_q(ics_ip_addr, ics_id, ics_pwd):
+        # RabbitMQ connect
+        com_list = ["tmc1", "tmc2", "tmc3", "tm", "vm", "pdu", "lt", 'ut']
+        sub_hk_ex = [com_list[i]+'.ex' for i in range(COM_CNT+2)]
+        consumer = [None for _ in range(COM_CNT+2)]
+        for idx in range(COM_CNT+2):
+            consumer[idx] = MsgMiddleware(HK, ics_ip_addr, ics_id, ics_pwd, sub_hk_ex[idx])      
+            consumer[idx].connect_to_server()
+            
+        consumer[TMC1].define_consumer(com_list[TMC1]+'.q', callback_tmc1)       
+        consumer[TMC2].define_consumer(com_list[TMC2]+'.q', callback_tmc2)
+        consumer[TMC3].define_consumer(com_list[TMC3]+'.q', callback_tmc3)
+        consumer[TM].define_consumer(com_list[TM]+'.q', callback_tm)
+        consumer[VM].define_consumer(com_list[VM]+'.q', callback_vm)
+        consumer[PDU].define_consumer(com_list[PDU]+'.q', callback_pdu)
+        consumer[LT].define_consumer(com_list[LT-1]+'.q', callback_lt)
+        consumer[UT].define_consumer(com_list[UT-1]+'.q', callback_ut)
+        
+        for idx in range(COM_CNT+1):
+            th = threading.Thread(target=consumer[idx].start_consumer)
+            th.start()
+            
+            
+#-------------------------------
+# rev <- sub 
+def callback_tmc1(ch, method, properties, body):
+    cmd = body.decode()
+    param = cmd.split()
+    
+    if param[0] == HK_REQ_MANUAL_CMD:
+        print('[TC1]', param[1])        
+        
+        
+def callback_tmc2(ch, method, properties, body):
+    cmd = body.decode()
+    param = cmd.split()
+    
+    if param[0] == HK_REQ_MANUAL_CMD:
+        print('[TC2]', param[1])
+        
+    
+def callback_tmc3(ch, method, properties, body):
+    cmd = body.decode()
+    param = cmd.split()
+    
+    if param[0] == HK_REQ_MANUAL_CMD:
+        print('[TC3]', param[1])
+                
+
+def callback_tm(ch, method, properties, body):
+    cmd = body.decode()
+    param = cmd.split()
+    
+    if param[0] == HK_REQ_MANUAL_CMD:
+        print('[TM]', param[1])
+            
+
+def callback_vm(ch, method, properties, body):
+    cmd = body.decode()
+    param = cmd.split()
+    
+    if param[0] == HK_REQ_MANUAL_CMD:
+        print('[VM]', param[1])
+        
+        
+def callback_pdu(ch, method, properties, body):
+    cmd = body.decode()
+    param = cmd.split()
+    
+    if param[0] == HK_REQ_PWR_STS:
+        pwr_sts = ""
+        for i in range(PDU_IDX):
+            pwr_sts += param[i+1] + " "
+        print('[PDU]', pwr_sts)
+            
+            
+
+def callback_lt(ch, method, properties, body):
+    cmd = body.decode()
+    param = cmd.split()
+    
+    if param[0] == DT_REQ_INITMOTOR:
+        print('[lt]', "init OK")           
+        
+    elif param[0] == DT_REQ_MOVEMOTOR or param[0] == DT_REQ_MOTORGO or param[0] == DT_REQ_MOTORBACK:
+        print('[lt]', "moved:", param[1])    
+        
+    elif param[0] == DT_REQ_SETLT:
+        print('[lt]', "save OK")
+            
+            
+def callback_ut(ch, method, properties, body):
+    cmd = body.decode()
+    param = cmd.split()
+    
+    if param[0] == DT_REQ_INITMOTOR:
+        print('[ut]', "init OK")             
+        
+    elif param[0] == DT_REQ_MOVEMOTOR or param[0] == DT_REQ_MOTORGO or param[0] == DT_REQ_MOTORBACK:
+        print('[ut]', "moved:", param[1])
+    
+    elif param[0] == DT_REQ_SETUT:
+        print('[ut]', "save OK")
+                
+
 @click.command("start")
 def start():
                 
     print( '================================================\n'+
            '                Ctrl + C to exit or type: exit  \n'+
            '================================================\n')
+
+    # load ini file
+    ini_file = WORKING_DIR + "IGRINS/Config/IGRINS.ini"
+    cfg = sc.LoadConfig(ini_file)
+          
+    ics_ip_addr = cfg.get(MAIN, "ip_addr")
+    ics_id = cfg.get(MAIN, "id")
+    ics_pwd = cfg.get(MAIN, "pwd")
+    
+    hk_sub_ex = cfg.get(MAIN, "hk_sub_exchange")     
+    hk_sub_q = cfg.get(MAIN, "hk_sub_routing_key")
+    
+    producer = connect_to_server_hk_ex(ics_ip_addr, ics_id, ics_pwd, hk_sub_ex)
+    connect_to_server_sub_q(ics_ip_addr, ics_id, ics_pwd)
 
     args = ""
     args = show_func(True)
@@ -102,34 +235,25 @@ def start():
                 if len(args) < 2:
                     show_errmsg(_args)
                 elif args[1] == "-h" or args[1] == "--help":
-                    show_subfunc(args[0], _args, "index:int(1~3), port:int(1~2, 0:all)")   
+                    show_subfunc(args[0], _args, "index:int(1~3), port:int(1~2)")   
                 elif len(args) < 3:
                     show_errmsg(_args)         
                 elif (1 <= int(args[1]) <= 3) is not True:    
                     print("Please input 1~3 for index.")
-                elif (0 <= int(args[2]) <= 2) is not True:
-                    print("Please input 0~2 for port.")
-                else:
-                    port = "%d" % (int(args[1]) + 10000)
-                    temp = int(args[1])-1
-                    if hk[temp] == None:
-                        hk[temp] = temp_ctrl(port)
-                        hk[temp].connect_to_component()
-                        
+                elif (1 <= int(args[2]) <= 2) is not True:
+                    print("Please input 1~2 for port.")
+                else:                        
                     if args[0] == "getsetpoint":
-                        if args[2] == "0":
-                            hk[temp].get_setpoint(1)
-                            hk[temp].get_setpoint(2)
-                        else:
-                            hk[temp].get_setpoint(int(args[2]))
+                        cmd = "SETP? %s" % args[2]
+                        msg = "%s tmc%s %s" % (HK_REQ_MANUAL_CMD, args[1], cmd)
+                        producer.send_message(hk_sub_q, msg)
+
                     elif args[0] == "getheatvalue":  
-                        if args[2] == "0":
-                            hk[temp].get_heating_power(1)
-                            hk[temp].get_heating_power(2)
-                        else:
-                            hk[temp].get_heating_power(int(args[2]))  
+                        cmd = "HTR? %s" % args[2]
+                        msg = "%s tmc%s %s" % (HK_REQ_MANUAL_CMD, args[1], cmd)
+                        producer.send_message(hk_sub_q, msg)
             except:
-                print("Please input 1~3 for index and 0~2 for port.")
+                print("Please input 1~3 for index and 1~2 for port.")
                                      
         elif args[0] == "gettempvalue":
             _args = "index, port"
@@ -138,7 +262,7 @@ def start():
                 if len(args) < 2:
                     show_errmsg(_args)
                 elif args[1] == "-h" or args[1] == "--help":
-                    show_subfunc(args[0], _args, "index:int(1~4), port:int(index 1~3:A/B, index 4:1~8, all:0)")
+                    show_subfunc(args[0], _args, "index:int(1~4), port:int(index 1~3:A/B, index 4:0~8)")
                 elif len(args) < 3:
                     show_errmsg(_args)  
                 elif (1 <= int(args[1]) <= 4) is not True:    
@@ -147,26 +271,17 @@ def start():
                     if 1 <= int(args[1]) <= 3:
                         if (args[2] == "A" or args[2] == "B") is not True:
                             print("Please input 'A' or 'B' for port on index 1~3.")
-                        else:
-                            port = "%d" % (int(args[1]) + 10000)
-                            temp = int(args[1])-1
-                            if hk[temp] == None:
-                                hk[temp] = temp_ctrl(port)
-                                
-                            if args[2] == "0":
-                                hk[temp].get_value("A")
-                                hk[temp].get_value("B")
-                            else:
-                                hk[temp].get_value(args[2])
-                                
+                        else:                                
+                            cmd = "KRDG? %s" % args[2]
+                            msg = "%s tmc%s %s" % (HK_REQ_MANUAL_CMD, args[1], cmd)
+                            producer.send_message(hk_sub_q, msg)                              
                     elif args[1] == "4":
                         if (0 <= int(args[2]) <= 8) is not True:
                             print("Please input 0~8 for port on index 4.")
                         else:
-                            if hk[TM] == None:
-                                hk[TM] = monitor("10004")
-                                hk[TM].connect_to_component()
-                            hk[TM].get_value_fromTM(int(args[2]))
+                            cmd = "KRDG? %s" % args[2]
+                            msg = "%s tm %s" % (HK_REQ_MANUAL_CMD, cmd)
+                            producer.send_message(hk_sub_q, msg)  
             except:
                 print("Please input 'A' or 'B' port for index 1~3 and 0~8 port for index 4.")                                                
                         
@@ -174,10 +289,8 @@ def start():
             if len(args) > 1:
                 show_noargs(args[0])
             else:
-                if hk[VM] == None:
-                    hk[VM] = monitor("10005")
-                    hk[VM].connect_to_component()
-                hk[VM].get_value_fromVM()
+                msg = "%s vm @253PR3?;FF" % HK_REQ_MANUAL_CMD
+                producer.send_message(hk_sub_q, msg)
                 
         elif args[0] == "poweronoff":
             _args = "index, onoff"
@@ -194,21 +307,19 @@ def start():
                 elif (args[2] == "on" or args[2] == "off") is not True:
                     print("Please input 'on' or 'off'.")
                 else:
-                    if hk[PDU] == None:
-                        hk[PDU] = pdu()
-                        
-                        hk[PDU].connect_to_component()
-                        hk[PDU].initPDU()
-                        
                     if args[1] == "0":
-                        for i in range(PDU_IDX):
-                            hk[PDU].change_power(i+1, args[2])
+                        if args[2] == "on":
+                            onoff = "on on on on on on on on"
+                        else:
+                            onoff = "off off off off off off off off"                         
+                        msg = "%s %s" % (HK_REQ_PWR_ONOFF, onoff)
+                        print('CLI >> PDU', msg)
+                        producer.send_message(hk_sub_q, msg)
                     else:
-                        print(args[1], args[2])
-                        hk[PDU].change_power(int(args[1]), args[2])
+                        msg = "%s %s %s" % (HK_REQ_PWR_ONOFF_IDX, args[1], args[2])
+                        producer.send_message(hk_sub_q, msg)
             except:
                 print("Please input a number 1~8 or 0(all) and 'on' or 'off'")
-        
         
         elif args[0] == "initmotor":
             _args = "motor"
@@ -223,19 +334,8 @@ def start():
                 elif (args[1] == MOTOR_UT or args[1] == MOTOR_LT) is not True:
                     show_errmsg(_args)
                 else:
-                    motornum = -1
-                    if args[1] == MOTOR_UT:
-                        motornum = UT  
-                        port = "10007"
-                    elif args[1] == MOTOR_LT:
-                        motornum = LT
-                        port = "10006" 
-                        
-                    if hk[motornum] == None:
-                        hk[motornum] = motor(args[1], port)
-                    
-                    hk[motornum].connect_to_component()
-                    hk[motornum].init_motor()
+                    msg = "%s %s" % (DT_REQ_INITMOTOR, args[1])
+                    producer.send_message(hk_sub_q, msg)
             except:
                 print("Please input 'ut' or 'lt'.")                   
                     
@@ -256,14 +356,8 @@ def start():
                 elif args[1] == MOTOR_LT and (0 <= int(args[2]) <= 3) is not True:
                     print("Please input a number 0~3 for lt.")
                 else:         
-                    if args[1] == MOTOR_UT:
-                        motornum = UT  
-                    elif args[1] == MOTOR_LT:
-                        motornum = LT
-                    if hk[motornum] == None:
-                        print("Please execute 'initmotor' first!")
-                    else:    
-                        hk[motornum].move_motor(int(args[2]))
+                    msg = "%s %s %s" % (DT_REQ_MOVEMOTOR, args[1], args[2])
+                    producer.send_message(hk_sub_q, msg)   
             except:
                 print("Please input a number 0 or 1 for ut and 0~3 for lt.")
         
@@ -282,20 +376,12 @@ def start():
                 elif int(args[2]) < 1:
                     print("Please input a number over the 0 for delta.")
                 else:
-                    if args[1] == MOTOR_UT:
-                        motornum = UT  
-                    elif args[1] == MOTOR_LT:
-                        motornum = LT
-                        
-                    if hk[motornum] == None:
-                        print("Please execute 'initmotor' first!")
-                    else:
-                        go = True    
-                        if args[0] == "motorgo":
-                            go = True
-                        elif args[0] == "motorback":
-                            go = False
-                        hk[motornum].move_motor_delta(go, int(args[2]))
+                    if args[0] == "motorgo":
+                        msg = "%s %s %s" % (DT_REQ_MOTORGO, args[1], args[2])
+                        producer.send_message(hk_sub_q, msg)  
+                    elif args[0] == "motorback":
+                        msg = "%s %s %s" % (DT_REQ_MOTORBACK, args[1], args[2])
+                        producer.send_message(hk_sub_q, msg)  
             except:
                 print("Please input a number over the 0 for delta.")
         
@@ -310,10 +396,8 @@ def start():
                 elif (0 <= int(args[1]) <= 1) is not True:  
                     print("Please input a number 0 or 1 for ut.")
                 else:
-                    if hk[UT] == None:
-                        print("Please execute 'initmotor' first!")
-                    else:    
-                        hk[UT].setUT(int(args[1]))
+                    msg = "%s %s" % (DT_REQ_SETUT, args[1])
+                    producer.send_message(hk_sub_q, msg)
             except:
                 print("Please input a number 0 or 1 for ut.")
         
@@ -328,10 +412,8 @@ def start():
                 elif (0 <= int(args[1]) <= 3) is not True:  
                     print("Please input a number 0-3 for lt.")
                 else:
-                    if hk[LT] == None:
-                        print("Please execute 'initmotor' first!")
-                    else:
-                        hk[LT].setLT(int(args[1]))  
+                    msg = "%s %s" % (DT_REQ_SETLT, args[1])
+                    producer.send_message(hk_sub_q, msg)  
             except:
                 print("Please input a number 0-3 for lt.")
                     
@@ -340,9 +422,7 @@ def start():
             if len(args) > 1:
                 show_noargs(args[0])
             else:
-                for i in range(COM_CNT):
-                    if hk[i]:
-                        hk[i].close_component()
+                producer.__del__() 
                                     
                 break
             

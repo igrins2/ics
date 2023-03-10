@@ -21,11 +21,11 @@ from Libs.logger import *
 
 class pdu(threading.Thread) :
     
-    def __init__(self, simul='0', gui=False):
+    def __init__(self, simul='0'):
         
         self.iam = "pdu"
         
-        self.log = LOG(WORKING_DIR + "IGRINS", "HW", gui)    
+        self.log = LOG(WORKING_DIR + "IGRINS", "HW")    
         self.log.send(self.iam, INFO, "start")
                         
         # load ini file
@@ -43,6 +43,7 @@ class pdu(threading.Thread) :
         
         self.hk_sub_ex = cfg.get(MAIN, 'hk_sub_exchange')     
         self.hk_sub_q = cfg.get(MAIN, 'hk_sub_routing_key')
+        self.sub_hk_q = self.iam+'.q'
                 
         self.power_str = cfg.get(HK, "pdu-list").split(',')
         self.pow_flag = [OFF for _ in range(PDU_IDX)]
@@ -55,9 +56,7 @@ class pdu(threading.Thread) :
             self.comport = cfg.get(HK, "pdu-port")
         
         #---------------------------------------------------------
-        # start
-        self.gui = gui
-        
+        # start        
         self.comSocket = None
         self.comStatus = False
                 
@@ -73,8 +72,7 @@ class pdu(threading.Thread) :
             
         self.close_component()
         
-        if self.gui:
-            self.producer.__del__()
+        self.producer.__del__()
 
         self.log.send(self.iam, DEBUG, "Closed!")                    
             
@@ -101,8 +99,7 @@ class pdu(threading.Thread) :
             self.re_connect_to_component()
                         
         msg = "%s %d" % (HK_REQ_COM_STS, self.comStatus)   
-        if self.gui:
-            self.producer.send_message(self.iam+'.q', msg) 
+        self.producer.send_message(self.sub_hk_q, msg) 
                  
     
     def re_connect_to_component(self):
@@ -176,10 +173,8 @@ class pdu(threading.Thread) :
                 pow_flag += " "
                 
             msg = "%s %s" % (HK_REQ_PWR_STS, pow_flag)
-            if self.gui: 
-                self.producer.send_message(self.iam+'.q', msg)  
-            else:
-                print(pow_flag)
+            self.producer.send_message(self.sub_hk_q, msg)  
+            print(pow_flag)
         except:                  
             self.comStatus = False
             self.log.send(self.iam, ERROR, "communication error")
@@ -195,14 +190,14 @@ class pdu(threading.Thread) :
         
         cmd = ""
         if onoff == OFF:
-            self.pow_flag[idx-1] = OFF
-            cmd = "F0%d\r" % (idx)
+            self.pow_flag[idx] = OFF
+            cmd = "F0%d\r" % (idx+1)
         elif onoff == ON:
-            self.pow_flag[idx-1] = ON
-            cmd = "N0%d\r" % (idx)
+            self.pow_flag[idx] = ON
+            cmd = "N0%d\r" % (idx+1)
             
-        msg = " %s Button clicked"  % self.pow_flag[idx-1]
-        self.log.send(self.iam, INFO, self.power_str[idx-1] + msg)
+        msg = " %s Button clicked"  % self.pow_flag[idx]
+        self.log.send(self.iam, INFO, self.power_str[idx] + msg)
     
         self.power_status(cmd)
             
@@ -232,28 +227,22 @@ class pdu(threading.Thread) :
     def callback_hk(self, ch, method, properties, body):
         cmd = body.decode()
         param = cmd.split()
-                    
-        if not self.comStatus:
-            return
-                       
-        if param[0] == HK_REQ_COM_STS:
-            msg = "%s %d" % (param[0], self.comStatus)   
-            self.producer.send_message(self.iam+'.q', msg)
-            
-        elif param[0] == HK_REQ_PWR_STS:
+                                                       
+        if param[0] == HK_REQ_PWR_STS:
             self.power_status("DN0\r")
             
         elif param[0] == HK_REQ_PWR_ONOFF_IDX:
             self.change_power(int(param[1]), param[2]) 
             
         elif param[0] == HK_REQ_PWR_ONOFF:
+            print('CLI >> PDU', param)
             for idx in range(PDU_IDX):
-                self.change_power(idx+1, param[idx+1])
+                self.change_power(idx, param[idx+1])
                         
             
 if __name__ == "__main__":
     
-    proc = pdu(sys.argv[1], True)
+    proc = pdu(sys.argv[1])
             
     proc.connect_to_server_sub_ex()
     proc.connect_to_server_hk_q()
