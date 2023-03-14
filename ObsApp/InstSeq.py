@@ -43,21 +43,18 @@ class Inst_Seq(threading.Thread):
         
         self.InstSeq_dcs_ex = self.cfg.get(DT, 'dt_dcs_exchange')     
         self.InstSeq_dcs_q = self.cfg.get(DT, 'dt_dcs_routing_key')
-        self.dcs_InstSeq_ex = self.cfg.get(DT, 'dcs_dt_exchange')
-        self.dcs_InstSeq_q = self.cfg.get(DT, 'dcs_dt_routing_key')
         
         # 0 - ObsApp, 1 - DCS
         self.producer = [None, None]
                         
         self.simulation_mode = bool(int(simul))
-        self.exptime_obs = 0.0
-        self.exptime_svc = 0.0
-        self.FS_number = 0
-                
-        # 0 - SVC, 1 - H, 2 - K
-        self.acquiring = [False for _ in range(DC_CNT)]
         
-        self.dcs_list = ["DCSS", "DCSH", "DCSK"]
+        self.exptime = [0.0, 0.0]   # SVC, H_K
+        self.FS_number = [0, 0]     # SVC, H_K
+                        
+        self.dcs_list = ["DCSS", "DCSH", "DCSK"]    # for receive
+        self.dcs_target = ["SVC", "H_K", "all"]     # for command
+        self.dcs_ready = [False for _ in range(DCS_CNT)]
                         
         self.connect_to_server_InstSeq_ex()
         self.connect_to_server_ObsApp_q()
@@ -124,76 +121,106 @@ class Inst_Seq(threading.Thread):
     # hk -> sub
     def connect_to_server_dcs_q(self):
         # RabbitMQ connect
-        consumer = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, self.dcs_InstSeq_ex)      
-        consumer.connect_to_server()
-        consumer.define_consumer(self.dcs_InstSeq_q, self.callback_dcs)
+        dcs_InstSeq_ex = [self.dcs_list[i]+'.ex' for i in range(DCS_CNT)]
+        consumer = [None for _ in range(DCS_CNT)]
+        for idx in range(DCS_CNT):
+            consumer[idx] = MsgMiddleware(self.iam, self.ics_ip_addr, self.ics_id, self.ics_pwd, dcs_InstSeq_ex[idx])      
+            consumer[idx].connect_to_server()
+            
+        consumer[SVC].define_consumer(self.dcs_list[SVC]+'.q', self.callback_svc)
+        consumer[H].define_consumer(self.dcs_list[H]+'.q', self.callback_h)
+        consumer[K].define_consumer(self.dcs_list[K]+'.q', self.callback_k)
         
-        th = threading.Thread(target=consumer.start_consumer)
-        th.start()
+        for idx in range(DCS_CNT):
+            th = threading.Thread(target=consumer[idx].start_consumer)
+            th.start()
                         
                 
             
-    def callback_dcs(self, ch, method, properties, body):
+    def callback_svc(self, ch, method, properties, body):
         cmd = body.decode()        
         msg = "receive: %s" % cmd
         self.log.send(self.iam, INFO, msg)
 
         param = cmd.split()
-        dc_idx = self.dcs_list.index(param[1])
         
-        if param[0] == CMD_INITIALIZE2_ICS:
-            pass
+        if param[0] == CMD_INIT2_DONE or param[1] == CMD_INITIALIZE2_ICS:
+            self.dcs_ready[SVC] = True
     
         elif param[0] == CMD_SETFSPARAM_ICS:    
             pass
         
         elif param[0] == CMD_ACQUIRERAMP_ICS:
-            self.acquiring[dc_idx] = False
-            if dc_idx == SVC:
-                msg = "%s %s" % (CMD_COMPLETED, self.dcs_list[SVC])
-                self.producer[OBS_APP].send_message(self.InstSeq_ObsApp_q, msg)
-                
-            else:
-                if not self.acquiring[H] and not self.acquiring[K]:
-                    msg = "%s %s" % (CMD_COMPLETED, "all")
-                    self.producer[OBS_APP].send_message(self.InstSeq_ObsApp_q, msg)
-                
-                
+            msg = "%s %s" % (CMD_COMPLETED, self.dcs_list[SVC])
+            self.producer[OBS_APP].send_message(self.InstSeq_ObsApp_q, msg)
+            
+        elif param[0] == CMD_STOPACQUISITION:
+            pass
+                   
+    
+    def callback_h(self, ch, method, properties, body):
+        cmd = body.decode()        
+        msg = "receive: %s" % cmd
+        self.log.send(self.iam, INFO, msg)
+
+        param = cmd.split()
+        
+        if param[0] == CMD_INIT2_DONE or param[1] == CMD_INITIALIZE2_ICS:
+            self.dcs_ready[H] = True
+    
+        elif param[0] == CMD_SETFSPARAM_ICS:    
+            pass
+        
+        elif param[0] == CMD_ACQUIRERAMP_ICS:
+            msg = "%s %s" % (CMD_COMPLETED, self.dcs_list[H])
+            self.producer[OBS_APP].send_message(self.InstSeq_ObsApp_q, msg)
+            
+        elif param[0] == CMD_STOPACQUISITION:
+            pass
+                    
+                    
+    def callback_k(self, ch, method, properties, body):
+        cmd = body.decode()        
+        msg = "receive: %s" % cmd
+        self.log.send(self.iam, INFO, msg)
+
+        param = cmd.split()
+        
+        if param[0] == CMD_INIT2_DONE or param[1] == CMD_INITIALIZE2_ICS:
+            self.dcs_ready[K] = True
+    
+        elif param[0] == CMD_SETFSPARAM_ICS:    
+            pass
+        
+        elif param[0] == CMD_ACQUIRERAMP_ICS:
+            msg = "%s %s" % (CMD_COMPLETED, self.dcs_list[K])
+            self.producer[OBS_APP].send_message(self.InstSeq_ObsApp_q, msg)
+            
+        elif param[0] == CMD_STOPACQUISITION:
+            pass
             
 
     #-------------------------------
     # dcs command
-    def initialize2(self, dc_idx):
-        target = self.dcs_list[dc_idx]
-        if dc_idx == DC_CNT:
-            target = "all"
-        msg = "%s %s %d" % (CMD_INITIALIZE2_ICS, target, self.simulation_mode)
+    
+    # SVC, H_K, ALL
+    def initialize2(self, target_idx):
+        msg = "%s %s %d" % (CMD_INITIALIZE2_ICS, self.dcs_target[target_idx], self.simulation_mode)
         self.producer[DCS].send_message(self.InstSeq_dcs_q, msg)
         
         
-    def set_exp(self, dc_idx):      
-        target = self.dcs_list[dc_idx]
-        _exptime = 0
-        if dc_idx == SVC:
-            _exptime = self.exptime_svc
-        else:
-            _exptime = self.exptime_obs
-                  
-        _fowlerTime = _exptime - T_frame * self.FS_number
-        msg = "%s %s %d %.3f 1 %d 1 %.3f 1" % (CMD_SETFSPARAM_ICS, self.dcs_list[dc_idx], self.simulation_mode, _exptime, self.FS_number, _fowlerTime)
+    # SVC or H_K, Not ALL!!!!
+    def set_exp(self, target_idx):                        
+        _fowlerTime = self.exptime[target_idx] - T_frame * self.FS_number[target_idx]
+        msg = "%s %s %d %.3f 1 %d 1 %.3f 1" % (CMD_SETFSPARAM_ICS, self.dcs_target[target_idx], self.simulation_mode, self.exptime[target_idx], self.FS_number, _fowlerTime)
         self.producer[DCS].send_message(self.InstSeq_dcs_q, msg)
 
         
-    def start_acquisition(self, dc_idx):
-        target = self.dcs_list[dc_idx]
-        self.acquiring[dc_idx] = True
-        if dc_idx == DC_CNT:
-            target = "all"
-            for i in range(DC_CNT):
-                self.acquiring[i] = True
-        
-        msg = "%s %s %d" % (CMD_ACQUIRERAMP_ICS, target, self.simulation_mode)
+    def start_acquisition(self, target_idx):     
+        msg = "%s %s %d" % (CMD_ACQUIRERAMP_ICS, self.dcs_target[target_idx], self.simulation_mode)
         self.producer[DCS].send_message(self.InstSeq_dcs_q, msg)
+        
+        
         
         
     def save_fits_cube(self):

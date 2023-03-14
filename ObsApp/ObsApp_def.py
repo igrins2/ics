@@ -24,7 +24,7 @@ PDU_IDX = 8
 TM_CNT = 8
 SUB_CNT = 7
 COM_CNT = 6
-DC_CNT = 3
+DCS_CNT = 3
 
 # LOG option
 DEBUG = "DEBUG"
@@ -37,13 +37,25 @@ INST_SEQ = 0
 DCSS = 1
 HK_SUB = 2
 
+SINGLE_MODE = 0
+CONT_MODE = 1
+GUIDE_MODE = 2
+
 SVC = 0
 H_K = 1
+ALL = 2
 
 H = 1
 K = 2
 
-OBS_APP = 0 # for Inst.sequencer
+IMG_SVC = 0
+IMG_EXPAND = 1
+IMG_FITTING = 2
+IMG_PROFILE = 3
+
+OBS_APP = 0 # for InstSeq
+DCS = 1 # for InstSeq
+
 T_frame = 1.45479
 T_br = 2
 

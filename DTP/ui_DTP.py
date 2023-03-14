@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'DTPicCukc.ui'
+## Form generated from reading UI file 'DTPEVFATv.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.3.0
 ##
@@ -791,10 +791,10 @@ class Ui_Dialog(object):
         self.groupBox_3 = QGroupBox(Dialog)
         self.groupBox_3.setObjectName(u"groupBox_3")
         self.groupBox_3.setGeometry(QRect(10, 7, 331, 71))
-        self.radioButton_zscale = QRadioButton(self.groupBox_3)
-        self.radioButton_zscale.setObjectName(u"radioButton_zscale")
-        self.radioButton_zscale.setGeometry(QRect(20, 16, 61, 21))
-        self.radioButton_zscale.setFont(font2)
+        self.radio_zscale = QRadioButton(self.groupBox_3)
+        self.radio_zscale.setObjectName(u"radio_zscale")
+        self.radio_zscale.setGeometry(QRect(20, 16, 61, 21))
+        self.radio_zscale.setFont(font2)
         self.label_zscale_range = QLabel(self.groupBox_3)
         self.label_zscale_range.setObjectName(u"label_zscale_range")
         self.label_zscale_range.setGeometry(QRect(100, 16, 111, 20))
@@ -810,10 +810,10 @@ class Ui_Dialog(object):
         self.bt_scale_apply.setObjectName(u"bt_scale_apply")
         self.bt_scale_apply.setGeometry(QRect(260, 40, 51, 21))
         self.bt_scale_apply.setFont(font2)
-        self.radioButton_mscale = QRadioButton(self.groupBox_3)
-        self.radioButton_mscale.setObjectName(u"radioButton_mscale")
-        self.radioButton_mscale.setGeometry(QRect(20, 40, 71, 21))
-        self.radioButton_mscale.setFont(font2)
+        self.radio_mscale = QRadioButton(self.groupBox_3)
+        self.radio_mscale.setObjectName(u"radio_mscale")
+        self.radio_mscale.setGeometry(QRect(20, 40, 71, 21))
+        self.radio_mscale.setFont(font2)
         self.e_mscale_max = QLineEdit(self.groupBox_3)
         self.e_mscale_max.setObjectName(u"e_mscale_max")
         self.e_mscale_max.setGeometry(QRect(180, 40, 71, 21))
@@ -927,9 +927,9 @@ class Ui_Dialog(object):
         self.radio_whole_sync.setText(QCoreApplication.translate("Dialog", u"Whole Sync", None))
         self.radio_K.setText(QCoreApplication.translate("Dialog", u"K-Band", None))
         self.groupBox_3.setTitle("")
-        self.radioButton_zscale.setText(QCoreApplication.translate("Dialog", u"Zscale", None))
+        self.radio_zscale.setText(QCoreApplication.translate("Dialog", u"Zscale", None))
         self.label_zscale_range.setText(QCoreApplication.translate("Dialog", u"0 ~ 1000", None))
         self.bt_scale_apply.setText(QCoreApplication.translate("Dialog", u"Apply", None))
-        self.radioButton_mscale.setText(QCoreApplication.translate("Dialog", u"Manual", None))
+        self.radio_mscale.setText(QCoreApplication.translate("Dialog", u"Manual", None))
     # retranslateUi
 

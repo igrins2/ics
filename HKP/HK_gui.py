@@ -738,23 +738,23 @@ class MainWindow(Ui_Dialog, QMainWindow):
     def QShowValue(self, row, col, label, limit):      
         value = self.dtvalue[label]
         if value == DEFAULT_VALUE:
-            self.monitor[row][col].setForeground(QColor("white"))
-            self.monitor[row][col].setBackground(QColor("orange"))
+            self.monitor[row][col].setForeground(QColor("dimgray"))
+            #self.monitor[row][col].setBackground(QColor("white"))
             self.alarm_status = ALM_ERR
             
         elif abs(float(self.temp_normal[label]) - float(value)) < limit:
             self.monitor[row][col].setForeground(QColor("green"))
-            self.monitor[row][col].setBackground(QColor("white"))
+            #self.monitor[row][col].setBackground(QColor("white"))
             self.alarm_status = ALM_OK
             
         elif float(self.temp_lower[label]) <= float(value) <= float(self.temp_upper[label]):
-            self.monitor[row][col].setForeground(QColor("black"))
-            self.monitor[row][col].setBackground(QColor("yellow"))
+            self.monitor[row][col].setForeground(QColor("gold"))
+            #self.monitor[row][col].setBackground(QColor("yellow"))
             self.alarm_status = ALM_WARN
             
         elif float(self.temp_upper[label]) < float(value):
-            self.monitor[row][col].setForeground(QColor("white"))
-            self.monitor[row][col].setBackground(QColor("red"))
+            self.monitor[row][col].setForeground(QColor("red"))
+            #self.monitor[row][col].setBackground(QColor("red"))
             self.alarm_status = ALM_FAT
             
         self.monitor[row][col].setText(value)

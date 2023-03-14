@@ -3,7 +3,7 @@
 """
 Created on Jun 28, 2022
 
-Modified on Dec 30, 2022
+Modified on Mar 10, 2023
 
 @author: hilee
 """
@@ -36,7 +36,6 @@ import Libs.zscale as zs
 import glob
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-#from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 
 class MainWindow(Ui_Dialog, QMainWindow):
@@ -57,24 +56,22 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.setWindowTitle("Data Taking Package 1.0")        
         
         # canvas
-        self.image_fig = []
+        #self.image_fig = []
         self.image_ax = []
         self.image_canvas = []
         
         for i in range(DCS_CNT):
-            self.image_fig.append(Figure(figsize=(4, 4), dpi=100))
-            self.image_ax.append(self.image_fig[i].add_subplot(111))
-            self.image_fig[i].subplots_adjust(left=0.01,right=0.99,bottom=0.01,top=0.99) 
-            self.image_canvas.append(FigureCanvas(self.image_fig[i]))
+            _image_fig = Figure(figsize=(4, 4), dpi=100)
+            self.image_ax.append(_image_fig.add_subplot(111))
+            _image_fig.subplots_adjust(left=0.01,right=0.99,bottom=0.01,top=0.99) 
+            self.image_canvas.append(FigureCanvas(_image_fig))
         
-        #self.addToolBar(NavigationToolbar(self.image_canvas, self))
         vbox_svc = QVBoxLayout(self.frame_svc)
         vbox_svc.addWidget(self.image_canvas[SVC])
         vbox_H = QVBoxLayout(self.frame_H)
         vbox_H.addWidget(self.image_canvas[H])
         vbox_K = QVBoxLayout(self.frame_K)
         vbox_K.addWidget(self.image_canvas[K])
-        #vbox.addWidget(self.toolbar)
                 
         # load ini file
         self.cfg = sc.LoadConfig(WORKING_DIR + "IGRINS/Config/IGRINS.ini")
@@ -142,7 +139,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.simulation = NONE_MODE     #from EngTools
         
         self.mode = SINGLE_MODE
-        self.continous = False
+        self.continuous = False
         
         self.cal_mode = False
 
@@ -251,8 +248,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     def init_events(self):
                 
-        self.radioButton_zscale.clicked.connect(self.auto_scale)
-        self.radioButton_mscale.clicked.connect(self.manual_scale)
+        self.radio_zscale.clicked.connect(self.auto_scale)
+        self.radio_mscale.clicked.connect(self.manual_scale)
         self.bt_scale_apply.clicked.connect(self.scale_apply)
         
         self.radio_HK_sync.clicked.connect(self.set_HK_sync)
@@ -261,8 +258,8 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.radio_H.clicked.connect(self.set_H)
         self.radio_K.clicked.connect(self.set_K)
         
-        self.radioButton_zscale.setChecked(True)
-        self.radioButton_mscale.setChecked(False)
+        self.radio_zscale.setChecked(True)
+        self.radio_mscale.setChecked(False)
         self.bt_scale_apply.setEnabled(False)
         
         self.bt_take_image.clicked.connect(self.btn_click)   
@@ -620,7 +617,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                     self.cal_stop_clicked = False 
                                 
                 elif self.cur_cnt[dc_idx] < int(self.cal_e_repeat[self.cal_cur].text()):
-                    self.continous = True
+                    self.continuous = True
                     self.bt_take_image.click()
                 
                 else:
@@ -648,7 +645,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
                     self.enable_dcs(dc_idx, True)
 
                 elif self.cur_cnt[dc_idx] < int(self.e_repeat[dc_idx].text()):
-                    self.continous = True
+                    self.continuous = True
                     self.bt_take_image.click()
                 
                 else:
@@ -806,9 +803,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
                             
             if dc_idx == SVC:
                 _min, _max = 0, 0
-                if self.radioButton_zscale.isChecked():
+                if self.radio_zscale.isChecked():
                     _min, _max = self.zmin, self.zmax
-                elif self.radioButton_mscale.isChecked():
+                elif self.radio_mscale.isChecked():
                     _min, _max = self.mmin, self.mmax
             else:
                 _min, _max = self.zmin, self.zmax
@@ -983,8 +980,10 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.bt_init[SVC].setEnabled(False)
         if self.dcs_ready[H]:
             self.bt_init[H].setEnabled(True)
+            self.enable_dcs(H, True)
         if self.dcs_ready[K]:
             self.bt_init[K].setEnabled(True)
+            self.enable_dcs(K, True)
         
         for idx in range(DCS_CNT):
             self.bt_init_status(idx)
@@ -997,6 +996,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         for idx in range(DCS_CNT):
             if self.dcs_ready[idx]:
                 self.bt_init[idx].setEnabled(True)
+                self.enable_dcs(idx, True)
             self.bt_init_status(idx)
                     
     
@@ -1004,6 +1004,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.sel_mode = MODE_SVC
         if self.dcs_ready[SVC]:
             self.bt_init[SVC].setEnabled(True)
+            self.enable_dcs(SVC, True)
         self.bt_init[H].setEnabled(False)
         self.bt_init[K].setEnabled(False)
         
@@ -1019,6 +1020,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.bt_init[SVC].setEnabled(False)
         if self.dcs_ready[H]:
             self.bt_init[H].setEnabled(True)
+            self.enable_dcs(H, True)
         self.bt_init[K].setEnabled(False)
         
         for idx in range(DCS_CNT):
@@ -1034,6 +1036,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.bt_init[H].setEnabled(False)
         if self.dcs_ready[K]:
             self.bt_init[K].setEnabled(True)
+            self.enable_dcs(K, True)
             
         for idx in range(DCS_CNT):
             self.bt_init_status(idx)
@@ -1051,9 +1054,9 @@ class MainWindow(Ui_Dialog, QMainWindow):
         
     def btn_click(self):
         if self.mode == CONT_MODE:
-            if self.continous:
+            if self.continuous:
                 self.single_exposure()
-                self.continous = False
+                self.continuous = False
             else:
                 btn_name = self.bt_take_image.text()
                 self.stop_clicked = False
@@ -1067,7 +1070,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
             if btn_name == "Stop":
                 self.stop_clicked = True
             elif btn_name == "Abort":
-                self.stop_acquisition()
+                self.abort_acquisition()
             else:
                 self.single_exposure()
             
@@ -1090,7 +1093,7 @@ class MainWindow(Ui_Dialog, QMainWindow):
         self.protect_btn(False)
                     
     
-    def stop_acquisition(self):        
+    def abort_acquisition(self):        
         if self.radio_HK_sync.isChecked() or self.radio_whole_sync.isChecked() or self.radio_H.isChecked():
             self.stop_acquistion(H)
         if self.radio_HK_sync.isChecked() or self.radio_whole_sync.isChecked() or self.radio_K.isChecked():
