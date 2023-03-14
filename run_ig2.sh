@@ -10,7 +10,7 @@ case "$1" in
             ;;
 
         obs)
-	    (cd ObsApp; $PYTHONBIN ObsApp_gui.py)
+	    (cd ObsApp; $PYTHONBIN ObsApp_gui.py 0)
             ;;
          
         obs-simul)

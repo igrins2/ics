@@ -65,7 +65,7 @@ class DtvalueFromLabel:
                     for l, k in list(self._label_to_key.items()) if l)
 class MainWindow(Ui_Dialog, QMainWindow):
     
-    def __init__(self, simul='0'):
+    def __init__(self, simul):
         super().__init__()
         
         #cmd = "%sworkspace/ics/ObsApp/InstSeq.py" % WORKING_DIR
@@ -1001,7 +1001,6 @@ class MainWindow(Ui_Dialog, QMainWindow):
 if __name__ == "__main__":
     
     app = QApplication()
-    sys.argv.append('1')
     ObsApp = MainWindow(sys.argv[1])
     ObsApp.show()
         
